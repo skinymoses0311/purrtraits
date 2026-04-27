@@ -15,7 +15,9 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Turn your pet into museum-worthy art. AI portraits in seconds — digital or printed and framed." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ?v=2 forces browsers to refetch when the favicon changes; bump it on
+         future favicon updates to skip the aggressive favicon cache. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
     <title>{title}</title>
   </head>
   <body>
