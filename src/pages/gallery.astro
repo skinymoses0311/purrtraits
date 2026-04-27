@@ -36,20 +36,18 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
 
-  type Style = "oil" | "watercolour" | "pop" | "minimalist";
+  type Style = "oil" | "watercolour" | "pop";
 
   const STYLE_LABELS: Record<Style, string> = {
     oil: "Oil Painting",
     watercolour: "Watercolour",
     pop: "Pop Art",
-    minimalist: "Minimalist",
   };
   const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
     { key: "all", label: "All styles" },
-    { key: "minimalist", label: "Minimalist" },
-    { key: "pop", label: "Pop Art" },
-    { key: "watercolour", label: "Watercolour" },
     { key: "oil", label: "Oil Painting" },
+    { key: "watercolour", label: "Watercolour" },
+    { key: "pop", label: "Pop Art" },
   ];
   const ACTIVITY_LABELS: Record<string, string> = {
     regal: "👑 Regal",

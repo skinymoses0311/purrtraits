@@ -7,11 +7,11 @@ import Layout from "../layouts/Layout.astro";
     <div class="gen">
       <img id="pet-preview" class="gen__pet" alt="Your pet" />
       <h1 id="title">Painting your portraits…</h1>
-      <p class="muted" id="subtitle">Our AI is brushing 4 unique styles. About 30 seconds.</p>
+      <p class="muted" id="subtitle">Our AI is brushing 3 unique styles. About 30 seconds.</p>
       <div class="gen__dots" id="dots"></div>
 
       <div class="gen__grid">
-        {["Oil painting", "Watercolour", "Pop art", "Minimalist"].map((s) => (
+        {["Oil painting", "Watercolour", "Pop art"].map((s) => (
           <div class="gen__card">
             <div class="shimmer gen__shimmer"></div>
             <p class="display gen__label">{s}</p>
@@ -110,10 +110,10 @@ import Layout from "../layouts/Layout.astro";
 
   .gen__grid {
     display: grid; gap: 16px;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     width: 100%;
   }
-  @media (min-width: 800px) { .gen__grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (min-width: 600px) { .gen__grid { grid-template-columns: repeat(3, 1fr); } }
   .gen__card { border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-md); overflow: hidden; }
   .gen__shimmer { width: 100%; aspect-ratio: 4/5; }
   .gen__label { padding: 10px 12px; background: var(--c-white); text-align: left; font-size: 16px; }

@@ -68,7 +68,7 @@ import Layout from "../layouts/Layout.astro";
       )[product.format];
 
       const styleNice = (
-        { oil: "Oil Painting", watercolour: "Watercolour", pop: "Pop Art", minimalist: "Minimalist" } as any
+        { oil: "Oil Painting", watercolour: "Watercolour", pop: "Pop Art" } as any
       )[order.selectedStyle ?? ""] ?? "Custom";
 
       title.textContent = isDigital

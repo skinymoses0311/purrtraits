@@ -4,12 +4,18 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
-// fal.ai endpoint for Google's Gemini 2.5 Flash Image (a.k.a. Nano Banana),
-// in image-editing mode. Takes 1+ reference images + a prompt and returns a
-// new edited/styled image while preserving identity from the inputs.
+// Nano Banana (Gemini 2.5 Flash Image) — image-editing mode. Takes 1+ reference
+// images + a prompt and returns a new styled image while preserving identity.
 const FAL_URL = "https://fal.run/fal-ai/nano-banana/edit";
 
-const STYLES = ["oil", "watercolour", "pop", "minimalist"] as const;
+// Aura SR — fast 4× super-resolution upscaler. Nano Banana outputs around
+// 1024px on the long edge; a 4× upscale takes us to ~4096px, which is enough
+// for ~13" at 300 DPI or ~27" at 150 DPI (Gelato's minimum for art prints).
+// Cheaper than clarity-upscaler at roughly $0.02 vs $0.04 per image.
+const UPSCALE_URL = "https://fal.run/fal-ai/aura-sr";
+const UPSCALE_FACTOR = 4;
+
+const STYLES = ["oil", "watercolour", "pop"] as const;
 type Style = (typeof STYLES)[number];
 
 // ----- Prompt construction --------------------------------------------------
@@ -24,8 +30,6 @@ const STYLE_PROMPTS: Record<Style, string> = {
     "Render the scene as a delicate watercolour painting. Soft translucent washes of pigment, subtle paper texture, gentle blooms where colors bleed at the edges, light pastel palette with airy negative space. Loose impressionistic brushwork while keeping the pet's features precise. Light cream paper background.",
   pop:
     "Render the scene as a bold Andy Warhol-style pop art print. Vibrant flat blocks of saturated color, high-contrast outlines, retro silkscreen aesthetic, halftone dot patterns, two or three colour palette. Graphic and punchy.",
-  minimalist:
-    "Render the scene as a minimalist line illustration. Clean continuous black line on a warm cream background, no shading or fill, just the essential outline of the pet and any key scene elements. Modern Scandinavian aesthetic, calm and understated.",
 };
 
 // What the pet is actually doing in the portrait — driven by Q1 of the quiz.
@@ -91,6 +95,49 @@ async function callNanoBanana(
   return url;
 }
 
+// Upscales a fal-hosted image URL using clarity-upscaler. We swallow errors
+// here and let the caller fall back to the source URL — print-quality is a
+// nice-to-have, but a missing portrait would ruin the experience.
+async function upscale(imageUrl: string): Promise<string | null> {
+  const key = process.env.FAL_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(UPSCALE_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        upscaling_factor: UPSCALE_FACTOR,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn(`Upscaler ${res.status}: ${text.slice(0, 300)}`);
+      return null;
+    }
+    const data = (await res.json()) as { image?: { url?: string } };
+    return data.image?.url ?? null;
+  } catch (err) {
+    console.warn("Upscaler error:", err);
+    return null;
+  }
+}
+
+// Two-step pipeline: Nano Banana for the artistic transformation, then a
+// clarity upscale so the print file is high-DPI. Failures in step 2 fall
+// back to the lower-res source so the user still gets a portrait.
+async function generateOnePortrait(
+  prompt: string,
+  imageUrls: string[],
+): Promise<string> {
+  const lowRes = await callNanoBanana(prompt, imageUrls);
+  const hiRes = await upscale(lowRes);
+  return hiRes ?? lowRes;
+}
+
 // ----- Generation orchestration --------------------------------------------
 
 async function generateAllStyles(
@@ -109,10 +156,9 @@ async function generateAllStyles(
   // returning a partial gallery is better than blanking the screen.
   const results = await Promise.allSettled(
     STYLES.map((style) =>
-      callNanoBanana(buildPrompt(style, activity, mood), photos).then((url) => ({
-        style,
-        imageUrl: url,
-      })),
+      generateOnePortrait(buildPrompt(style, activity, mood), photos).then(
+        (url) => ({ style, imageUrl: url }),
+      ),
     ),
   );
 
