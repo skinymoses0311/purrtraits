@@ -1,0 +1,142 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Order confirmed · Purrtraits">
+  <main class="page container">
+    <div class="success">
+      <div class="success__check">✓</div>
+      <h1 id="title">Your Purrtrait is on its way!</h1>
+      <p class="muted" id="sub">We're confirming your order…</p>
+
+      <img id="art" class="success__art" alt="Your portrait" hidden />
+      <a id="download" class="btn btn--primary btn--lg" href="#" download hidden>⬇ Download your portrait</a>
+
+      <div class="success__details" id="details" hidden>
+        <p class="display success__details-title">What happens next</p>
+        <ol class="steps-list" id="steps-list"></ol>
+        <p class="muted" id="meta"></p>
+      </div>
+
+      <div class="success__actions">
+        <a href="/upload" class="btn btn--primary">Create another portrait →</a>
+        <a href="/gallery" class="btn">View my gallery</a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  const client = makeClient();
+  const params = new URLSearchParams(window.location.search);
+  const stripeSessionId = params.get("session_id");
+
+  const title = document.getElementById("title")!;
+  const sub = document.getElementById("sub")!;
+  const art = document.getElementById("art") as HTMLImageElement;
+  const download = document.getElementById("download") as HTMLAnchorElement;
+  const details = document.getElementById("details")!;
+  const stepsList = document.getElementById("steps-list")!;
+  const meta = document.getElementById("meta")!;
+
+  if (!stripeSessionId) {
+    title.textContent = "Hmm, no order found.";
+    sub.textContent = "Looks like you came here directly. Try starting a new portrait below.";
+  } else {
+    // Stripe webhooks are usually delivered within ~1s, but we poll briefly
+    // in case the user lands here before the webhook has been processed.
+    let attempts = 0;
+    let result: any = null;
+    while (attempts < 10) {
+      result = await client.query(api.orders.getByStripeSession, { stripeSessionId });
+      if (result?.order) break;
+      attempts++;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
+    if (!result?.order) {
+      title.textContent = "We're still confirming your order.";
+      sub.textContent = "This can take up to a minute. Refresh the page if it doesn't update.";
+    } else {
+      const { order, product } = result;
+      const isDigital = product.format === "digital";
+      const formatLabel = (
+        { digital: "Digital", poster: "Poster", framed: "Framed", canvas: "Canvas" } as any
+      )[product.format];
+
+      const styleNice = (
+        { oil: "Oil Painting", watercolour: "Watercolour", pop: "Pop Art", minimalist: "Minimalist" } as any
+      )[order.selectedStyle ?? ""] ?? "Custom";
+
+      title.textContent = isDigital
+        ? "Your Purrtrait is ready! 🎉"
+        : "Your Purrtrait is being printed! 🎨";
+      sub.textContent = isDigital
+        ? "Your high-resolution download is right below — we've also emailed you a copy."
+        : `We've sent your order to our print partner. You'll get tracking by email when it ships.`;
+
+      if (order.printFileUrl) {
+        art.src = order.printFileUrl;
+        art.hidden = false;
+        if (isDigital) {
+          download.href = order.printFileUrl;
+          download.hidden = false;
+        }
+      }
+
+      details.hidden = false;
+      const steps = isDigital
+        ? [
+            "Download link sent to your email",
+            "Save the high-res file (JPEG + PDF)",
+            "Print at home or order a frame separately",
+          ]
+        : [
+            "Order confirmed and queued at our print partner",
+            "Printed and quality-checked (3–5 days)",
+            "Shipped worldwide — tracking sent by email",
+          ];
+      stepsList.innerHTML = steps
+        .map(
+          (s, i) =>
+            `<li><span class="num">${i + 1}</span><span>${s}</span></li>`,
+        )
+        .join("");
+
+      const orderRef = order._id.slice(-8).toUpperCase();
+      meta.textContent = `${styleNice} · ${formatLabel} · Order #${orderRef}`;
+
+      // We deliberately do NOT clearSessionId() here — keeping the session
+      // alive means the user's gallery (and previous portraits) remain
+      // accessible from the nav after purchase.
+    }
+  }
+</script>
+
+<style>
+  .success {
+    max-width: 720px; margin: 0 auto; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .success__check {
+    width: 80px; height: 80px; border-radius: 50%; background: var(--c-pink);
+    color: white; font-size: 38px; display: flex; align-items: center; justify-content: center;
+  }
+  .success__art {
+    width: min(320px, 80vw); aspect-ratio: 4/5; object-fit: cover; border-radius: var(--r-md);
+    border: 1.5px solid var(--c-stroke-light);
+  }
+  .success__details { width: 100%; text-align: left; padding: 16px; }
+  .success__details-title { font-size: 20px; margin-bottom: 12px; text-align: center; }
+  .steps-list { list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 0; }
+  .steps-list li { display: flex; gap: 12px; align-items: flex-start; color: var(--c-text); }
+  .success__actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .num {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--c-pink); color: white; display: inline-flex;
+    align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700;
+  }
+</style>

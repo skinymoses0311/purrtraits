@@ -1,0 +1,126 @@
+---
+// Renders a realistic product mockup of an artwork URL, styled per format.
+// Pure CSS — no Gelato API call required.
+//
+// Aspect-ratio handling:
+//   The Gelato products we sell are 3:4 portrait, but Nano Banana's edit
+//   endpoint doesn't expose an aspect_ratio parameter and tends to return
+//   ~4:5 or 1:1 outputs depending on the input photos. Rather than forcing
+//   a hard crop into 3:4 (which lopped the sides off the artwork and any
+//   signatures within it), we let the artwork itself dictate the preview's
+//   aspect ratio and have the frame wrap snugly around it. The actual print
+//   on Gelato may be subtly cropped or letterboxed by their pre-print step
+//   if the source isn't 3:4 — that's a separate concern for fulfilment.
+---
+
+<figure class="pp" id="product-preview">
+  <div class="pp__stage">
+    <div class="pp__frame">
+      <div class="pp__mat">
+        <div class="pp__canvas-wrap">
+          <img id="pp-img" alt="Your portrait" class="pp__art" />
+          <div class="pp__glass"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pp__shadow"></div>
+  </div>
+  <figcaption id="pp-caption" class="muted pp__caption">Preview · scaled down for screen</figcaption>
+</figure>
+
+<style>
+  .pp {
+    margin: 0; padding: 36px 16px 28px; display: flex; flex-direction: column;
+    align-items: center; gap: 56px; background: var(--c-fill);
+    border-radius: var(--r-md); border: 1px solid var(--c-stroke-light);
+  }
+  /* The framed format casts the heaviest drop shadow (~34px below the frame),
+     so we add extra margin under the stage to keep the shadow out of the caption. */
+  .pp[data-format="framed"] .pp__stage { margin-bottom: 8px; }
+
+  /* The stage is a width-constrained wrapper. Height adjusts to whatever
+     aspect ratio the artwork actually has, so we never crop it. */
+  .pp__stage {
+    position: relative;
+    width: var(--art-w, 240px);
+  }
+
+  /* Floor shadow sits below the stage in the figure's flex flow rather than
+     overlapping it absolutely — keeps it from creeping into the caption. */
+  .pp__shadow {
+    position: absolute; left: 50%; bottom: -18px;
+    width: 88%; height: 14px; transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.18), rgba(0,0,0,0) 65%);
+    filter: blur(3px); pointer-events: none;
+  }
+
+  /* ---- Frame layer (only the "framed" format actually shows it) ---- */
+  .pp__frame {
+    transition: padding .2s ease, background .2s ease, box-shadow .2s ease;
+  }
+  .pp[data-format="poster"] .pp__frame {
+    padding: 0;
+    box-shadow: 0 14px 28px -16px rgba(0,0,0,.25), 0 4px 8px -4px rgba(0,0,0,.15);
+  }
+  .pp[data-format="framed"][data-frame="natural-wood"] .pp__frame {
+    padding: 18px;
+    background:
+      linear-gradient(140deg, #c89c6f 0%, #b88556 30%, #d4a87a 55%, #b58452 80%, #a87445 100%);
+    box-shadow:
+      inset 0 0 0 2px #8e623a,
+      inset 0 0 18px rgba(0,0,0,.25),
+      0 18px 32px -16px rgba(0,0,0,.35),
+      0 6px 12px -6px rgba(0,0,0,.2);
+  }
+  .pp[data-format="framed"][data-frame="dark-wood"] .pp__frame {
+    padding: 18px;
+    background:
+      linear-gradient(140deg, #4a2f20 0%, #3a2316 30%, #5b3a26 55%, #2e1c11 80%, #3a2316 100%);
+    box-shadow:
+      inset 0 0 0 2px #1d100a,
+      inset 0 0 18px rgba(0,0,0,.45),
+      0 18px 32px -16px rgba(0,0,0,.4),
+      0 6px 12px -6px rgba(0,0,0,.25);
+  }
+  .pp[data-format="canvas"] .pp__frame {
+    padding: 0;
+    box-shadow:
+      0 18px 32px -16px rgba(0,0,0,.4),
+      0 6px 12px -6px rgba(0,0,0,.2);
+  }
+
+  /* ---- Mat board (the visible white border between frame and art) ---- */
+  .pp__mat {
+    background: var(--c-white);
+    transition: padding .2s ease;
+  }
+  .pp[data-format="framed"] .pp__mat { padding: 14px; }
+  .pp[data-format="poster"] .pp__mat,
+  .pp[data-format="canvas"] .pp__mat { padding: 0; background: transparent; }
+
+  /* ---- Canvas wrap (chunky 3D edge for canvas products) ---- */
+  .pp__canvas-wrap { position: relative; line-height: 0; }
+  .pp[data-format="canvas"] .pp__canvas-wrap {
+    box-shadow:
+      inset 14px 0 12px -10px rgba(0,0,0,.2),
+      inset -14px 0 12px -10px rgba(0,0,0,.2),
+      inset 0 -10px 14px -10px rgba(0,0,0,.15);
+  }
+
+  /* ---- Artwork — natural aspect ratio drives preview height ---- */
+  .pp__art {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* ---- Glass sheen overlay on framed ---- */
+  .pp__glass {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.18) 50%, rgba(255,255,255,0) 60%);
+    opacity: 0; transition: opacity .2s ease;
+  }
+  .pp[data-format="framed"] .pp__glass { opacity: .8; }
+
+  .pp__caption { font-size: 13px; }
+</style>

@@ -1,0 +1,283 @@
+---
+import Layout from "../layouts/Layout.astro";
+import ProductPreview from "../components/ProductPreview.astro";
+---
+
+<Layout title="Choose your format · Purrtraits">
+  <main class="page container">
+    <a href="/reveal" class="back-link muted">← Back to portraits</a>
+
+    <div class="pdp">
+      <div class="pdp__media">
+        <img id="hero" class="pdp__hero" alt="Selected portrait" />
+        <div id="preview-wrap" hidden>
+          <p class="display pdp__preview-label">How it'll look</p>
+          <ProductPreview />
+        </div>
+      </div>
+
+      <div class="pdp__detail">
+        <p class="muted" id="style-label"></p>
+        <h1 id="title">Your portrait</h1>
+
+        <div class="format-tabs" id="formats"></div>
+
+        <div class="pdp__variant" id="size-area">
+          <p class="display pdp__section-label">Choose size</p>
+          <div class="pdp__chips" id="sizes"></div>
+          <p class="muted pdp__copy" id="size-copy"></p>
+        </div>
+
+        <div class="pdp__variant" id="frame-area" hidden>
+          <p class="display pdp__section-label">Frame colour</p>
+          <div class="pdp__chips" id="frames">
+            <button class="chip" data-frame="natural-wood">Natural wood</button>
+            <button class="chip" data-frame="dark-wood">Dark wood</button>
+          </div>
+        </div>
+
+        <div class="pdp__price-row">
+          <p class="display pdp__price" id="price">—</p>
+          <div class="pdp__benefits">
+            <span class="tag">✓ Secure checkout</span>
+            <span class="tag" id="benefit-2">✓ Instant download</span>
+          </div>
+        </div>
+
+        <button id="buy" class="btn btn--primary btn--block" disabled>Add to cart</button>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  type Format = "digital" | "poster" | "framed" | "canvas";
+  type Size = "small" | "medium" | "large";
+  type Frame = "natural-wood" | "dark-wood";
+
+  const STYLE_LABELS: Record<string, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+    minimalist: "Minimalist",
+  };
+  const FORMAT_LABELS: Record<Format, string> = {
+    digital: "Digital",
+    poster: "Poster",
+    framed: "Framed",
+    canvas: "Canvas",
+  };
+  const SIZE_LABELS: Record<Size, string> = {
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
+  };
+
+  const client = makeClient();
+  const sessionId = getSessionId();
+  if (!requireOrRedirect(sessionId, "/upload")) {
+    // redirected
+  } else {
+    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    if (!session?.selectedStyle || !session.generations) {
+      window.location.href = "/reveal";
+    } else {
+      const products = await client.query(api.products.list, {});
+      const selectedStyle = session.selectedStyle;
+      const styleLabel = STYLE_LABELS[selectedStyle] ?? selectedStyle;
+      const portrait = session.generations.find((g) => g.style === selectedStyle)!;
+
+      // DOM refs
+      const hero = document.getElementById("hero") as HTMLImageElement;
+      const title = document.getElementById("title")!;
+      const styleLbl = document.getElementById("style-label")!;
+      const formats = document.getElementById("formats")!;
+      const sizes = document.getElementById("sizes")!;
+      const sizeCopy = document.getElementById("size-copy")!;
+      const sizeArea = document.getElementById("size-area")!;
+      const frameArea = document.getElementById("frame-area")!;
+      const frames = document.getElementById("frames")!;
+      const price = document.getElementById("price")!;
+      const buy = document.getElementById("buy") as HTMLButtonElement;
+      const benefit2 = document.getElementById("benefit-2")!;
+
+      hero.src = portrait.imageUrl;
+      title.textContent = `${styleLabel} Portrait`;
+      styleLbl.textContent = "Your selection";
+
+      // Product preview wiring. The CSS component reads data-format,
+      // data-frame, and data-size to pick its mockup style, plus its image.
+      const previewWrap = document.getElementById("preview-wrap")!;
+      const preview = document.getElementById("product-preview") as HTMLElement;
+      const previewImg = document.getElementById("pp-img") as HTMLImageElement;
+      const previewCaption = document.getElementById("pp-caption")!;
+      previewImg.src = portrait.imageUrl;
+
+      // State
+      let format: Format = "digital";
+      let size: Size = "medium";
+      let frame: Frame = "natural-wood";
+
+      function findProduct() {
+        return products.find(
+          (p: any) =>
+            p.format === format &&
+            (format === "digital" || p.size === size) &&
+            (format !== "framed" || p.frame === frame),
+        ) as any;
+      }
+
+      function fmtPrice(cents: number) {
+        return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100);
+      }
+
+      function render() {
+        // Format tabs
+        formats.innerHTML = "";
+        (Object.keys(FORMAT_LABELS) as Format[]).forEach((f) => {
+          const tab = document.createElement("button");
+          tab.className = "format-tab" + (f === format ? " format-tab--active" : "");
+          tab.textContent = FORMAT_LABELS[f];
+          tab.addEventListener("click", () => {
+            format = f;
+            render();
+          });
+          formats.appendChild(tab);
+        });
+
+        // Size area
+        if (format === "digital") {
+          sizeArea.hidden = true;
+          frameArea.hidden = true;
+        } else {
+          sizeArea.hidden = false;
+          sizes.innerHTML = "";
+          (["small", "medium", "large"] as Size[]).forEach((s) => {
+            const c = document.createElement("button");
+            c.className = "chip" + (s === size ? " chip--active" : "");
+            c.textContent = SIZE_LABELS[s];
+            c.addEventListener("click", () => {
+              size = s;
+              render();
+            });
+            sizes.appendChild(c);
+          });
+          frameArea.hidden = format !== "framed";
+          if (format === "framed") {
+            frames.querySelectorAll<HTMLButtonElement>(".chip").forEach((el) => {
+              el.classList.toggle("chip--active", el.dataset.frame === frame);
+              el.onclick = () => {
+                frame = (el.dataset.frame as Frame) ?? "natural-wood";
+                render();
+              };
+            });
+          }
+        }
+
+        // Size copy
+        const product = findProduct();
+        sizeCopy.textContent = product?.description ?? "";
+
+        // Benefits chip
+        benefit2.textContent =
+          format === "digital" ? "✓ Instant download" : "✓ Worldwide shipping";
+
+        // Price + buy state
+        if (product) {
+          price.textContent = fmtPrice(product.priceCents);
+          buy.disabled = false;
+          buy.textContent = format === "digital" ? "Buy & download" : "Add to cart";
+          buy.dataset.productId = product._id;
+        } else {
+          price.textContent = "—";
+          buy.disabled = true;
+          buy.textContent = "Out of stock";
+        }
+
+        // Product preview update — driven by data attributes.
+        if (format === "digital") {
+          previewWrap.hidden = true;
+        } else {
+          previewWrap.hidden = false;
+          preview.dataset.format = format;
+          preview.dataset.frame = format === "framed" ? frame : "";
+          preview.dataset.size = size;
+          // Scale the on-screen preview by chosen size so customers feel
+          // a physical sense of "small vs large" — purely visual scaling.
+          const widths: Record<typeof size, string> = {
+            small: "180px",
+            medium: "240px",
+            large: "300px",
+          } as any;
+          preview.style.setProperty("--art-w", widths[size]);
+
+          const dimLabel: Record<string, string> = {
+            small: '12 × 16"',
+            medium: '18 × 24"',
+            large: '24 × 32"',
+          };
+          const formatLabel: Record<Format, string> = {
+            poster: "Poster",
+            framed: `Framed (${frame === "natural-wood" ? "natural wood" : "dark wood"})`,
+            canvas: "Canvas (slim 2cm)",
+            digital: "",
+          };
+          previewCaption.textContent =
+            `${formatLabel[format]} · ${dimLabel[size]} · scaled for screen`;
+        }
+      }
+
+      buy.addEventListener("click", async () => {
+        const productId = buy.dataset.productId;
+        if (!productId) return;
+        buy.disabled = true;
+        buy.textContent = "Redirecting...";
+        try {
+          const url = await client.action(api.payments.createCheckoutSession, {
+            productId: productId as any,
+            sessionId: sessionId as any,
+            printFileUrl: portrait.imageUrl,
+            successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${window.location.origin}/pdp?canceled=1`,
+          });
+          window.location.href = url;
+        } catch (err) {
+          buy.disabled = false;
+          buy.textContent = "Add to cart";
+          alert("Checkout failed: " + (err as Error).message);
+        }
+      });
+
+      render();
+    }
+  }
+</script>
+
+<style>
+  .back-link { display: inline-block; margin-bottom: 16px; }
+
+  .pdp { display: grid; gap: 32px; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 900px) { .pdp { grid-template-columns: 1fr 1fr; gap: 60px; } }
+
+  .pdp__media { display: flex; flex-direction: column; gap: 12px; }
+  .pdp__preview-label { font-size: 18px; font-weight: 600; margin: 12px 0 8px; }
+  .pdp__hero {
+    width: 100%; aspect-ratio: 4/5; object-fit: cover;
+    border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-md); background: var(--c-fill);
+  }
+  .pdp__detail { display: flex; flex-direction: column; gap: 16px; }
+  .pdp__detail h1 { font-size: clamp(2rem, 4vw, 2.4rem); }
+  .pdp__section-label { font-size: 18px; font-weight: 600; }
+  .pdp__chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pdp__copy { font-size: 14px; }
+
+  .pdp__price-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    border-top: 1px solid var(--c-stroke-light); padding-top: 16px; flex-wrap: wrap;
+  }
+  .pdp__price { font-size: 36px; font-weight: 700; }
+  .pdp__benefits { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>

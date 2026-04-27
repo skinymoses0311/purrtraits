@@ -1,0 +1,151 @@
+/* Purrtraits — Design Tokens & Globals
+   Pulled from the wireframe palette. Caveat is the brand display font.
+   We pair it with system-ui for body copy where readability matters.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+  --c-cream: #FFFDF8;
+  --c-fill: #F2EBE0;
+  --c-stroke: #C4A882;
+  --c-stroke-light: #E0D5C4;
+  --c-pink: #E8A4B8;
+  --c-pink-light: #F7E8EE;
+  --c-dark: #2D1F1A;
+  --c-text: #7A6558;
+  --c-white: #FFFFFF;
+  --c-shimmer: #E8DFD2;
+
+  --font-display: 'Caveat', cursive;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --c-light: #9C8878; /* lighter muted text used on the gallery */
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 100px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--c-cream);
+  color: var(--c-dark);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; line-height: 1.05; }
+h1 { font-size: clamp(2rem, 6vw, 3.25rem); }
+h2 { font-size: clamp(1.5rem, 4vw, 2.25rem); }
+h3 { font-size: 1.5rem; }
+
+a { color: inherit; text-decoration: none; }
+
+img { max-width: 100%; display: block; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+@media (min-width: 768px) { .container { padding: 0 40px; } }
+
+/* Buttons --------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 28px; border-radius: var(--r-pill);
+  background: transparent; border: 2px solid var(--c-stroke);
+  font-family: var(--font-display); font-size: 18px; font-weight: 600;
+  color: var(--c-dark); cursor: pointer; transition: transform .08s ease, opacity .15s ease, background .15s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.btn--primary { background: var(--c-pink); border-color: var(--c-pink); color: white; }
+.btn--primary:hover { background: #db8aa3; border-color: #db8aa3; }
+.btn--block { width: 100%; padding: 14px 28px; border-radius: var(--r-md); font-size: 20px; }
+.btn--lg { padding: 16px 36px; font-size: 22px; border-radius: var(--r-md); }
+
+/* Tags & meta ----------------------------------------------------- */
+.tag {
+  display: inline-flex; padding: 4px 12px; border-radius: var(--r-pill);
+  background: var(--c-pink-light); border: 1px solid var(--c-pink);
+  font-family: var(--font-display); font-size: 14px; color: var(--c-dark);
+}
+.muted { color: var(--c-text); }
+
+/* Cards / boxes --------------------------------------------------- */
+.card {
+  background: var(--c-white); border: 1.5px solid var(--c-stroke-light);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.divider { width: 100%; height: 1px; background: var(--c-stroke-light); }
+
+/* Inputs ---------------------------------------------------------- */
+.input {
+  width: 100%; height: 48px; padding: 0 14px;
+  background: var(--c-white); border: 1.5px solid var(--c-stroke); border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: 15px; color: var(--c-dark);
+}
+.input:focus { outline: none; border-color: var(--c-pink); }
+
+/* Page padding ---------------------------------------------------- */
+.page { padding: 24px 0 80px; }
+@media (min-width: 768px) { .page { padding: 40px 0 100px; } }
+
+/* Step pills ------------------------------------------------------ */
+.steps { display: flex; align-items: flex-start; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.step { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.step__dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--c-fill); border: 2px solid var(--c-stroke);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  color: var(--c-text);
+}
+.step--active .step__dot, .step--done .step__dot {
+  background: var(--c-pink); border-color: var(--c-pink); color: white;
+}
+.step__label { font-family: var(--font-display); font-size: 14px; color: var(--c-text); }
+
+/* Progress bar ---------------------------------------------------- */
+.progress { display: flex; align-items: center; gap: 10px; }
+.progress__track { flex: 1; height: 8px; background: var(--c-stroke-light); border-radius: 100px; overflow: hidden; }
+.progress__fill { height: 100%; background: var(--c-pink); transition: width .3s ease; }
+
+/* Shimmer (for loading skeletons) -------------------------------- */
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.shimmer {
+  background: linear-gradient(90deg, var(--c-shimmer) 0%, var(--c-fill) 50%, var(--c-shimmer) 100%);
+  background-size: 800px 100%; animation: shimmer 1.4s infinite linear;
+}
+
+/* Image thumbs / placeholders ------------------------------------ */
+.thumb { background: var(--c-fill); border: 1.5px solid var(--c-stroke); border-radius: var(--r-md); object-fit: cover; }
+
+/* Selected state for cards -------------------------------------- */
+.selectable {
+  border: 3px solid var(--c-stroke-light); border-radius: var(--r-md);
+  background: var(--c-white); cursor: pointer; transition: border-color .15s ease, transform .08s ease;
+  overflow: hidden;
+}
+.selectable:hover { transform: translateY(-2px); }
+.selectable--active { border-color: var(--c-pink); }
+
+/* Pill chip selectors (sizes, frame colors) --------------------- */
+.chip {
+  padding: 10px 20px; border-radius: var(--r-sm);
+  border: 1.5px solid var(--c-stroke-light); background: transparent;
+  font-family: var(--font-display); font-size: 16px; cursor: pointer;
+  transition: all .15s ease;
+}
+.chip:hover { border-color: var(--c-stroke); }
+.chip--active { border-color: var(--c-pink); background: var(--c-pink-light); color: var(--c-dark); font-weight: 700; }
+
+/* Format tab selectors ----------------------------------------- */
+.format-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.format-tab {
+  padding: 12px 8px; border-radius: var(--r-sm); cursor: pointer;
+  border: 1.5px solid var(--c-stroke-light); background: transparent; text-align: center;
+  font-family: var(--font-display); font-size: 16px; transition: all .15s ease;
+}
+.format-tab--active { background: var(--c-pink); border-color: var(--c-pink); color: white; font-weight: 700; }

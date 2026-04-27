@@ -1,0 +1,129 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Your portraits · Purrtraits">
+  <main class="page container">
+    <header class="reveal__header">
+      <div>
+        <h1>Your portraits are ready! 🎨</h1>
+        <p class="muted">Click a style to select it, then choose your format.</p>
+      </div>
+      <button id="regen" class="btn">Regenerate (<span id="regen-count">2</span> left)</button>
+    </header>
+
+    <div class="reveal__grid" id="grid"></div>
+
+    <div class="reveal__footer">
+      <button id="continue" class="btn btn--primary btn--lg" disabled>Choose this style →</button>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  const STYLE_LABELS: Record<string, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+    minimalist: "Minimalist",
+  };
+
+  const client = makeClient();
+  const sessionId = getSessionId();
+
+  if (!requireOrRedirect(sessionId, "/upload")) {
+    // redirected
+  } else {
+    const grid = document.getElementById("grid")!;
+    const continueBtn = document.getElementById("continue") as HTMLButtonElement;
+    const regenBtn = document.getElementById("regen") as HTMLButtonElement;
+    const regenCount = document.getElementById("regen-count")!;
+
+    let selected: string | null = null;
+
+    function render(generations: { style: string; imageUrl: string }[], regensRemaining: number) {
+      regenCount.textContent = String(regensRemaining);
+      regenBtn.disabled = regensRemaining <= 0;
+      grid.innerHTML = "";
+      generations.forEach((g) => {
+        const card = document.createElement("button");
+        card.className = "selectable reveal__card";
+        card.dataset.style = g.style;
+        card.innerHTML = `
+          <img src="${g.imageUrl}" alt="${STYLE_LABELS[g.style]}" class="reveal__img" />
+          <div class="reveal__meta">
+            <span class="display">${STYLE_LABELS[g.style]}</span>
+            <span class="reveal__check" aria-hidden="true">✓</span>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          selected = g.style;
+          document.querySelectorAll(".reveal__card").forEach((el) =>
+            el.classList.toggle("selectable--active", el === card),
+          );
+          continueBtn.disabled = false;
+          continueBtn.textContent = `Choose ${STYLE_LABELS[g.style]} →`;
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    if (!session?.generations) {
+      window.location.href = "/generate";
+    } else {
+      render(session.generations, session.regensRemaining);
+
+      regenBtn.addEventListener("click", async () => {
+        regenBtn.disabled = true;
+        regenBtn.textContent = "Regenerating…";
+        try {
+          await client.action(api.fal.regenerate, { sessionId: sessionId as any });
+          const updated = await client.query(api.sessions.get, { id: sessionId as any });
+          render(updated!.generations!, updated!.regensRemaining);
+          regenBtn.textContent = `Regenerate (${updated!.regensRemaining} left)`;
+          regenBtn.disabled = updated!.regensRemaining <= 0;
+        } catch (err) {
+          alert("Regeneration failed: " + (err as Error).message);
+          regenBtn.disabled = false;
+          regenBtn.textContent = `Regenerate`;
+        }
+      });
+
+      continueBtn.addEventListener("click", async () => {
+        if (!selected) return;
+        await client.mutation(api.sessions.selectStyle, {
+          id: sessionId as any,
+          style: selected,
+        });
+        window.location.href = "/pdp";
+      });
+    }
+  }
+</script>
+
+<style>
+  .reveal__header {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .reveal__grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 800px) { .reveal__grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .reveal__card { padding: 0; font-family: inherit; }
+  .reveal__img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; }
+  .reveal__meta {
+    padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 18px;
+  }
+  .reveal__check { display: none; color: var(--c-pink); font-weight: 700; }
+  .selectable--active .reveal__check { display: inline; }
+
+  .reveal__footer { margin-top: 28px; display: flex; justify-content: center; }
+</style>

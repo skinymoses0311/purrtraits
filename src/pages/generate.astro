@@ -1,0 +1,125 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Generating your portraits · Purrtraits">
+  <main class="page container">
+    <div class="gen">
+      <img id="pet-preview" class="gen__pet" alt="Your pet" />
+      <h1 id="title">Painting your portraits…</h1>
+      <p class="muted" id="subtitle">Our AI is brushing 4 unique styles. About 30 seconds.</p>
+      <div class="gen__dots" id="dots"></div>
+
+      <div class="gen__grid">
+        {["Oil painting", "Watercolour", "Pop art", "Minimalist"].map((s) => (
+          <div class="gen__card">
+            <div class="shimmer gen__shimmer"></div>
+            <p class="display gen__label">{s}</p>
+          </div>
+        ))}
+      </div>
+
+      <div id="error" class="gen__error" hidden>
+        <p class="display">Something went wrong</p>
+        <p class="muted" id="error-msg"></p>
+        <button class="btn" onclick="window.location.reload()">Try again</button>
+        <a href="/upload" class="btn">Use different photos</a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  const client = makeClient();
+  const sessionId = getSessionId();
+  if (!requireOrRedirect(sessionId, "/upload")) {
+    // redirected
+  } else {
+    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    if (!session?.petPhotoUrls?.length || !session?.quizAnswers) {
+      window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
+    } else {
+      const preview = document.getElementById("pet-preview") as HTMLImageElement;
+      preview.src = session.petPhotoUrls[0];
+
+      // Friendly progress dots while we wait — Nano Banana usually finishes
+      // in 15–25s. We don't have streaming progress, so we just animate.
+      const dots = document.getElementById("dots")!;
+      let frame = 0;
+      const total = 5;
+      const renderDots = () => {
+        dots.innerHTML = "";
+        for (let i = 0; i < total; i++) {
+          const d = document.createElement("span");
+          d.className = "dot" + (i <= frame ? " dot--on" : "");
+          dots.appendChild(d);
+        }
+      };
+      renderDots();
+      const tick = setInterval(() => {
+        frame = (frame + 1) % total;
+        renderDots();
+      }, 400);
+
+      try {
+        const result = await client.action(api.fal.generatePortraits, {
+          sessionId: sessionId as any,
+        });
+        clearInterval(tick);
+        if (result.count > 0) {
+          window.location.href = "/reveal";
+        } else {
+          showError("No portraits came back. Please try again.");
+        }
+      } catch (err) {
+        clearInterval(tick);
+        showError((err as Error).message ?? "Generation failed");
+      }
+    }
+  }
+
+  function showError(msg: string) {
+    const title = document.getElementById("title")!;
+    const subtitle = document.getElementById("subtitle")!;
+    const dots = document.getElementById("dots")!;
+    const error = document.getElementById("error")!;
+    const errorMsg = document.getElementById("error-msg")!;
+    title.textContent = "Hmm — let's try that again";
+    subtitle.textContent = "";
+    dots.style.display = "none";
+    error.hidden = false;
+    errorMsg.textContent = msg;
+  }
+</script>
+
+<style>
+  .gen {
+    max-width: 820px; margin: 0 auto; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .gen__pet {
+    width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--c-pink-light);
+  }
+  .gen__dots { display: flex; gap: 8px; margin: 8px 0 16px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c-stroke-light); transition: background .2s; }
+  .dot--on { background: var(--c-pink); }
+
+  .gen__grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+  @media (min-width: 800px) { .gen__grid { grid-template-columns: repeat(4, 1fr); } }
+  .gen__card { border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-md); overflow: hidden; }
+  .gen__shimmer { width: 100%; aspect-ratio: 4/5; }
+  .gen__label { padding: 10px 12px; background: var(--c-white); text-align: left; font-size: 16px; }
+
+  .gen__error {
+    margin-top: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center;
+    padding: 24px; background: var(--c-pink-light); border: 1px solid var(--c-pink); border-radius: var(--r-md);
+  }
+</style>

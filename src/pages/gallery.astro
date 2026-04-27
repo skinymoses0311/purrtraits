@@ -1,0 +1,288 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Your gallery · Purrtraits">
+  <main class="page container">
+    <header class="g-head">
+      <div>
+        <h1>Your gallery</h1>
+        <p class="g-sub" id="meta">Saved portraits from this session.</p>
+      </div>
+      <a href="/upload" class="btn btn--primary g-cta" id="cta-new">✨ Create another portrait</a>
+    </header>
+
+    <!-- Filter pills -->
+    <div class="g-filters" id="filters" role="tablist" aria-label="Filter by style"></div>
+
+    <!-- Empty state -->
+    <div id="empty" class="g-empty" hidden>
+      <p class="display g-empty__title">No portraits yet</p>
+      <p class="muted">Upload some photos and we'll generate four styles for you.</p>
+      <a href="/upload" class="btn btn--primary">✨ Start now</a>
+    </div>
+
+    <!-- Card grid -->
+    <div class="g-grid" id="grid"></div>
+
+    <p class="g-foot">
+      Portraits are saved for this session ·
+      <a href="/upload" class="g-foot__link">Make another portrait →</a>
+    </p>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  type Style = "oil" | "watercolour" | "pop" | "minimalist";
+
+  const STYLE_LABELS: Record<Style, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+    minimalist: "Minimalist",
+  };
+  const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
+    { key: "all", label: "All styles" },
+    { key: "minimalist", label: "Minimalist" },
+    { key: "pop", label: "Pop Art" },
+    { key: "watercolour", label: "Watercolour" },
+    { key: "oil", label: "Oil Painting" },
+  ];
+  const ACTIVITY_LABELS: Record<string, string> = {
+    regal: "👑 Regal",
+    playing: "🎾 Playing",
+    napping: "💤 Napping",
+    adventuring: "🏔️ Adventure",
+  };
+
+  const client = makeClient();
+  const sessionId = getSessionId();
+
+  const grid = document.getElementById("grid")!;
+  const empty = document.getElementById("empty")!;
+  const meta = document.getElementById("meta")!;
+  const filters = document.getElementById("filters")!;
+  const ctaNew = document.getElementById("cta-new")!;
+  const foot = document.querySelector(".g-foot") as HTMLElement;
+
+  type Item = {
+    style: string;
+    imageUrl: string;
+    activity?: string;
+    mood?: string;
+    createdAt: number;
+    _index: number;
+  };
+
+  let allItems: Item[] = [];
+  let currentFilter: "all" | Style = "all";
+
+  if (!sessionId) {
+    showEmpty();
+  } else {
+    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    const items = session?.galleryItems ?? [];
+    if (items.length === 0) {
+      showEmpty();
+    } else {
+      // Newest first
+      allItems = [...items]
+        .map((it: any, i: number) => ({ ...it, _index: i }))
+        .reverse();
+
+      // Header copy: count + activity tag(s) seen this session
+      const activities = new Set(allItems.map((i) => i.activity).filter(Boolean));
+      const activityBits = [...activities]
+        .map((a) => ACTIVITY_LABELS[a as string] ?? a)
+        .join(" · ");
+      meta.innerHTML = activityBits
+        ? `${allItems.length} portraits · <span class="g-sub__hl">${activityBits}</span>`
+        : `${allItems.length} portrait${allItems.length === 1 ? "" : "s"} this session.`;
+
+      renderFilters();
+      renderGrid();
+    }
+  }
+
+  function showEmpty() {
+    empty.hidden = false;
+    ctaNew.style.display = "none";
+    filters.style.display = "none";
+    foot.style.display = "none";
+  }
+
+  function renderFilters() {
+    filters.innerHTML = "";
+    for (const f of STYLE_FILTERS) {
+      // Hide pills with no items
+      if (f.key !== "all" && !allItems.some((i) => i.style === f.key)) continue;
+      const btn = document.createElement("button");
+      btn.className = "g-pill" + (currentFilter === f.key ? " g-pill--active" : "");
+      btn.textContent = f.label;
+      btn.dataset.key = f.key;
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", String(currentFilter === f.key));
+      btn.addEventListener("click", () => {
+        currentFilter = f.key as any;
+        renderFilters();
+        renderGrid();
+      });
+      filters.appendChild(btn);
+    }
+  }
+
+  function renderGrid() {
+    const visible =
+      currentFilter === "all"
+        ? allItems
+        : allItems.filter((i) => i.style === currentFilter);
+
+    grid.innerHTML = "";
+    visible.forEach((it) => {
+      const card = document.createElement("article");
+      card.className = "g-card";
+      const styleLabel = STYLE_LABELS[it.style as Style] ?? it.style;
+      const activity =
+        it.activity && ACTIVITY_LABELS[it.activity]
+          ? `<span class="g-card__tag">${ACTIVITY_LABELS[it.activity]}</span>`
+          : "";
+      card.innerHTML = `
+        <div class="g-card__media">
+          <img src="${it.imageUrl}" alt="${styleLabel}" class="g-card__img" />
+          <div class="g-card__hover">🔍 Preview</div>
+          ${activity}
+        </div>
+        <div class="g-card__body">
+          <div class="g-card__row">
+            <div>
+              <p class="g-card__title">${styleLabel}</p>
+              <p class="g-card__sub">Pick your format</p>
+            </div>
+            <p class="g-card__price">From $9.99</p>
+          </div>
+          <button class="btn btn--primary g-card__buy" data-i="${it._index}">Buy this one</button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    grid.querySelectorAll<HTMLButtonElement>(".g-card__buy").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const i = parseInt(btn.dataset.i!);
+        btn.disabled = true;
+        btn.textContent = "Loading…";
+        try {
+          await client.mutation(api.sessions.useFromGallery, {
+            id: sessionId as any,
+            index: i,
+          });
+          window.location.href = "/pdp";
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Buy this one";
+          alert((err as Error).message);
+        }
+      });
+    });
+  }
+</script>
+
+<style is:global>
+  /* These styles target gallery markup that's injected dynamically via
+     innerHTML; Astro's default scoping would silently miss those nodes
+     because they don't carry the per-component class hash. Marking the
+     block global is the simplest fix and keeps everything in one place. */
+
+  /* Make sure [hidden] wins over display:flex / display:grid below. */
+  .g-empty[hidden] { display: none; }
+
+  /* Header ----------------------------------------------------- */
+  .g-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+  }
+  .g-head h1 { font-size: clamp(2rem, 4.5vw, 2.6rem); }
+  .g-sub { font-size: 14px; color: var(--c-light); margin-top: 4px; }
+  .g-sub__hl { color: var(--c-pink); font-weight: 500; }
+  .g-cta { padding: 10px 22px; font-size: 15px; }
+
+  /* Filters ---------------------------------------------------- */
+  .g-filters {
+    display: flex; gap: 10px; margin-bottom: 22px;
+    overflow-x: auto; padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .g-filters::-webkit-scrollbar { display: none; }
+  .g-pill {
+    padding: 7px 18px; border-radius: 100px;
+    background: transparent; border: 1px solid var(--c-stroke-light);
+    font-family: var(--font-body); font-size: 13px; color: var(--c-text);
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .g-pill:hover { border-color: var(--c-stroke); }
+  .g-pill--active {
+    background: var(--c-dark); color: white; border-color: var(--c-dark);
+    font-weight: 500;
+  }
+
+  /* Empty state ------------------------------------------------ */
+  .g-empty {
+    text-align: center; padding: 64px 24px;
+    background: var(--c-fill); border-radius: var(--r-md);
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .g-empty__title { font-size: 26px; }
+
+  /* Grid ------------------------------------------------------- */
+  .g-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 720px) { .g-grid { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
+  @media (min-width: 1024px) { .g-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; } }
+
+  /* Card ------------------------------------------------------- */
+  .g-card {
+    background: var(--c-white); border: 1px solid var(--c-stroke-light);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    display: flex; flex-direction: column;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .g-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+  .g-card__media { position: relative; }
+  .g-card__img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .g-card__hover {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%) translateY(6px);
+    background: rgba(0,0,0,.55); color: white; backdrop-filter: blur(4px);
+    padding: 6px 16px; border-radius: 100px; font-size: 12px;
+    opacity: 0; transition: opacity .15s ease, transform .15s ease;
+    pointer-events: none;
+  }
+  .g-card:hover .g-card__hover { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .g-card__tag {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(255,255,255,.92); border: 1px solid var(--c-stroke-light);
+    backdrop-filter: blur(4px); padding: 4px 12px; border-radius: 100px;
+    font-size: 12px; color: var(--c-dark);
+  }
+
+  .g-card__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .g-card__row {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  }
+  .g-card__title { font-size: 15px; font-weight: 600; color: var(--c-dark); }
+  .g-card__sub { font-size: 12px; color: var(--c-light); margin-top: 2px; }
+  .g-card__price { font-size: 16px; font-weight: 700; color: var(--c-dark); white-space: nowrap; }
+  .g-card__buy { width: 100%; padding: 10px 0; font-size: 14px; border-radius: 100px; }
+
+  /* Footer ----------------------------------------------------- */
+  .g-foot { font-size: 12px; color: var(--c-light); margin-top: 28px; }
+  .g-foot__link { color: var(--c-pink); }
+  .g-foot__link:hover { text-decoration: underline; }
+</style>

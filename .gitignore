@@ -22,3 +22,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+.env.local
+
+# local agent / skill caches — machine-specific, not part of the project
+.agents/
+.claude/
+skills-lock.json

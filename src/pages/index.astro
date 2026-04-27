@@ -1,11 +1,96 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-	<Welcome />
+  <section class="hero">
+    <div class="container hero__inner">
+      <h1 class="hero__title">Turn your pet into<br />museum-worthy art</h1>
+      <p class="hero__sub muted">AI-generated portraits in seconds — digital downloads, framed prints, or canvas, shipped worldwide.</p>
+      <a href="/upload" class="btn btn--primary btn--lg">✨ Create My Portrait</a>
+      <p class="hero__note muted">No account needed · Results in under 60 seconds</p>
+    </div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="container">
+      <p class="section-eyebrow">HOW IT WORKS</p>
+      <div class="steps">
+        <div class="step"><div class="step__dot">1</div><div class="step__label">Upload photo</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step__dot">2</div><div class="step__label">Pick a style</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step__dot">3</div><div class="step__label">Generate</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step__dot">4</div><div class="step__label">Buy &amp; ship</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery" id="samples">
+    <div class="container">
+      <h2 class="display gallery__title">Sample portraits</h2>
+      <div class="gallery__grid">
+        {[
+          { name: "Oil Painting", src: "/samples/oil.png", blurb: "Rich, textured, classical" },
+          { name: "Watercolour", src: "/samples/watercolour.png", blurb: "Soft, dreamy, gentle tones" },
+          { name: "Pop Art", src: "/samples/pop.png", blurb: "Bold colours, graphic style" },
+          { name: "Minimalist", src: "/samples/minimalist.png", blurb: "Clean lines, modern look" },
+        ].map((s) => (
+          <div class="gallery__card">
+            <img src={s.src} alt={`${s.name} sample portrait`} class="gallery__thumb" />
+            <p class="gallery__name display">{s.name}</p>
+            <p class="muted gallery__blurb">{s.blurb}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="social-proof">
+    <div class="container">
+      <p class="muted display social-proof__text">★★★★★ &nbsp; Loved by 10,000+ pet owners</p>
+    </div>
+  </section>
 </Layout>
+
+<style>
+  .hero {
+    padding: 64px 0 48px;
+    text-align: center;
+  }
+  .hero__inner { display: flex; flex-direction: column; align-items: center; gap: 18px; max-width: 720px; margin: 0 auto; }
+  .hero__title { font-size: clamp(2.4rem, 7vw, 4rem); }
+  .hero__sub { font-size: clamp(1.05rem, 2vw, 1.25rem); max-width: 520px; }
+  .hero__note { font-size: 14px; }
+
+  .section-eyebrow {
+    text-align: center; font-size: 13px; letter-spacing: 0.12em; color: var(--c-text);
+    text-transform: uppercase; font-weight: 600; margin-bottom: 16px;
+  }
+  .how { padding: 32px 0; border-top: 1px solid var(--c-stroke-light); }
+  .step-line { width: 32px; height: 2px; background: var(--c-stroke-light); margin-top: 14px; }
+  @media (max-width: 600px) { .step-line { width: 14px; } }
+
+  .gallery { padding: 48px 0 32px; }
+  .gallery__title { text-align: center; margin-bottom: 28px; }
+  .gallery__grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 900px) { .gallery__grid { grid-template-columns: repeat(4, 1fr); } }
+  .gallery__card { display: flex; flex-direction: column; gap: 8px; }
+  .gallery__thumb {
+    width: 100%; aspect-ratio: 4/5; object-fit: cover;
+    background: var(--c-fill); border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md); display: block;
+  }
+  .gallery__name { font-size: 22px; }
+  .gallery__blurb { font-size: 14px; }
+
+  .social-proof {
+    background: var(--c-fill); border-top: 1px solid var(--c-stroke-light);
+    padding: 18px 0; margin-top: 48px; text-align: center;
+  }
+  .social-proof__text { font-size: 18px; }
+</style>
