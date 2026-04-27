@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Pink circle to match the nav emblem (brand --c-pink #E8A4B8). -->
   <circle cx="32" cy="32" r="32" fill="#E8A4B8"/>
-  <!-- White paw print: four toe pads + main pad. -->
   <g fill="#FFFFFF">
     <ellipse cx="19" cy="24" rx="4.5" ry="6"/>
     <ellipse cx="27" cy="18" rx="4.5" ry="6"/>
