@@ -141,6 +141,42 @@ img { max-width: 100%; display: block; }
 .chip:hover { border-color: var(--c-stroke); }
 .chip--active { border-color: var(--c-pink); background: var(--c-pink-light); color: var(--c-dark); font-weight: 700; }
 
+/* Image protection ----------------------------------------------
+   These are *deterrents*, not real security. Anyone with dev tools can
+   still extract images. Combined with a visible watermark, casual users
+   are blocked from grabbing the artwork in obvious ways (right-click,
+   drag-to-desktop, long-press save on mobile). */
+
+.protected-img {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none; /* iOS long-press menu */
+  pointer-events: auto; /* keep clicks for selection on /reveal etc. */
+}
+
+.protected-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.protected-wrap::after {
+  content: "PURRTRAITS · PREVIEW";
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-size: clamp(18px, 5cqw, 36px); /* container-aware so big images get bigger watermark */
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+  text-transform: uppercase;
+  transform: rotate(-22deg);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.protected-wrap { container-type: inline-size; }
+
 /* Format tab selectors ----------------------------------------- */
 .format-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .format-tab {

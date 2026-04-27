@@ -52,7 +52,7 @@ const MOOD_HINT: Record<string, string> = {
 };
 
 const IDENTITY_GUARD =
-  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. Output the pet in portrait orientation.";
+  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing.";
 
 function buildPrompt(style: Style, activity?: string, mood?: string): string {
   const stylePart = STYLE_PROMPTS[style];

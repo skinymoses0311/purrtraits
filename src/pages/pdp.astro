@@ -9,7 +9,9 @@ import ProductPreview from "../components/ProductPreview.astro";
 
     <div class="pdp">
       <div class="pdp__media">
-        <img id="hero" class="pdp__hero" alt="Selected portrait" />
+        <div class="protected-wrap pdp__hero-wrap">
+          <img id="hero" class="pdp__hero protected-img" alt="Selected portrait" />
+        </div>
         <div id="preview-wrap" hidden>
           <p class="display pdp__preview-label">How it'll look</p>
           <ProductPreview />
@@ -51,7 +53,7 @@ import ProductPreview from "../components/ProductPreview.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
@@ -104,6 +106,7 @@ import ProductPreview from "../components/ProductPreview.astro";
       const benefit2 = document.getElementById("benefit-2")!;
 
       hero.src = portrait.imageUrl;
+      disableImageGrabbers();
       title.textContent = `${styleLabel} Portrait`;
       styleLbl.textContent = "Your selection";
 

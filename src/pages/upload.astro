@@ -50,6 +50,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, ensureSession } from "../lib/client.ts";
+  import { cropToAspect } from "../lib/crop.ts";
   import { api } from "../../convex/_generated/api.js";
   import type { Id } from "../../convex/_generated/dataModel";
 
@@ -141,12 +142,15 @@ import Layout from "../layouts/Layout.astro";
         continue;
       }
       try {
+        setStatus(`Preparing ${file.name}…`);
+        // Center-crop to 3:4 portrait so Nano Banana inherits that aspect.
+        const cropped = await cropToAspect(file);
         setStatus(`Uploading ${file.name}…`);
         const uploadUrl = await client.mutation(api.files.generateUploadUrl, {});
         const res = await fetch(uploadUrl, {
           method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
+          headers: { "Content-Type": cropped.type },
+          body: cropped,
         });
         if (!res.ok) throw new Error(`upload failed (${res.status})`);
         const { storageId } = await res.json();

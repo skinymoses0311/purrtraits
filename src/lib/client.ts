@@ -49,3 +49,17 @@ export function requireOrRedirect(condition: unknown, redirectTo: string): boole
   }
   return true;
 }
+
+// Disable right-click, drag-to-save, and copy on every img.protected-img
+// in the document. Call this once after any dynamic image renders. It's
+// idempotent — safe to call multiple times. Real protection requires a
+// server-side watermark, but this stops casual save attempts.
+export function disableImageGrabbers(root: ParentNode = document) {
+  root.querySelectorAll<HTMLImageElement>("img.protected-img").forEach((img) => {
+    if ((img as any).__protected) return;
+    (img as any).__protected = true;
+    img.addEventListener("contextmenu", (e) => e.preventDefault());
+    img.addEventListener("dragstart", (e) => e.preventDefault());
+    img.draggable = false;
+  });
+}

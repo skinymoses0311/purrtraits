@@ -33,7 +33,7 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId } from "../lib/client.ts";
+  import { makeClient, getSessionId, disableImageGrabbers } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
 
   type Style = "oil" | "watercolour" | "pop";
@@ -148,8 +148,8 @@ import Layout from "../layouts/Layout.astro";
           ? `<span class="g-card__tag">${ACTIVITY_LABELS[it.activity]}</span>`
           : "";
       card.innerHTML = `
-        <div class="g-card__media">
-          <img src="${it.imageUrl}" alt="${styleLabel}" class="g-card__img" />
+        <div class="g-card__media protected-wrap">
+          <img src="${it.imageUrl}" alt="${styleLabel}" class="g-card__img protected-img" />
           <div class="g-card__hover">🔍 Preview</div>
           ${activity}
         </div>
@@ -166,6 +166,8 @@ import Layout from "../layouts/Layout.astro";
       `;
       grid.appendChild(card);
     });
+
+    disableImageGrabbers(grid);
 
     grid.querySelectorAll<HTMLButtonElement>(".g-card__buy").forEach((btn) => {
       btn.addEventListener("click", async () => {

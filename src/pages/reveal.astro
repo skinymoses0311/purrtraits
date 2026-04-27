@@ -21,7 +21,7 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
 
   const STYLE_LABELS: Record<string, string> = {
@@ -52,7 +52,9 @@ import Layout from "../layouts/Layout.astro";
         card.className = "selectable reveal__card";
         card.dataset.style = g.style;
         card.innerHTML = `
-          <img src="${g.imageUrl}" alt="${STYLE_LABELS[g.style]}" class="reveal__img" />
+          <div class="protected-wrap reveal__media">
+            <img src="${g.imageUrl}" alt="${STYLE_LABELS[g.style]}" class="reveal__img protected-img" />
+          </div>
           <div class="reveal__meta">
             <span class="display">${STYLE_LABELS[g.style]}</span>
             <span class="reveal__check" aria-hidden="true">✓</span>
@@ -68,6 +70,7 @@ import Layout from "../layouts/Layout.astro";
         });
         grid.appendChild(card);
       });
+      disableImageGrabbers(grid);
     }
 
     const session = await client.query(api.sessions.get, { id: sessionId as any });
