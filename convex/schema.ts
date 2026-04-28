@@ -51,6 +51,19 @@ export default defineSchema({
         }),
       ),
     ),
+    // Multi-item cart, anonymous, scoped to this session. Lines are merged
+    // by (productId, printFileUrl); digital lines are forced to qty 1.
+    cart: v.optional(
+      v.array(
+        v.object({
+          productId: v.id("products"),
+          printFileUrl: v.string(),
+          style: v.string(),
+          quantity: v.number(),
+          addedAt: v.number(),
+        }),
+      ),
+    ),
   }),
 
   products: defineTable({
@@ -82,17 +95,27 @@ export default defineSchema({
     .index("by_active", ["active"]),
 
   orders: defineTable({
-    productId: v.id("products"),
+    // Legacy single-product fields — kept optional so old orders (pre-cart)
+    // still validate. New multi-item orders use `lineItems` below.
+    productId: v.optional(v.id("products")),
     sessionId: v.optional(v.id("sessions")),
     stripeSessionId: v.string(),
     amountTotal: v.number(),
     currency: v.string(),
     customerEmail: v.optional(v.string()),
-    // The artwork URL for THIS specific order. Captures whichever generated
-    // portrait the customer picked, so digital download + Gelato print both
-    // use the right image.
     printFileUrl: v.optional(v.string()),
     selectedStyle: v.optional(v.string()),
+    lineItems: v.optional(
+      v.array(
+        v.object({
+          productId: v.id("products"),
+          printFileUrl: v.string(),
+          style: v.string(),
+          quantity: v.number(),
+          unitPriceCents: v.number(),
+        }),
+      ),
+    ),
     shipping: v.optional(
       v.object({
         name: v.string(),

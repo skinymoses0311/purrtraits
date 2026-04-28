@@ -133,18 +133,55 @@ export const fulfillConvexOrder = internalAction({
       await ctx.runMutation(internal.orders.setStatus, { id: orderId, status: "failed" });
       return;
     }
-    const product = await ctx.runQuery(internal.products.getInternal, {
-      id: order.productId,
-    });
-    if (!product) throw new Error(`Product ${order.productId} not found`);
-    if (!product.gelatoProductUid) {
-      console.error(`Product ${order.productId} is not a physical SKU`);
-      await ctx.runMutation(internal.orders.setStatus, { id: orderId, status: "failed" });
-      return;
+
+    // Build the list of physical items to send to Gelato. New orders use
+    // `lineItems`; legacy single-product orders fall through to the
+    // top-level productId/printFileUrl fields.
+    type GelatoItem = {
+      itemReferenceId: string;
+      productUid: string;
+      quantity: number;
+      files: Array<{ type: string; url: string }>;
+    };
+    const gelatoItems: GelatoItem[] = [];
+
+    const lineItems = order.lineItems ?? [];
+    if (lineItems.length > 0) {
+      for (let i = 0; i < lineItems.length; i++) {
+        const line = lineItems[i];
+        const product = await ctx.runQuery(internal.products.getInternal, {
+          id: line.productId,
+        });
+        if (!product || !product.gelatoProductUid) continue; // skip digital
+        const printFileUrl = line.printFileUrl ?? product.printFileUrl;
+        if (!printFileUrl) {
+          console.error(`Order ${orderId} line ${i} has no print file URL`);
+          continue;
+        }
+        gelatoItems.push({
+          itemReferenceId: `${orderId}-item-${i + 1}`,
+          productUid: product.gelatoProductUid,
+          quantity: line.quantity,
+          files: [{ type: "default", url: printFileUrl }],
+        });
+      }
+    } else if (order.productId) {
+      const product = await ctx.runQuery(internal.products.getInternal, {
+        id: order.productId,
+      });
+      const printFileUrl = order.printFileUrl ?? product?.printFileUrl;
+      if (product?.gelatoProductUid && printFileUrl) {
+        gelatoItems.push({
+          itemReferenceId: `${orderId}-item-1`,
+          productUid: product.gelatoProductUid,
+          quantity: 1,
+          files: [{ type: "default", url: printFileUrl }],
+        });
+      }
     }
-    const printFileUrl = order.printFileUrl ?? product.printFileUrl;
-    if (!printFileUrl) {
-      console.error(`No print file URL for order ${orderId}`);
+
+    if (gelatoItems.length === 0) {
+      console.error(`Order ${orderId} has no fulfillable physical items`);
       await ctx.runMutation(internal.orders.setStatus, { id: orderId, status: "failed" });
       return;
     }
@@ -157,14 +194,7 @@ export const fulfillConvexOrder = internalAction({
       orderReferenceId: orderId,
       customerReferenceId: order.customerEmail ?? orderId,
       currency: order.currency.toUpperCase(),
-      items: [
-        {
-          itemReferenceId: `${orderId}-item-1`,
-          productUid: product.gelatoProductUid!,
-          quantity: 1,
-          files: [{ type: "default", url: printFileUrl }],
-        },
-      ],
+      items: gelatoItems,
       shippingAddress: {
         firstName,
         lastName,

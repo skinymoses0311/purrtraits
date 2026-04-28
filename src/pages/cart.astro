@@ -1,0 +1,382 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Your cart · Purrtraits">
+  <main class="page container cart-page">
+    <header class="cart-page__head">
+      <h1>Your cart</h1>
+      <p class="muted" id="cart-count">Loading…</p>
+    </header>
+
+    <div class="cart-page__layout" id="cart-with-items" hidden>
+      <section class="cart-list" aria-label="Cart items">
+        <div class="cart-list__head" aria-hidden="true">
+          <span>Product</span>
+          <span class="cart-list__head-qty">Quantity</span>
+          <span class="cart-list__head-price">Price</span>
+          <span></span>
+        </div>
+        <div class="cart-list__divider"></div>
+        <div id="cart-items"></div>
+        <a href="/upload" class="cart-page__back">← Continue shopping</a>
+      </section>
+
+      <aside class="cart-summary" aria-label="Order summary">
+        <div class="cart-summary__card">
+          <div class="cart-summary__title">Order summary</div>
+          <div class="cart-summary__items" id="summary-items"></div>
+          <div class="cart-summary__divider"></div>
+          <div class="cart-summary__row">
+            <span class="muted">Subtotal</span>
+            <span id="sum-subtotal">—</span>
+          </div>
+          <div class="cart-summary__row">
+            <span class="muted">Shipping</span>
+            <span id="sum-shipping">—</span>
+          </div>
+          <div class="cart-summary__divider"></div>
+          <div class="cart-summary__total">
+            <span>Total</span>
+            <span id="sum-total">—</span>
+          </div>
+          <button id="checkout-btn" class="btn btn--primary btn--block cart-summary__cta">
+            Proceed to checkout →
+          </button>
+          <p class="muted cart-summary__secure">🔒 Secured by Stripe</p>
+        </div>
+
+        <ul class="cart-trust">
+          <li><span class="cart-trust__check">✓</span> Instant digital delivery</li>
+          <li><span class="cart-trust__check">✓</span> Gelato-fulfilled prints</li>
+          <li><span class="cart-trust__check">✓</span> 14-day satisfaction guarantee</li>
+        </ul>
+      </aside>
+    </div>
+
+    <div class="cart-empty" id="cart-empty" hidden>
+      <div class="cart-empty__icon">🛒</div>
+      <h2>Your cart is empty</h2>
+      <p class="muted">You haven't added any portraits yet. Create one from a photo of your pet — it only takes 60 seconds.</p>
+      <div class="cart-empty__actions">
+        <a href="/upload" class="btn btn--primary">✨ Create a portrait</a>
+        <a href="/gallery" class="btn">Browse gallery</a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId, disableImageGrabbers } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  type Format = "digital" | "poster" | "framed" | "canvas";
+
+  const FORMAT_LABEL: Record<Format, string> = {
+    digital: "Digital Download",
+    poster: "Poster Print",
+    framed: "Framed Print",
+    canvas: "Canvas Print",
+  };
+  const SIZE_LABEL: Record<string, string> = {
+    small: '12 × 16"',
+    medium: '18 × 24"',
+    large: '24 × 32"',
+  };
+  const STYLE_LABEL: Record<string, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+  };
+  const FRAME_LABEL: Record<string, string> = {
+    "natural-wood": "Natural wood",
+    "dark-wood": "Dark wood",
+  };
+
+  const fmt = (cents: number, currency = "usd") =>
+    new Intl.NumberFormat(undefined, { style: "currency", currency: currency.toUpperCase() })
+      .format(cents / 100);
+
+  const sessionId = getSessionId();
+  const withItems = document.getElementById("cart-with-items")!;
+  const empty = document.getElementById("cart-empty")!;
+  const countEl = document.getElementById("cart-count")!;
+  const itemsEl = document.getElementById("cart-items")!;
+  const summaryItemsEl = document.getElementById("summary-items")!;
+  const sumSubtotal = document.getElementById("sum-subtotal")!;
+  const sumShipping = document.getElementById("sum-shipping")!;
+  const sumTotal = document.getElementById("sum-total")!;
+  const checkoutBtn = document.getElementById("checkout-btn") as HTMLButtonElement;
+
+  if (!sessionId) {
+    showEmpty(0);
+  } else {
+    const client = makeClient();
+
+    function showEmptyOrItems(cart: any) {
+      if (!cart || cart.items.length === 0) {
+        showEmpty(0);
+        return;
+      }
+      withItems.hidden = false;
+      empty.hidden = true;
+      countEl.textContent = `${cart.unitCount} item${cart.unitCount === 1 ? "" : "s"}`;
+
+      // Item rows
+      itemsEl.innerHTML = "";
+      cart.items.forEach((it: any) => {
+        const card = document.createElement("article");
+        card.className = "cart-row";
+
+        const formatText = FORMAT_LABEL[it.product.format as Format];
+        const sizeText = it.product.format === "digital"
+          ? "All sizes included"
+          : SIZE_LABEL[it.product.size] ?? it.product.size;
+        const frameText = it.product.format === "framed" && it.product.frame
+          ? ` · ${FRAME_LABEL[it.product.frame]}`
+          : "";
+        const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const delivery = it.product.format === "digital"
+          ? "Instant download after payment"
+          : "Ships in 5–14 days via Gelato";
+
+        const isDigital = it.product.format === "digital";
+        const qtyControl = isDigital
+          ? `<span class="cart-row__qty-fixed">Qty 1</span>`
+          : `<div class="cart-row__stepper">
+              <button class="cart-row__step" data-act="dec" aria-label="Decrease quantity">−</button>
+              <span class="cart-row__qty">${it.quantity}</span>
+              <button class="cart-row__step" data-act="inc" aria-label="Increase quantity">+</button>
+            </div>`;
+
+        card.innerHTML = `
+          <div class="cart-row__product">
+            <div class="protected-wrap cart-row__thumb-wrap">
+              <img class="cart-row__thumb protected-img" alt="${styleText} portrait" src="${it.printFileUrl}" />
+            </div>
+            <div class="cart-row__info">
+              <div class="cart-row__title">${styleText}</div>
+              <div class="cart-row__meta">${formatText} · ${sizeText}${frameText}</div>
+              <div class="cart-row__delivery">${delivery}</div>
+            </div>
+          </div>
+          <div class="cart-row__qty-cell">${qtyControl}</div>
+          <div class="cart-row__price">${fmt(it.lineTotalCents, cart.currency)}</div>
+          <div class="cart-row__remove-cell">
+            <button class="cart-row__remove" data-act="remove" aria-label="Remove">✕</button>
+          </div>
+        `;
+
+        card.addEventListener("click", async (e) => {
+          const target = e.target as HTMLElement;
+          const act = target.dataset.act;
+          if (!act) return;
+          if (act === "remove") {
+            await client.mutation(api.cart.removeItem, {
+              sessionId: sessionId as any,
+              index: it.index,
+            });
+          } else if (act === "inc") {
+            await client.mutation(api.cart.updateQuantity, {
+              sessionId: sessionId as any,
+              index: it.index,
+              quantity: it.quantity + 1,
+            });
+          } else if (act === "dec" && it.quantity > 1) {
+            await client.mutation(api.cart.updateQuantity, {
+              sessionId: sessionId as any,
+              index: it.index,
+              quantity: it.quantity - 1,
+            });
+          }
+        });
+
+        itemsEl.appendChild(card);
+      });
+
+      // Order summary lines
+      summaryItemsEl.innerHTML = cart.items.map((it: any) => {
+        const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const formatText = FORMAT_LABEL[it.product.format as Format];
+        return `<div class="cart-summary__item">
+          <div>
+            <div class="cart-summary__item-title">${styleText}</div>
+            <div class="cart-summary__item-meta">${formatText} · qty ${it.quantity}</div>
+          </div>
+          <div>${fmt(it.lineTotalCents, cart.currency)}</div>
+        </div>`;
+      }).join("");
+
+      sumSubtotal.textContent = fmt(cart.subtotalCents, cart.currency);
+      sumShipping.textContent = cart.physicalCount > 0
+        ? fmt(cart.shippingCents, cart.currency)
+        : "Free";
+      sumTotal.textContent = fmt(cart.totalCents, cart.currency);
+
+      checkoutBtn.disabled = false;
+      disableImageGrabbers();
+    }
+
+    client.onUpdate(api.cart.getWithProducts, { sessionId: sessionId as any }, showEmptyOrItems);
+
+    checkoutBtn.addEventListener("click", async () => {
+      const original = checkoutBtn.textContent;
+      checkoutBtn.disabled = true;
+      checkoutBtn.textContent = "Redirecting…";
+      try {
+        const url = await client.action(api.payments.createCheckoutSession, {
+          sessionId: sessionId as any,
+          successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${window.location.origin}/cart?canceled=1`,
+        });
+        window.location.href = url;
+      } catch (err) {
+        checkoutBtn.disabled = false;
+        checkoutBtn.textContent = original;
+        alert("Checkout failed: " + (err as Error).message);
+      }
+    });
+  }
+
+  function showEmpty(_n: number) {
+    withItems.hidden = true;
+    empty.hidden = false;
+    countEl.textContent = "0 items";
+  }
+</script>
+
+<style is:global>
+  .cart-page__head { margin-bottom: 16px; }
+  .cart-page__head h1 { font-size: clamp(2rem, 5vw, 2.6rem); }
+  .cart-page__head .muted { font-size: 13px; margin-top: 4px; }
+
+  [hidden] { display: none !important; }
+  .cart-page__layout:not([hidden]) { display: grid; gap: 24px; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 900px) {
+    .cart-page__layout:not([hidden]) { grid-template-columns: 1fr 360px; gap: 32px; }
+  }
+
+  .cart-list { display: flex; flex-direction: column; gap: 12px; }
+  .cart-list__head {
+    display: none;
+    grid-template-columns: 1fr 130px 110px 60px;
+    gap: 12px; padding: 0 16px; align-items: center;
+    font-size: 11px; font-weight: 600; color: var(--c-light);
+    letter-spacing: 0.07em; text-transform: uppercase;
+  }
+  .cart-list__head-qty, .cart-list__head-price { text-align: left; }
+  .cart-list__divider { display: none; height: 1px; background: var(--c-stroke-light); }
+  @media (min-width: 720px) {
+    .cart-list__head, .cart-list__divider { display: grid; }
+    .cart-list__divider { display: block; }
+  }
+
+  .cart-row {
+    display: grid; gap: 12px;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "product remove"
+      "qty     price";
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
+    padding: 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+    align-items: center;
+  }
+  @media (min-width: 720px) {
+    .cart-row {
+      grid-template-columns: 1fr 130px 110px 60px;
+      grid-template-areas: "product qty price remove";
+      padding: 16px;
+    }
+  }
+  .cart-row__product { grid-area: product; display: flex; gap: 14px; align-items: center; min-width: 0; }
+  .cart-row__qty-cell { grid-area: qty; }
+  .cart-row__price { grid-area: price; font-size: 16px; font-weight: 700; color: var(--c-dark); }
+  .cart-row__remove-cell { grid-area: remove; display: flex; justify-content: flex-end; }
+
+  .cart-row__thumb-wrap {
+    width: 64px; height: 64px; flex-shrink: 0;
+    border-radius: var(--r-sm); border: 1px solid var(--c-stroke-light); background: var(--c-fill);
+  }
+  @media (min-width: 720px) { .cart-row__thumb-wrap { width: 72px; height: 72px; } }
+  .cart-row__thumb { width: 100%; height: 100%; object-fit: cover; border-radius: var(--r-sm); }
+  .cart-row__info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .cart-row__title { font-size: 15px; font-weight: 600; color: var(--c-dark); }
+  .cart-row__meta { font-size: 13px; color: var(--c-text); }
+  .cart-row__delivery { font-size: 12px; color: var(--c-light); }
+
+  .cart-row__stepper {
+    display: inline-flex; align-items: center;
+    border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-pill);
+    overflow: hidden; background: var(--c-white);
+  }
+  .cart-row__step {
+    width: 30px; height: 30px; border: 0; background: transparent;
+    font-size: 14px; color: var(--c-text); cursor: pointer;
+  }
+  .cart-row__step:hover { color: var(--c-dark); }
+  .cart-row__qty {
+    min-width: 30px; text-align: center;
+    font-weight: 600; font-size: 14px; color: var(--c-dark);
+    border-left: 1px solid var(--c-stroke-light);
+    border-right: 1px solid var(--c-stroke-light);
+    line-height: 30px;
+  }
+  .cart-row__qty-fixed { font-size: 13px; color: var(--c-light); }
+
+  .cart-row__remove {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    color: var(--c-light); cursor: pointer; font-size: 13px;
+  }
+  .cart-row__remove:hover { color: var(--c-dark); border-color: var(--c-stroke); }
+
+  .cart-page__back {
+    margin-top: 8px;
+    display: inline-block;
+    color: var(--c-pink); font-size: 14px; font-weight: 500;
+  }
+
+  .cart-summary { display: flex; flex-direction: column; gap: 16px; }
+  .cart-summary__card {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-lg);
+    padding: 22px 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .cart-summary__title { font-size: 17px; font-weight: 600; color: var(--c-dark); }
+  .cart-summary__divider { height: 1px; background: var(--c-stroke-light); }
+  .cart-summary__items { display: flex; flex-direction: column; gap: 10px; }
+  .cart-summary__item { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; font-size: 13px; }
+  .cart-summary__item-title { font-weight: 500; color: var(--c-dark); }
+  .cart-summary__item-meta { font-size: 12px; color: var(--c-light); margin-top: 2px; }
+  .cart-summary__row { display: flex; justify-content: space-between; font-size: 13px; color: var(--c-dark); }
+  .cart-summary__row .muted { color: var(--c-text); }
+  .cart-summary__total { display: flex; justify-content: space-between; align-items: center; font-size: 18px; font-weight: 700; color: var(--c-dark); }
+  .cart-summary__total > :last-child { font-size: 22px; }
+  .cart-summary__cta { margin-top: 4px; }
+  .cart-summary__secure { text-align: center; font-size: 12px; }
+
+  .cart-trust { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .cart-trust li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--c-text); }
+  .cart-trust__check {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--c-pink-light); border: 1px solid var(--c-pink);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--c-pink); flex-shrink: 0;
+  }
+
+  .cart-empty:not([hidden]) {
+    text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    padding: 40px 16px 60px;
+  }
+  .cart-empty__icon { font-size: 64px; }
+  .cart-empty h2 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 2.6rem); }
+  .cart-empty p { max-width: 420px; }
+  .cart-empty__actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+</style>

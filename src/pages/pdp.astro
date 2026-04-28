@@ -191,7 +191,7 @@ import ProductPreview from "../components/ProductPreview.astro";
         if (product) {
           price.textContent = fmtPrice(product.priceCents);
           buy.disabled = false;
-          buy.textContent = format === "digital" ? "Buy & download" : "Add to cart";
+          buy.textContent = "Add to cart";
           buy.dataset.productId = product._id;
         } else {
           price.textContent = "—";
@@ -232,24 +232,33 @@ import ProductPreview from "../components/ProductPreview.astro";
         }
       }
 
+      let addedFlashTimer: number | undefined;
       buy.addEventListener("click", async () => {
         const productId = buy.dataset.productId;
         if (!productId) return;
+        if (addedFlashTimer) {
+          clearTimeout(addedFlashTimer);
+          addedFlashTimer = undefined;
+        }
         buy.disabled = true;
-        buy.textContent = "Redirecting...";
+        buy.textContent = "Adding…";
         try {
-          const url = await client.action(api.payments.createCheckoutSession, {
-            productId: productId as any,
+          await client.mutation(api.cart.addItem, {
             sessionId: sessionId as any,
+            productId: productId as any,
             printFileUrl: portrait.imageUrl,
-            successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancelUrl: `${window.location.origin}/pdp?canceled=1`,
+            style: selectedStyle,
           });
-          window.location.href = url;
+          buy.textContent = "Added to cart ✓";
+          addedFlashTimer = window.setTimeout(() => {
+            buy.disabled = false;
+            buy.textContent = "Add to cart";
+            addedFlashTimer = undefined;
+          }, 1600);
         } catch (err) {
           buy.disabled = false;
           buy.textContent = "Add to cart";
-          alert("Checkout failed: " + (err as Error).message);
+          alert("Couldn't add to cart: " + (err as Error).message);
         }
       });
 

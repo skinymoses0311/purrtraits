@@ -13,16 +13,23 @@ const shippingValidator = v.object({
   country: v.string(),
 });
 
-export const recordPaid = internalMutation({
+const lineItemValidator = v.object({
+  productId: v.id("products"),
+  printFileUrl: v.string(),
+  style: v.string(),
+  quantity: v.number(),
+  unitPriceCents: v.number(),
+});
+
+// Pre-creates a "pending" order at checkout-session-create time. Cart is
+// snapshotted into lineItems here so the webhook can rely on it even if the
+// session's cart was cleared/edited after payment was initiated.
+export const createPending = internalMutation({
   args: {
-    productId: v.id("products"),
-    sessionId: v.optional(v.id("sessions")),
-    printFileUrl: v.optional(v.string()),
+    sessionId: v.id("sessions"),
     stripeSessionId: v.string(),
-    amountTotal: v.number(),
     currency: v.string(),
-    customerEmail: v.optional(v.string()),
-    shipping: v.optional(shippingValidator),
+    lineItems: v.array(lineItemValidator),
   },
   handler: async (ctx, args): Promise<Id<"orders">> => {
     const existing = await ctx.db
@@ -33,25 +40,50 @@ export const recordPaid = internalMutation({
       .unique();
     if (existing) return existing._id;
 
-    // If a Convex session is linked, capture which style they bought.
-    let selectedStyle: string | undefined;
-    if (args.sessionId) {
-      const session = await ctx.db.get(args.sessionId);
-      selectedStyle = session?.selectedStyle ?? undefined;
-    }
+    const session = await ctx.db.get(args.sessionId);
+    const selectedStyle = session?.selectedStyle ?? args.lineItems[0]?.style;
 
     return await ctx.db.insert("orders", {
-      productId: args.productId,
       sessionId: args.sessionId,
       stripeSessionId: args.stripeSessionId,
+      currency: args.currency,
+      amountTotal: 0,
+      lineItems: args.lineItems,
+      selectedStyle,
+      status: "pending",
+    });
+  },
+});
+
+// Webhook completes the pending order with the Stripe-confirmed total,
+// shipping, and customer email. Idempotent on stripeSessionId.
+export const markPaid = internalMutation({
+  args: {
+    stripeSessionId: v.string(),
+    amountTotal: v.number(),
+    currency: v.string(),
+    customerEmail: v.optional(v.string()),
+    shipping: v.optional(shippingValidator),
+  },
+  handler: async (ctx, args): Promise<Id<"orders"> | null> => {
+    const order = await ctx.db
+      .query("orders")
+      .withIndex("by_session", (q) =>
+        q.eq("stripeSessionId", args.stripeSessionId),
+      )
+      .unique();
+    if (!order) return null;
+    if (order.status === "paid" || order.status === "fulfilling" || order.status === "fulfilled") {
+      return order._id;
+    }
+    await ctx.db.patch(order._id, {
       amountTotal: args.amountTotal,
       currency: args.currency,
       customerEmail: args.customerEmail,
-      printFileUrl: args.printFileUrl,
-      selectedStyle,
       shipping: args.shipping,
       status: "paid",
     });
+    return order._id;
   },
 });
 
@@ -60,8 +92,28 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
-// Used by the /success page to look up an order by the Stripe session id
-// (which we get from the redirect URL).
+// Helper for the webhook: does this order contain any physical line?
+export const hasPhysicalLines = internalQuery({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const order = await ctx.db.get(id);
+    if (!order) return false;
+    const lines = order.lineItems ?? [];
+    for (const line of lines) {
+      const product = await ctx.db.get(line.productId);
+      if (product && product.format !== "digital") return true;
+    }
+    // Legacy single-product fallback.
+    if (order.productId) {
+      const product = await ctx.db.get(order.productId);
+      if (product && product.format !== "digital") return true;
+    }
+    return false;
+  },
+});
+
+// Used by /success — looks up an order plus the joined product info for each
+// line so the page can render the list without further fetches.
 export const getByStripeSession = query({
   args: { stripeSessionId: v.string() },
   handler: async (ctx, { stripeSessionId }) => {
@@ -70,8 +122,19 @@ export const getByStripeSession = query({
       .withIndex("by_session", (q) => q.eq("stripeSessionId", stripeSessionId))
       .unique();
     if (!order) return null;
-    const product = await ctx.db.get(order.productId);
-    return { order, product };
+
+    const lines = order.lineItems ?? [];
+    const lineItemsWithProduct = await Promise.all(
+      lines.map(async (line) => ({
+        ...line,
+        product: await ctx.db.get(line.productId),
+      })),
+    );
+
+    // Legacy single-product order fallback (pre-cart orders).
+    const legacyProduct = order.productId ? await ctx.db.get(order.productId) : null;
+
+    return { order, lineItems: lineItemsWithProduct, legacyProduct };
   },
 });
 

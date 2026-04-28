@@ -9,8 +9,7 @@ import Layout from "../layouts/Layout.astro";
       <h1 id="title">Your Purrtrait is on its way!</h1>
       <p class="muted" id="sub">We're confirming your order…</p>
 
-      <img id="art" class="success__art" alt="Your portrait" hidden />
-      <a id="download" class="btn btn--primary btn--lg" href="#" download hidden>⬇ Download your portrait</a>
+      <div class="success__lines" id="lines" hidden></div>
 
       <div class="success__details" id="details" hidden>
         <p class="display success__details-title">What happens next</p>
@@ -36,82 +35,109 @@ import Layout from "../layouts/Layout.astro";
 
   const title = document.getElementById("title")!;
   const sub = document.getElementById("sub")!;
-  const art = document.getElementById("art") as HTMLImageElement;
-  const download = document.getElementById("download") as HTMLAnchorElement;
+  const linesEl = document.getElementById("lines")!;
   const details = document.getElementById("details")!;
   const stepsList = document.getElementById("steps-list")!;
   const meta = document.getElementById("meta")!;
+
+  const STYLE_LABEL: Record<string, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+  };
+  const FORMAT_LABEL: Record<string, string> = {
+    digital: "Digital",
+    poster: "Poster",
+    framed: "Framed",
+    canvas: "Canvas",
+  };
 
   if (!stripeSessionId) {
     title.textContent = "Hmm, no order found.";
     sub.textContent = "Looks like you came here directly. Try starting a new portrait below.";
   } else {
-    // Stripe webhooks are usually delivered within ~1s, but we poll briefly
-    // in case the user lands here before the webhook has been processed.
     let attempts = 0;
     let result: any = null;
-    while (attempts < 10) {
+    while (attempts < 12) {
       result = await client.query(api.orders.getByStripeSession, { stripeSessionId });
-      if (result?.order) break;
+      if (result?.order && result.order.status !== "pending") break;
       attempts++;
       await new Promise((r) => setTimeout(r, 600));
     }
 
-    if (!result?.order) {
+    if (!result?.order || result.order.status === "pending") {
       title.textContent = "We're still confirming your order.";
       sub.textContent = "This can take up to a minute. Refresh the page if it doesn't update.";
     } else {
-      const { order, product } = result;
-      const isDigital = product.format === "digital";
-      const formatLabel = (
-        { digital: "Digital", poster: "Poster", framed: "Framed", canvas: "Canvas" } as any
-      )[product.format];
+      const { order, lineItems, legacyProduct } = result;
 
-      const styleNice = (
-        { oil: "Oil Painting", watercolour: "Watercolour", pop: "Pop Art" } as any
-      )[order.selectedStyle ?? ""] ?? "Custom";
+      // Normalize legacy single-product orders into a single line for display.
+      const lines: Array<{
+        product: any;
+        printFileUrl?: string;
+        style?: string;
+        quantity: number;
+      }> = lineItems && lineItems.length > 0
+        ? lineItems
+        : legacyProduct
+          ? [{ product: legacyProduct, printFileUrl: order.printFileUrl, style: order.selectedStyle, quantity: 1 }]
+          : [];
 
-      title.textContent = isDigital
-        ? "Your Purrtrait is ready! 🎉"
-        : "Your Purrtrait is being printed! 🎨";
-      sub.textContent = isDigital
-        ? "Your high-resolution download is right below — we've also emailed you a copy."
-        : `We've sent your order to our print partner. You'll get tracking by email when it ships.`;
+      const hasPhysical = lines.some((l) => l.product?.format && l.product.format !== "digital");
+      const hasDigital = lines.some((l) => l.product?.format === "digital");
 
-      if (order.printFileUrl) {
-        art.src = order.printFileUrl;
-        art.hidden = false;
-        if (isDigital) {
-          download.href = order.printFileUrl;
-          download.hidden = false;
-        }
+      if (hasPhysical && hasDigital) {
+        title.textContent = "Your Purrtraits order is confirmed! 🎨";
+        sub.textContent = "Digital downloads are below; printed pieces are heading to our print partner now.";
+      } else if (hasPhysical) {
+        title.textContent = "Your Purrtraits are being printed! 🎨";
+        sub.textContent = "We've sent your order to our print partner. You'll get tracking by email when it ships.";
+      } else {
+        title.textContent = "Your Purrtraits are ready! 🎉";
+        sub.textContent = "Your high-resolution downloads are right below — we've also emailed you copies.";
       }
 
+      // Render line items
+      linesEl.hidden = false;
+      linesEl.innerHTML = "";
+      lines.forEach((line) => {
+        const isDigital = line.product?.format === "digital";
+        const styleText = STYLE_LABEL[line.style ?? ""] ?? "Custom";
+        const formatText = FORMAT_LABEL[line.product?.format ?? ""] ?? "";
+        const card = document.createElement("div");
+        card.className = "success-line";
+        card.innerHTML = `
+          ${line.printFileUrl ? `<img class="success-line__img" src="${line.printFileUrl}" alt="${styleText}" />` : ""}
+          <div class="success-line__body">
+            <div class="success-line__title">${styleText} · ${formatText}</div>
+            <div class="success-line__meta muted">Qty ${line.quantity}</div>
+            ${isDigital && line.printFileUrl
+              ? `<a class="btn btn--primary success-line__download" href="${line.printFileUrl}" download>⬇ Download</a>`
+              : ""}
+          </div>
+        `;
+        linesEl.appendChild(card);
+      });
+
       details.hidden = false;
-      const steps = isDigital
+      const steps = hasPhysical
         ? [
-            "Download link sent to your email",
-            "Save the high-res file (JPEG + PDF)",
-            "Print at home or order a frame separately",
+            "Order confirmed and queued at our print partner",
+            hasDigital ? "Digital files available immediately above" : "Printed and quality-checked (3–5 days)",
+            "Shipped worldwide — tracking sent by email",
           ]
         : [
-            "Order confirmed and queued at our print partner",
-            "Printed and quality-checked (3–5 days)",
-            "Shipped worldwide — tracking sent by email",
+            "Download links sent to your email",
+            "Save the high-res file (JPEG + PDF)",
+            "Print at home or order a frame separately",
           ];
       stepsList.innerHTML = steps
-        .map(
-          (s, i) =>
-            `<li><span class="num">${i + 1}</span><span>${s}</span></li>`,
-        )
+        .map((s, i) => `<li><span class="num">${i + 1}</span><span>${s}</span></li>`)
         .join("");
 
       const orderRef = order._id.slice(-8).toUpperCase();
-      meta.textContent = `${styleNice} · ${formatLabel} · Order #${orderRef}`;
-
-      // We deliberately do NOT clearSessionId() here — keeping the session
-      // alive means the user's gallery (and previous portraits) remain
-      // accessible from the nav after purchase.
+      const lineCount = lines.reduce((n, l) => n + l.quantity, 0);
+      meta.textContent = `${lineCount} item${lineCount === 1 ? "" : "s"} · Order #${orderRef}`;
     }
   }
 </script>
@@ -125,10 +151,26 @@ import Layout from "../layouts/Layout.astro";
     width: 80px; height: 80px; border-radius: 50%; background: var(--c-pink);
     color: white; font-size: 38px; display: flex; align-items: center; justify-content: center;
   }
-  .success__art {
-    width: min(320px, 80vw); aspect-ratio: 4/5; object-fit: cover; border-radius: var(--r-md);
-    border: 1.5px solid var(--c-stroke-light);
+  .success__lines {
+    width: 100%;
+    display: flex; flex-direction: column; gap: 12px;
   }
+  .success-line {
+    display: flex; gap: 14px; align-items: center;
+    background: var(--c-white); border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md); padding: 14px;
+    text-align: left;
+  }
+  .success-line__img {
+    width: 96px; height: 96px; object-fit: cover;
+    border-radius: var(--r-sm); flex-shrink: 0;
+    border: 1px solid var(--c-stroke-light);
+  }
+  .success-line__body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .success-line__title { font-weight: 600; color: var(--c-dark); font-size: 15px; }
+  .success-line__meta { font-size: 13px; }
+  .success-line__download { padding: 8px 16px; font-size: 14px; align-self: flex-start; border-radius: var(--r-sm); }
+
   .success__details { width: 100%; text-align: left; padding: 16px; }
   .success__details-title { font-size: 20px; margin-bottom: 12px; text-align: center; }
   .steps-list { list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 0; }

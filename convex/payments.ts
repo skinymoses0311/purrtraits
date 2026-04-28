@@ -4,6 +4,7 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import Stripe from "stripe";
+import type { Id } from "./_generated/dataModel";
 
 const ALLOWED_SHIPPING_COUNTRIES: Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] = [
   "AC","AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AT","AU","AW","AX","AZ",
@@ -22,56 +23,57 @@ const ALLOWED_SHIPPING_COUNTRIES: Stripe.Checkout.SessionCreateParams.ShippingAd
   "UA","UG","US","UY","UZ","VA","VC","VE","VG","VN","VU","WF","WS","XK","YE","YT","ZA","ZM","ZW","ZZ",
 ];
 
+const SHIPPING_FLAT_CENTS = 3000;
+
+// Builds a Stripe Checkout session for the entire cart on the given Convex
+// session. Server re-prices every line from the products table — the client
+// never tells us a price. Pre-creates a "pending" order keyed off the Stripe
+// session id so the webhook can find it and we don't have to cram the cart
+// into Stripe metadata (which has tight per-key limits).
 export const createCheckoutSession = action({
   args: {
-    productId: v.id("products"),
-    sessionId: v.optional(v.id("sessions")),
-    // The specific generated artwork URL the customer is buying. Falls back
-    // to the product's printFileUrl (test image) if not provided.
-    printFileUrl: v.optional(v.string()),
+    sessionId: v.id("sessions"),
     successUrl: v.string(),
     cancelUrl: v.string(),
   },
-  handler: async (
-    ctx,
-    { productId, sessionId, printFileUrl, successUrl, cancelUrl },
-  ): Promise<string> => {
-    const product = await ctx.runQuery(internal.products.getInternal, {
-      id: productId,
+  handler: async (ctx, { sessionId, successUrl, cancelUrl }): Promise<string> => {
+    const cart = await ctx.runQuery(internal.cart.getInternalForCheckout, {
+      sessionId,
     });
-    if (!product) throw new Error("Product not found");
+    if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: "2025-09-30.clover",
     });
 
-    const isPhysical = product.format !== "digital";
+    const hasPhysical = cart.physicalCount > 0;
+    const currency = cart.currency;
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = cart.items.map(
+      (item) => ({
+        quantity: item.quantity,
+        price_data: {
+          currency,
+          unit_amount: item.product.priceCents,
+          product_data: {
+            name: item.product.name,
+            ...(item.product.description
+              ? { description: item.product.description }
+              : {}),
+          },
+        },
+      }),
+    );
 
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: "payment",
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: product.currency,
-            unit_amount: product.priceCents,
-            product_data: {
-              name: product.name,
-              ...(product.description ? { description: product.description } : {}),
-            },
-          },
-        },
-      ],
+      line_items: lineItems,
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: {
-        convexProductId: productId,
-        ...(sessionId ? { convexSessionId: sessionId } : {}),
-        ...(printFileUrl ? { printFileUrl } : {}),
-      },
+      metadata: { convexSessionId: sessionId },
     };
 
-    if (isPhysical) {
+    if (hasPhysical) {
       params.shipping_address_collection = {
         allowed_countries: ALLOWED_SHIPPING_COUNTRIES,
       };
@@ -80,7 +82,7 @@ export const createCheckoutSession = action({
         {
           shipping_rate_data: {
             type: "fixed_amount",
-            fixed_amount: { amount: 3000, currency: "usd" },
+            fixed_amount: { amount: SHIPPING_FLAT_CENTS, currency },
             display_name: "Worldwide standard",
             delivery_estimate: {
               minimum: { unit: "business_day", value: 5 },
@@ -89,14 +91,27 @@ export const createCheckoutSession = action({
           },
         },
       ];
-    } else {
-      // Digital: collect email only, no shipping.
-      params.customer_email = undefined;
     }
 
-    const session = await stripe.checkout.sessions.create(params);
-    if (!session.url) throw new Error("Stripe did not return a checkout URL");
-    return session.url;
+    const stripeSession = await stripe.checkout.sessions.create(params);
+    if (!stripeSession.url) throw new Error("Stripe did not return a checkout URL");
+
+    // Pre-create a pending order with the line snapshot. The webhook fills
+    // in shipping/email/total once payment completes.
+    await ctx.runMutation(internal.orders.createPending, {
+      sessionId,
+      stripeSessionId: stripeSession.id,
+      currency,
+      lineItems: cart.items.map((item) => ({
+        productId: item.productId as Id<"products">,
+        printFileUrl: item.printFileUrl,
+        style: item.style,
+        quantity: item.quantity,
+        unitPriceCents: item.product.priceCents,
+      })),
+    });
+
+    return stripeSession.url;
   },
 });
 
@@ -120,8 +135,7 @@ export const handleStripeWebhook = internalAction({
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const productId = session.metadata?.convexProductId;
-      if (!productId || session.amount_total == null || !session.currency) {
+      if (session.amount_total == null || !session.currency) {
         return { received: true };
       }
 
@@ -131,10 +145,7 @@ export const handleStripeWebhook = internalAction({
         sessionAny.shipping_details ??
         null;
 
-      const orderId = await ctx.runMutation(internal.orders.recordPaid, {
-        productId: productId as any,
-        sessionId: (session.metadata?.convexSessionId as any) ?? undefined,
-        printFileUrl: session.metadata?.printFileUrl ?? undefined,
+      const orderId = await ctx.runMutation(internal.orders.markPaid, {
         stripeSessionId: session.id,
         amountTotal: session.amount_total,
         currency: session.currency,
@@ -153,16 +164,32 @@ export const handleStripeWebhook = internalAction({
           : undefined,
       });
 
-      // Only kick off Gelato fulfilment for physical orders.
-      const product = await ctx.runQuery(internal.products.getInternal, {
-        id: productId as any,
+      if (!orderId) return { received: true };
+
+      // Clear the cart on the originating Convex session so refreshing the
+      // app doesn't show stale lines.
+      const convexSessionId = session.metadata?.convexSessionId as
+        | Id<"sessions">
+        | undefined;
+      if (convexSessionId) {
+        await ctx.runMutation(internal.cart.clearInternal, {
+          sessionId: convexSessionId,
+        });
+      }
+
+      // Decide fulfillment: if any line is physical, fire one combined Gelato
+      // order. If everything is digital, mark fulfilled immediately.
+      const order = await ctx.runQuery(internal.orders.getInternal, {
+        id: orderId,
       });
-      if (product && product.format !== "digital") {
+      const hasPhysical = await ctx.runQuery(internal.orders.hasPhysicalLines, {
+        id: orderId,
+      });
+      if (order && hasPhysical) {
         await ctx.scheduler.runAfter(0, internal.gelato.fulfillConvexOrder, {
           orderId,
         });
-      } else {
-        // Digital: mark as fulfilled immediately. Customer gets the link on /success.
+      } else if (order) {
         await ctx.runMutation(internal.orders.setStatus, {
           id: orderId,
           status: "fulfilled",
