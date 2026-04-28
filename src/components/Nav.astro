@@ -41,6 +41,18 @@ const path = Astro.url.pathname;
     font-size: 18px;
   }
   .nav__links { display: none; align-items: center; gap: 28px; }
+  .nav__links.is-open {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    position: absolute; top: 64px; left: 0; right: 0;
+    background: var(--c-cream); border-bottom: 1.5px solid var(--c-stroke-light);
+    padding: 12px 0; z-index: 49;
+  }
+  .nav__links.is-open .nav__link {
+    width: 100%; padding: 12px 20px;
+  }
+  .nav__links.is-open .nav__cta {
+    margin: 8px 20px 4px;
+  }
   .nav__link { font-family: var(--font-display); font-size: 17px; color: var(--c-text); }
   .nav__link:hover { color: var(--c-dark); }
   .nav__cta { padding: 8px 18px; font-size: 16px; }
@@ -53,7 +65,25 @@ const path = Astro.url.pathname;
   }
   @media (min-width: 768px) {
     .nav__links { display: flex; }
+    .nav__links.is-open { position: static; flex-direction: row; padding: 0; border: none; }
+    .nav__links.is-open .nav__link { width: auto; padding: 0; }
+    .nav__links.is-open .nav__cta { margin: 0; }
     .nav__menu { display: none; }
     .nav__inner { height: 72px; }
   }
 </style>
+
+<script>
+  const btn = document.getElementById('nav-menu-btn');
+  const links = btn?.closest('nav')?.querySelector('.nav__links');
+  btn?.addEventListener('click', () => {
+    links?.classList.toggle('is-open');
+    btn.setAttribute('aria-expanded', String(links?.classList.contains('is-open')));
+  });
+  links?.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => {
+      links.classList.remove('is-open');
+      btn?.setAttribute('aria-expanded', 'false');
+    });
+  });
+</script>
