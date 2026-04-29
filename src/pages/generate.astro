@@ -45,6 +45,15 @@ import Layout from "../layouts/Layout.astro";
       const preview = document.getElementById("pet-preview") as HTMLImageElement;
       preview.src = session.petPhotoUrls[0];
 
+      const petName = session.quizAnswers?.name?.trim();
+      if (petName) {
+        document.title = `Painting ${petName} · Purrtraits`;
+        const titleEl = document.getElementById("title")!;
+        titleEl.textContent = `Painting ${petName}…`;
+        const sub = document.getElementById("subtitle")!;
+        sub.textContent = `Our AI is brushing 3 unique styles for ${petName}. About 30 seconds.`;
+      }
+
       // Friendly progress dots while we wait — Nano Banana usually finishes
       // in 15–25s. We don't have streaming progress, so we just animate.
       const dots = document.getElementById("dots")!;

@@ -136,6 +136,7 @@ import Layout from "../layouts/Layout.astro";
           ? ` · ${FRAME_LABEL[it.product.frame]}`
           : "";
         const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const titleText = it.petName ? `${it.petName} · ${styleText}` : styleText;
         const delivery = it.product.format === "digital"
           ? "Instant download after payment"
           : "Ships in 5–14 days via Gelato";
@@ -152,10 +153,10 @@ import Layout from "../layouts/Layout.astro";
         card.innerHTML = `
           <div class="cart-row__product">
             <div class="protected-wrap cart-row__thumb-wrap">
-              <img class="cart-row__thumb protected-img" alt="${styleText} portrait" src="${it.printFileUrl}" />
+              <img class="cart-row__thumb protected-img" alt="${titleText} portrait" src="${it.printFileUrl}" />
             </div>
             <div class="cart-row__info">
-              <div class="cart-row__title">${styleText}</div>
+              <div class="cart-row__title">${titleText}</div>
               <div class="cart-row__meta">${formatText} · ${sizeText}${frameText}</div>
               <div class="cart-row__delivery">${delivery}</div>
             </div>
@@ -197,10 +198,11 @@ import Layout from "../layouts/Layout.astro";
       // Order summary lines
       summaryItemsEl.innerHTML = cart.items.map((it: any) => {
         const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const titleText = it.petName ? `${it.petName} · ${styleText}` : styleText;
         const formatText = FORMAT_LABEL[it.product.format as Format];
         return `<div class="cart-summary__item">
           <div>
-            <div class="cart-summary__item-title">${styleText}</div>
+            <div class="cart-summary__item-title">${titleText}</div>
             <div class="cart-summary__item-meta">${formatText} · qty ${it.quantity}</div>
           </div>
           <div>${fmt(it.lineTotalCents, cart.currency)}</div>

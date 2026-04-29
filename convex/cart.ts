@@ -11,9 +11,10 @@ export const addItem = mutation({
     productId: v.id("products"),
     printFileUrl: v.string(),
     style: v.string(),
+    petName: v.optional(v.string()),
     quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { sessionId, productId, printFileUrl, style, quantity }) => {
+  handler: async (ctx, { sessionId, productId, printFileUrl, style, petName, quantity }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) throw new Error("Session not found");
     const product = await ctx.db.get(productId);
@@ -30,6 +31,9 @@ export const addItem = mutation({
       const existing = cart[existingIndex];
       cart[existingIndex] = {
         ...existing,
+        // If the existing line had no name (e.g. legacy add), fold in the
+        // newly-supplied one so the cart UI shows the pet name on next view.
+        petName: existing.petName ?? petName,
         quantity: isDigital ? 1 : existing.quantity + requested,
       };
     } else {
@@ -37,6 +41,7 @@ export const addItem = mutation({
         productId,
         printFileUrl,
         style,
+        petName,
         quantity: isDigital ? 1 : requested,
         addedAt: Date.now(),
       });
@@ -130,6 +135,7 @@ export const getWithProducts = query({
         productId: line.productId,
         printFileUrl: line.printFileUrl,
         style: line.style,
+        petName: line.petName,
         quantity: line.quantity,
         product,
         lineTotalCents: product.priceCents * line.quantity,
@@ -176,6 +182,7 @@ export const getInternalForCheckout = internalQuery({
         productId: line.productId,
         printFileUrl: line.printFileUrl,
         style: line.style,
+        petName: line.petName,
         quantity: line.quantity,
         product,
       })),

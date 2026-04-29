@@ -67,6 +67,10 @@ export const saveQuiz = mutation({
   args: {
     id: v.id("sessions"),
     answers: v.object({
+      name: v.optional(v.string()),
+      breed: v.optional(v.string()),
+      age: v.optional(v.string()),
+      lifestyle: v.optional(v.string()),
       activity: v.string(),
       mood: v.string(),
       room: v.string(),
@@ -126,8 +130,8 @@ export const decrementRegens = internalMutation({
 });
 
 // Called by fal action after every successful generation. We accept the
-// generations + the quiz context so each item knows what activity/mood it
-// was made for — useful both for display and (later) for re-prompting.
+// generations + the quiz context so each item knows what activity/mood/petName
+// it was made for — useful both for display and (later) for re-prompting.
 export const appendGalleryItems = internalMutation({
   args: {
     id: v.id("sessions"),
@@ -137,6 +141,7 @@ export const appendGalleryItems = internalMutation({
         imageUrl: v.string(),
         activity: v.optional(v.string()),
         mood: v.optional(v.string()),
+        petName: v.optional(v.string()),
       }),
     ),
   },

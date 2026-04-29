@@ -77,6 +77,15 @@ import Layout from "../layouts/Layout.astro";
     if (!session?.generations) {
       window.location.href = "/generate";
     } else {
+      const petName = session.quizAnswers?.name?.trim();
+      if (petName) {
+        document.title = `${petName}'s portraits · Purrtraits`;
+        const heading = document.querySelector(".reveal__header h1");
+        if (heading) heading.textContent = `Which ${petName} do you love most?`;
+        const sub = document.querySelector(".reveal__header .muted");
+        if (sub) sub.textContent = `Click a style for ${petName}, then choose your format.`;
+      }
+
       render(session.generations, session.regensRemaining);
 
       regenBtn.addEventListener("click", async () => {

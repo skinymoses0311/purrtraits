@@ -11,7 +11,13 @@ export default defineSchema({
     petPhotoUrls: v.optional(v.array(v.string())),
     quizAnswers: v.optional(
       v.object({
-        // What the pet should be doing in the portrait — drives composition/scene.
+        // Pet profile (collected first; not used in the portrait prompt).
+        // Optional to keep older sessions valid; new sessions always set them.
+        name: v.optional(v.string()),
+        breed: v.optional(v.string()),
+        age: v.optional(v.string()),       // "under-1" | "1-3" | "4-7" | "8-plus"
+        lifestyle: v.optional(v.string()), // "homebody" | "adventurer"
+        // Portrait creative direction — these feed the AI prompt.
         activity: v.string(), // "regal" | "playing" | "napping" | "adventuring"
         mood: v.string(),     // "calm" | "playful" | "regal" | "quirky"
         room: v.string(),     // "living" | "bedroom" | "office" | "kitchen"
@@ -47,6 +53,7 @@ export default defineSchema({
           imageUrl: v.string(),
           activity: v.optional(v.string()),
           mood: v.optional(v.string()),
+          petName: v.optional(v.string()),
           createdAt: v.number(),
         }),
       ),
@@ -59,6 +66,7 @@ export default defineSchema({
           productId: v.id("products"),
           printFileUrl: v.string(),
           style: v.string(),
+          petName: v.optional(v.string()),
           quantity: v.number(),
           addedAt: v.number(),
         }),
@@ -111,11 +119,13 @@ export default defineSchema({
           productId: v.id("products"),
           printFileUrl: v.string(),
           style: v.string(),
+          petName: v.optional(v.string()),
           quantity: v.number(),
           unitPriceCents: v.number(),
         }),
       ),
     ),
+    petName: v.optional(v.string()),
     shipping: v.optional(
       v.object({
         name: v.string(),

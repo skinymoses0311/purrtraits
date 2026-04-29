@@ -126,16 +126,39 @@ async function upscale(imageUrl: string): Promise<string | null> {
   }
 }
 
+// fal.media URLs are temporary (typically ~24h), which means the gallery,
+// the cart's printFileUrl, and digital downloads on the success page all
+// silently rot once fal expires the file. Persisting the bytes into Convex
+// storage gives us a permanent, CDN-backed URL we control.
+async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`persistToConvexStorage: fetch failed ${res.status} for ${url}`);
+      return url;
+    }
+    const blob = await res.blob();
+    const storageId = await ctx.storage.store(blob);
+    const persisted = await ctx.storage.getUrl(storageId);
+    return persisted ?? url;
+  } catch (err) {
+    console.warn("persistToConvexStorage failed:", err);
+    return url;
+  }
+}
+
 // Two-step pipeline: Nano Banana for the artistic transformation, then a
 // clarity upscale so the print file is high-DPI. Failures in step 2 fall
 // back to the lower-res source so the user still gets a portrait.
+// Final URL is persisted to Convex storage so it survives fal's TTL.
 async function generateOnePortrait(
+  ctx: any,
   prompt: string,
   imageUrls: string[],
 ): Promise<string> {
   const lowRes = await callNanoBanana(prompt, imageUrls);
   const hiRes = await upscale(lowRes);
-  return hiRes ?? lowRes;
+  return await persistToConvexStorage(ctx, hiRes ?? lowRes);
 }
 
 // ----- Generation orchestration --------------------------------------------
@@ -156,7 +179,7 @@ async function generateAllStyles(
   // returning a partial gallery is better than blanking the screen.
   const results = await Promise.allSettled(
     STYLES.map((style) =>
-      generateOnePortrait(buildPrompt(style, activity, mood), photos).then(
+      generateOnePortrait(ctx, buildPrompt(style, activity, mood), photos).then(
         (url) => ({ style, imageUrl: url }),
       ),
     ),
@@ -197,6 +220,7 @@ export const generatePortraits = action({
           imageUrl: g.imageUrl,
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
+          petName: session?.quizAnswers?.name,
         })),
       });
       return { count: generations.length };
@@ -239,6 +263,7 @@ export const regenerate = action({
           imageUrl: g.imageUrl,
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
+          petName: session?.quizAnswers?.name,
         })),
       });
       await ctx.runMutation(internal.sessions.decrementRegens, { id: sessionId });

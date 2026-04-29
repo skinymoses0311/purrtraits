@@ -105,10 +105,17 @@ import ProductPreview from "../components/ProductPreview.astro";
       const buy = document.getElementById("buy") as HTMLButtonElement;
       const benefit2 = document.getElementById("benefit-2")!;
 
+      const petName = session.quizAnswers?.name?.trim();
+
       hero.src = portrait.imageUrl;
       disableImageGrabbers();
-      title.textContent = `${styleLabel} Portrait`;
-      styleLbl.textContent = "Your selection";
+      title.textContent = petName
+        ? `${petName} · ${styleLabel}`
+        : `${styleLabel} Portrait`;
+      styleLbl.textContent = petName ? `Your portrait of ${petName}` : "Your selection";
+      if (petName) {
+        document.title = `${petName}'s portrait · Purrtraits`;
+      }
 
       // Product preview wiring. The CSS component reads data-format,
       // data-frame, and data-size to pick its mockup style, plus its image.
@@ -248,6 +255,7 @@ import ProductPreview from "../components/ProductPreview.astro";
             productId: productId as any,
             printFileUrl: portrait.imageUrl,
             style: selectedStyle,
+            petName: petName ?? undefined,
           });
           buy.textContent = "Added to cart ✓";
           addedFlashTimer = window.setTimeout(() => {

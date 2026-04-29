@@ -17,6 +17,7 @@ const lineItemValidator = v.object({
   productId: v.id("products"),
   printFileUrl: v.string(),
   style: v.string(),
+  petName: v.optional(v.string()),
   quantity: v.number(),
   unitPriceCents: v.number(),
 });
@@ -29,6 +30,7 @@ export const createPending = internalMutation({
     sessionId: v.id("sessions"),
     stripeSessionId: v.string(),
     currency: v.string(),
+    petName: v.optional(v.string()),
     lineItems: v.array(lineItemValidator),
   },
   handler: async (ctx, args): Promise<Id<"orders">> => {
@@ -49,6 +51,7 @@ export const createPending = internalMutation({
       currency: args.currency,
       amountTotal: 0,
       lineItems: args.lineItems,
+      petName: args.petName,
       selectedStyle,
       status: "pending",
     });

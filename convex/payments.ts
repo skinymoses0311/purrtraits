@@ -98,14 +98,21 @@ export const createCheckoutSession = action({
 
     // Pre-create a pending order with the line snapshot. The webhook fills
     // in shipping/email/total once payment completes.
+    // Pet name is stable across all lines in a single cart (same session),
+    // so we collapse it onto the order itself for easy customer-support refs.
+    const orderPetName =
+      cart.items.find((item) => item.petName)?.petName ?? undefined;
+
     await ctx.runMutation(internal.orders.createPending, {
       sessionId,
       stripeSessionId: stripeSession.id,
       currency,
+      petName: orderPetName,
       lineItems: cart.items.map((item) => ({
         productId: item.productId as Id<"products">,
         printFileUrl: item.printFileUrl,
         style: item.style,
+        petName: item.petName,
         quantity: item.quantity,
         unitPriceCents: item.product.priceCents,
       })),

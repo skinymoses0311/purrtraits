@@ -71,6 +71,7 @@ import Layout from "../layouts/Layout.astro";
     imageUrl: string;
     activity?: string;
     mood?: string;
+    petName?: string;
     createdAt: number;
     _index: number;
   };
@@ -143,20 +144,21 @@ import Layout from "../layouts/Layout.astro";
       const card = document.createElement("article");
       card.className = "g-card";
       const styleLabel = STYLE_LABELS[it.style as Style] ?? it.style;
+      const titleText = it.petName ? `${it.petName} · ${styleLabel}` : styleLabel;
       const activity =
         it.activity && ACTIVITY_LABELS[it.activity]
           ? `<span class="g-card__tag">${ACTIVITY_LABELS[it.activity]}</span>`
           : "";
       card.innerHTML = `
         <div class="g-card__media protected-wrap">
-          <img src="${it.imageUrl}" alt="${styleLabel}" class="g-card__img protected-img" />
+          <img src="${it.imageUrl}" alt="${titleText}" class="g-card__img protected-img" />
           <div class="g-card__hover">🔍 Preview</div>
           ${activity}
         </div>
         <div class="g-card__body">
           <div class="g-card__row">
             <div>
-              <p class="g-card__title">${styleLabel}</p>
+              <p class="g-card__title">${titleText}</p>
               <p class="g-card__sub">Pick your format</p>
             </div>
             <p class="g-card__price">From $9.99</p>

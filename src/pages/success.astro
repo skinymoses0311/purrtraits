@@ -85,31 +85,42 @@ import Layout from "../layouts/Layout.astro";
 
       const hasPhysical = lines.some((l) => l.product?.format && l.product.format !== "digital");
       const hasDigital = lines.some((l) => l.product?.format === "digital");
+      const petName = (order.petName as string | undefined)?.trim()
+        || lines.find((l) => l.petName)?.petName?.trim();
+      const possessive = petName ? `${petName}'s` : "Your";
+
+      if (petName) {
+        document.title = `${possessive} Purrtrait · Purrtraits`;
+      }
 
       if (hasPhysical && hasDigital) {
-        title.textContent = "Your Purrtraits order is confirmed! 🎨";
+        title.textContent = `${possessive} Purrtrait order is confirmed! 🎨`;
         sub.textContent = "Digital downloads are below; printed pieces are heading to our print partner now.";
       } else if (hasPhysical) {
-        title.textContent = "Your Purrtraits are being printed! 🎨";
+        title.textContent = `${possessive} Purrtraits are being printed! 🎨`;
         sub.textContent = "We've sent your order to our print partner. You'll get tracking by email when it ships.";
       } else {
-        title.textContent = "Your Purrtraits are ready! 🎉";
+        title.textContent = `${possessive} Purrtraits are ready! 🎉`;
         sub.textContent = "Your high-resolution downloads are right below — we've also emailed you copies.";
       }
 
       // Render line items
       linesEl.hidden = false;
       linesEl.innerHTML = "";
-      lines.forEach((line) => {
+      lines.forEach((line: any) => {
         const isDigital = line.product?.format === "digital";
         const styleText = STYLE_LABEL[line.style ?? ""] ?? "Custom";
         const formatText = FORMAT_LABEL[line.product?.format ?? ""] ?? "";
+        const linePetName = (line.petName as string | undefined)?.trim() ?? petName;
+        const heading = linePetName
+          ? `${linePetName} · ${styleText} · ${formatText}`
+          : `${styleText} · ${formatText}`;
         const card = document.createElement("div");
         card.className = "success-line";
         card.innerHTML = `
-          ${line.printFileUrl ? `<img class="success-line__img" src="${line.printFileUrl}" alt="${styleText}" />` : ""}
+          ${line.printFileUrl ? `<img class="success-line__img" src="${line.printFileUrl}" alt="${heading}" />` : ""}
           <div class="success-line__body">
-            <div class="success-line__title">${styleText} · ${formatText}</div>
+            <div class="success-line__title">${heading}</div>
             <div class="success-line__meta muted">Qty ${line.quantity}</div>
             ${isDigital && line.printFileUrl
               ? `<a class="btn btn--primary success-line__download" href="${line.printFileUrl}" download>⬇ Download</a>`
