@@ -237,6 +237,11 @@ img { max-width: 100%; display: block; }
   background-position: center;
   /* Container-aware tile size so the watermark scales with the image. */
   background-size: clamp(200px, 42cqw, 360px) clamp(120px, 25cqw, 215px);
+  /* Fade the centre tile so it doesn't sit on the focal point of the
+     portrait. The mask leaves the edge tiles at full strength so the
+     mark is still everywhere a cropper might try to keep. */
+  -webkit-mask-image: radial-gradient(ellipse 32% 28% at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 45%, #000 75%);
+          mask-image: radial-gradient(ellipse 32% 28% at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 45%, #000 75%);
   pointer-events: none;
   user-select: none;
 }
