@@ -10,7 +10,8 @@ import Layout from "../layouts/Layout.astro";
       <div class="upload__intro">
         <h1>Upload your pet's photos</h1>
         <p class="muted">
-          Add 1–5 clear photos of your pet. More angles = a better likeness in the final art. 🐶🐱
+          Add 1–5 clear photos of your pet. More angles = a better likeness in the
+          final art. <span aria-hidden="true">🐶🐱</span>
         </p>
       </div>
 
@@ -19,28 +20,52 @@ import Layout from "../layouts/Layout.astro";
           <div class="dropzone" id="dropzone">
             <input id="file" type="file" accept="image/*" multiple hidden />
             <label for="file" class="dropzone__label">
-              <div class="dropzone__icon">📷</div>
-              <p class="display dropzone__title" id="dz-title">Tap or drop photos here</p>
-              <p class="muted dropzone__hint">JPG or PNG · up to 10MB each · max 5 photos</p>
+              <span class="dropzone__icon" aria-hidden="true">📷</span>
+              <p class="display dropzone__title" id="dz-title">
+                Drop your photo here
+              </p>
+              <p class="muted dropzone__hint" id="dz-hint">
+                or click to browse · JPG, PNG up to 10MB
+              </p>
             </label>
           </div>
 
-          <ul class="thumbs" id="thumbs"></ul>
+          <div class="upload__progress" id="progress" hidden>
+            <div class="upload__progress-row">
+              <span class="display" id="progress-title">Uploading…</span>
+              <span class="muted" id="progress-detail"></span>
+            </div>
+            <div class="progress">
+              <div class="progress__track">
+                <div class="progress__fill" id="progress-fill" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <ul class="thumbs" id="thumbs" aria-live="polite"></ul>
 
           <div id="status" class="status muted" aria-live="polite"></div>
-          <button id="continue" class="btn btn--primary btn--block" disabled>
+
+          <button
+            id="continue"
+            class="btn btn--primary btn--block"
+            disabled
+          >
             Continue to style quiz →
           </button>
+          <p class="upload__cta-hint muted" id="cta-hint">
+            Upload at least one photo to continue.
+          </p>
         </div>
 
         <aside class="upload__tips">
           <h3 class="display">Tips for best results</h3>
           <ul class="tips">
-            <li><span class="tick">✓</span> Good lighting — natural is best</li>
-            <li><span class="tick">✓</span> Clear face, looking forward</li>
-            <li><span class="tick">✓</span> No sunglasses or hats</li>
-            <li><span class="tick">✓</span> Single pet, not a group shot</li>
-            <li><span class="tick">✓</span> 2–3 different angles work great</li>
+            <li><span class="tick" aria-hidden="true">✓</span> Good lighting — natural is best</li>
+            <li><span class="tick" aria-hidden="true">✓</span> Clear face, looking forward</li>
+            <li><span class="tick" aria-hidden="true">✓</span> No sunglasses or hats</li>
+            <li><span class="tick" aria-hidden="true">✓</span> Single pet, not a group shot</li>
+            <li><span class="tick" aria-hidden="true">✓</span> 2–3 different angles work great</li>
           </ul>
         </aside>
       </div>
@@ -63,13 +88,35 @@ import Layout from "../layouts/Layout.astro";
   const thumbs = document.getElementById("thumbs")!;
   const dzTitle = document.getElementById("dz-title")!;
   const continueBtn = document.getElementById("continue") as HTMLButtonElement;
+  const ctaHint = document.getElementById("cta-hint")!;
   const status = document.getElementById("status")!;
+  const progressBox = document.getElementById("progress")!;
+  const progressTitle = document.getElementById("progress-title")!;
+  const progressDetail = document.getElementById("progress-detail")!;
+  const progressFill = document.getElementById("progress-fill") as HTMLDivElement;
 
-  type Photo = { url: string; index: number };
-  // Mirror of session.petPhotoUrls so we can render thumbs locally without
-  // re-fetching after every upload.
-  let photos: Photo[] = [];
+  // Local mirror of session.petPhotoUrls plus per-tile state. Each tile we
+  // render starts as a "pending" placeholder while the file is being prepared
+  // and uploaded, then resolves to a "ready" tile with the real image. This
+  // is the main UX hook: the user always sees what's happening to each
+  // individual photo, so an upload that takes 10 seconds doesn't feel broken.
+  type PendingTile = {
+    kind: "pending";
+    id: string;
+    fileName: string;
+    state: "preparing" | "uploading";
+  };
+  type ReadyTile = {
+    kind: "ready";
+    id: string;
+    url: string;
+    serverIndex: number; // index in session.petPhotoUrls (server-side)
+  };
+  type Tile = PendingTile | ReadyTile;
+
+  let tiles: Tile[] = [];
   let sessionId: Id<"sessions"> | null = null;
+  let nextId = 1;
 
   // If the user finished a previous flow in this session and is back at
   // /upload, treat that as "start a new portrait". We clear photos/quiz/
@@ -89,37 +136,119 @@ import Layout from "../layouts/Layout.astro";
     status.style.color = kind === "error" ? "#b14" : "var(--c-text)";
   }
 
-  function refresh() {
-    thumbs.innerHTML = "";
-    photos.forEach((p, i) => {
-      const li = document.createElement("li");
-      li.className = "thumb-item";
-      li.innerHTML = `
-        <img src="${p.url}" alt="Pet photo ${i + 1}" />
-        <button class="thumb-item__remove" data-i="${i}" aria-label="Remove">×</button>
-      `;
-      thumbs.appendChild(li);
-    });
-    thumbs.querySelectorAll<HTMLButtonElement>(".thumb-item__remove").forEach((btn) => {
-      btn.addEventListener("click", () => removePhoto(parseInt(btn.dataset.i!)));
-    });
-    continueBtn.disabled = photos.length === 0;
-    dzTitle.textContent =
-      photos.length === 0
-        ? "Tap or drop photos here"
-        : photos.length >= MAX_PHOTOS
-          ? "Maximum reached"
-          : `Add another (${photos.length}/${MAX_PHOTOS})`;
-    dropzone.classList.toggle("dropzone--full", photos.length >= MAX_PHOTOS);
+  function readyCount() {
+    return tiles.filter((t) => t.kind === "ready").length;
+  }
+  function pendingCount() {
+    return tiles.filter((t) => t.kind === "pending").length;
   }
 
-  async function removePhoto(index: number) {
+  function refresh() {
+    // Render each tile in a known DOM order. Pending tiles get a shimmer
+    // and a state label so the user can read at a glance which photo is
+    // doing what.
+    thumbs.innerHTML = "";
+    tiles.forEach((t) => {
+      const li = document.createElement("li");
+      li.className =
+        "thumb-item" + (t.kind === "pending" ? " thumb-item--pending" : "");
+      li.dataset.id = t.id;
+      if (t.kind === "ready") {
+        li.innerHTML = `
+          <img src="${t.url}" alt="Pet photo" />
+          <button class="thumb-item__remove" data-id="${t.id}" aria-label="Remove photo" type="button">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M3 3 L11 11 M11 3 L3 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+        `;
+      } else {
+        const stateLabel =
+          t.state === "preparing" ? "Preparing…" : "Uploading…";
+        li.innerHTML = `
+          <div class="thumb-item__pending">
+            <span class="thumb-item__spinner" aria-hidden="true"></span>
+            <span class="thumb-item__state">${stateLabel}</span>
+          </div>
+        `;
+      }
+      thumbs.appendChild(li);
+    });
+    thumbs
+      .querySelectorAll<HTMLButtonElement>(".thumb-item__remove")
+      .forEach((btn) => {
+        btn.addEventListener("click", () =>
+          removePhotoById(btn.dataset.id ?? ""),
+        );
+      });
+
+    // Dropzone affordance updates as photos accumulate.
+    const total = tiles.length;
+    const ready = readyCount();
+    const pending = pendingCount();
+    dzTitle.textContent =
+      total === 0
+        ? "Tap or drop photos here"
+        : total >= MAX_PHOTOS
+          ? "Maximum reached"
+          : `Add another (${total}/${MAX_PHOTOS})`;
+    dropzone.classList.toggle("dropzone--full", total >= MAX_PHOTOS);
+
+    // Global progress strip — only visible while uploads are in flight.
+    if (pending > 0) {
+      progressBox.hidden = false;
+      const totalForRound = ready + pending;
+      const done = totalForRound - pending;
+      progressTitle.textContent = `Uploading photos…`;
+      progressDetail.textContent = `${done} of ${totalForRound} done`;
+      const pct = totalForRound === 0 ? 0 : (done / totalForRound) * 100;
+      progressFill.style.width = `${pct}%`;
+    } else {
+      progressBox.hidden = true;
+      progressFill.style.width = "0%";
+    }
+
+    // Continue gating + helper text.
+    if (ready === 0) {
+      continueBtn.disabled = true;
+      ctaHint.textContent = pending
+        ? "Hang tight — your photo is uploading."
+        : "Upload at least one photo to continue.";
+      ctaHint.hidden = false;
+    } else if (pending > 0) {
+      continueBtn.disabled = true;
+      ctaHint.textContent = `Still uploading ${pending} photo${pending === 1 ? "" : "s"}…`;
+      ctaHint.hidden = false;
+    } else {
+      continueBtn.disabled = false;
+      ctaHint.hidden = true;
+    }
+  }
+
+  async function removePhotoById(id: string) {
     if (!sessionId) return;
-    await client.mutation(api.sessions.removePhoto, { id: sessionId, index });
-    photos.splice(index, 1);
-    // Re-index remaining
-    photos = photos.map((p, i) => ({ ...p, index: i }));
+    const idx = tiles.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    const tile = tiles[idx];
+    if (tile.kind !== "ready") return;
+    // Snapshot the server index before we splice, then map down any later
+    // ready tiles whose serverIndex was after this one.
+    const removedServerIndex = tile.serverIndex;
+    tiles.splice(idx, 1);
+    tiles.forEach((t) => {
+      if (t.kind === "ready" && t.serverIndex > removedServerIndex) {
+        t.serverIndex -= 1;
+      }
+    });
     refresh();
+    try {
+      await client.mutation(api.sessions.removePhoto, {
+        id: sessionId,
+        index: removedServerIndex,
+      });
+    } catch (err) {
+      setStatus(`Couldn't remove: ${(err as Error).message}`, "error");
+    }
   }
 
   async function handleFiles(files: FileList | File[]) {
@@ -128,8 +257,13 @@ import Layout from "../layouts/Layout.astro";
 
     if (!sessionId) sessionId = await ensureSession(client);
 
+    // Phase 1 — enqueue every valid file as a pending tile in a single
+    // pass BEFORE any upload starts. This way "X of Y done" sees the real
+    // total from the very first tick (e.g. 0 of 5, not 0 of 1 climbing as
+    // the serial uploader walks the list).
+    const queue: { file: File; tileId: string }[] = [];
     for (const file of list) {
-      if (photos.length >= MAX_PHOTOS) {
+      if (tiles.length >= MAX_PHOTOS) {
         setStatus(`Max ${MAX_PHOTOS} photos.`, "error");
         break;
       }
@@ -141,12 +275,31 @@ import Layout from "../layouts/Layout.astro";
         setStatus(`${file.name}: bigger than 10MB.`, "error");
         continue;
       }
+      const tileId = `t${nextId++}`;
+      tiles.push({
+        kind: "pending",
+        id: tileId,
+        fileName: file.name,
+        state: "preparing",
+      });
+      queue.push({ file, tileId });
+    }
+    if (queue.length === 0) return;
+    refresh();
+
+    // Phase 2 — process the queue serially. Single-use upload URLs and a
+    // shared crop canvas make a strict serial loop the predictable choice.
+    for (const { file, tileId } of queue) {
       try {
-        setStatus(`Preparing ${file.name}…`);
-        // Center-crop to 3:4 portrait so Nano Banana inherits that aspect.
         const cropped = await cropToAspect(file);
-        setStatus(`Uploading ${file.name}…`);
-        const uploadUrl = await client.mutation(api.files.generateUploadUrl, {});
+        const t = tiles.find((x) => x.id === tileId);
+        if (t && t.kind === "pending") t.state = "uploading";
+        refresh();
+
+        const uploadUrl = await client.mutation(
+          api.files.generateUploadUrl,
+          {},
+        );
         const res = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": cropped.type },
@@ -154,17 +307,48 @@ import Layout from "../layouts/Layout.astro";
         });
         if (!res.ok) throw new Error(`upload failed (${res.status})`);
         const { storageId } = await res.json();
-        const { url } = await client.mutation(api.sessions.addPhoto, {
-          id: sessionId,
+        const { url, count } = await client.mutation(api.sessions.addPhoto, {
+          id: sessionId!,
           storageId: storageId as any,
         });
-        photos.push({ url, index: photos.length });
+
+        const i = tiles.findIndex((x) => x.id === tileId);
+        if (i >= 0) {
+          tiles[i] = {
+            kind: "ready",
+            id: tileId,
+            url,
+            serverIndex: count - 1,
+          };
+        }
         refresh();
-        setStatus(`✓ ${photos.length} photo${photos.length === 1 ? "" : "s"} ready`);
+        setStatus(
+          `✓ ${readyCount()} photo${readyCount() === 1 ? "" : "s"} ready`,
+        );
       } catch (err) {
-        setStatus(`Upload failed: ${(err as Error).message}`, "error");
+        const i = tiles.findIndex((x) => x.id === tileId);
+        if (i >= 0) tiles.splice(i, 1);
+        refresh();
+        setStatus(
+          `Upload failed for ${file.name}: ${(err as Error).message}`,
+          "error",
+        );
       }
     }
+  }
+
+  function escapeHtml(s: string) {
+    return s.replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c]!,
+    );
   }
 
   // ----- Dropzone wiring -----
@@ -190,60 +374,163 @@ import Layout from "../layouts/Layout.astro";
   });
 
   continueBtn.addEventListener("click", () => {
-    if (photos.length === 0) return;
+    if (readyCount() === 0) return;
     window.location.href = "/quiz";
   });
+
+  refresh();
 </script>
 
-<style>
-  .back-link { display: inline-block; margin-bottom: 16px; }
-  .upload__intro { text-align: center; margin-bottom: 32px; }
+<style is:global>
+  /* Page-local layout ---------------------------------------------- */
+  .upload .back-link { display: inline-block; margin-bottom: 16px; }
+  .upload__intro {
+    text-align: center; margin: 0 auto 32px;
+    max-width: 640px;
+  }
+  .upload__intro h1 { margin-bottom: 6px; }
+
   .upload__layout { display: grid; gap: 32px; grid-template-columns: 1fr; }
   @media (min-width: 900px) {
-    .upload__layout { grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: start; }
+    .upload__layout {
+      grid-template-columns: 1.2fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
   }
 
+  /* Dropzone — matches wireframe: pink-light fill, dashed pink border,
+     centred camera emoji + heading + hint. No white circle. */
   .dropzone {
-    background: var(--c-pink-light); border: 2px dashed var(--c-pink); border-radius: var(--r-md);
-    transition: background .15s ease;
+    background: var(--c-pink-light);
+    border: 2px dashed var(--c-pink);
+    border-radius: var(--r-md);
+    transition: background .15s ease, border-color .15s ease;
   }
-  .dropzone--hover { background: #f6dde6; }
+  .dropzone--hover { background: #f6dde6; border-color: #db8aa3; }
   .dropzone--full { opacity: .55; pointer-events: none; }
   .dropzone__label {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 6px; padding: 40px 24px; min-height: 220px; cursor: pointer;
+    gap: 8px; padding: 56px 24px; min-height: 280px; cursor: pointer;
+    text-align: center;
   }
-  .dropzone__icon { font-size: 44px; }
-  .dropzone__title { font-size: 22px; }
-  .dropzone__hint { font-size: 14px; }
+  .dropzone__icon { font-size: 48px; line-height: 1; }
+  .dropzone__title { font-size: 26px; }
+  .dropzone__hint { font-size: 15px; }
 
+  /* Progress card — visible only while uploads are in flight. */
+  .upload__progress {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
+  }
+  .upload__progress[hidden] { display: none; }
+  .upload__progress-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; margin-bottom: 8px;
+  }
+  .upload__progress-row .display { font-size: 18px; }
+
+  /* Per-photo thumbnail tiles. Tiles are square; pending tiles get a
+     pink-light shimmer with a centred spinner and a small state pill at
+     the bottom. Ready tiles show the cropped image plus a remove ×. */
   .thumbs {
     list-style: none; display: grid; gap: 10px;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     margin-top: 16px;
   }
   .thumb-item {
-    position: relative; aspect-ratio: 1; border-radius: var(--r-sm);
-    overflow: hidden; border: 1.5px solid var(--c-stroke-light);
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    border: 1.5px solid var(--c-stroke-light);
+    background: var(--c-pink-light);
   }
-  .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb-item img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
   .thumb-item__remove {
-    position: absolute; top: 4px; right: 4px;
+    position: absolute; top: 6px; right: 6px;
     width: 26px; height: 26px; border-radius: 50%;
-    background: rgba(0,0,0,.65); color: white; border: 0; cursor: pointer;
-    font-size: 16px; line-height: 1;
+    background: rgba(0,0,0,.6); color: #fff;
+    border: 0; padding: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s ease;
+  }
+  .thumb-item__remove:hover { background: rgba(0,0,0,.8); }
+  .thumb-item__remove svg { display: block; }
+
+  .thumb-item--pending { border-color: var(--c-pink); }
+  .thumb-item__pending {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px;
+    background: var(--c-pink-light);
+  }
+  .thumb-item__pending::before {
+    /* Soft pink-light shimmer band so the tile feels alive while waiting. */
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg,
+      rgba(247,232,238,0) 0%,
+      rgba(255,255,255,.7) 50%,
+      rgba(247,232,238,0) 100%);
+    background-size: 200% 100%;
+    animation: thumb-shimmer 1.4s infinite linear;
+    pointer-events: none;
+  }
+  @keyframes thumb-shimmer {
+    0%   { background-position: -120% 0; }
+    100% { background-position: 220% 0; }
+  }
+  .thumb-item__spinner {
+    position: relative; z-index: 1;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.7);
+    border-top-color: var(--c-pink);
+    animation: thumb-spin .9s linear infinite;
+  }
+  @keyframes thumb-spin { to { transform: rotate(360deg); } }
+  .thumb-item__state {
+    position: relative; z-index: 1;
+    font-family: var(--font-display);
+    font-size: 15px; font-weight: 600;
+    color: var(--c-dark);
+    background: rgba(255,255,255,.9);
+    padding: 2px 12px;
+    border-radius: var(--r-pill);
   }
 
   .status { font-size: 14px; min-height: 1.4em; margin: 12px 0; text-align: center; }
 
-  .upload__tips { padding: 24px; border-left: 1px solid var(--c-stroke-light); }
-  @media (max-width: 899px) {
-    .upload__tips { border-left: 0; padding: 16px 0; border-top: 1px solid var(--c-stroke-light); }
+  .upload__cta-hint {
+    text-align: center; font-size: 13px;
+    margin-top: 8px; min-height: 1.2em;
   }
-  .tips { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-  .tips li { display: flex; gap: 12px; align-items: center; color: var(--c-text); }
+  .upload__cta-hint[hidden] { display: none; }
+
+  /* Tips column — matches wireframe: 24×24 pink ✓ pill + tip text. */
+  .upload__tips {
+    padding: 24px;
+    border-left: 1px solid var(--c-stroke-light);
+  }
+  @media (max-width: 899px) {
+    .upload__tips {
+      border-left: 0; padding: 16px 0;
+      border-top: 1px solid var(--c-stroke-light);
+    }
+  }
+  .upload__tips h3 { font-size: 26px; margin-bottom: 4px; }
+  .tips { list-style: none; display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+  .tips li { display: flex; gap: 12px; align-items: center; color: var(--c-text); font-size: 16px; }
   .tick {
-    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--c-pink);
-    color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--c-pink); color: white;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
   }
 </style>
