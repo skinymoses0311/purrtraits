@@ -11,20 +11,52 @@
 //   aspect ratio and have the frame wrap snugly around it. The actual print
 //   on Gelato may be subtly cropped or letterboxed by their pre-print step
 //   if the source isn't 3:4 — that's a separate concern for fulfilment.
+//
+// Carousel:
+//   For the "framed" format only, the preview becomes a 4-slide carousel:
+//   slide 0 is the live CSS mockup of the customer's portrait, slides 1-3
+//   are real lifestyle/detail photographs of the frame product. Controls
+//   are hidden for non-framed formats and the carousel auto-resets to slide
+//   0 whenever the format changes away from framed.
 ---
 
-<figure class="pp" id="product-preview">
-  <div class="pp__stage">
-    <div class="pp__frame">
-      <div class="pp__mat">
-        <div class="pp__canvas-wrap">
-          <img id="pp-img" alt="Your portrait" class="pp__art protected-img" />
-          <div class="pp__glass"></div>
+<figure class="pp" id="product-preview" data-slide="0">
+  <div class="pp__viewport">
+    <button type="button" class="pp__nav pp__nav--prev" id="pp-prev" aria-label="Previous mockup">‹</button>
+    <button type="button" class="pp__nav pp__nav--next" id="pp-next" aria-label="Next mockup">›</button>
+
+    <div class="pp__slide pp__slide--mockup" data-slide="0">
+      <div class="pp__stage">
+        <div class="pp__frame">
+          <div class="pp__mat">
+            <div class="pp__canvas-wrap">
+              <img id="pp-img" alt="Your portrait" class="pp__art protected-img" />
+              <div class="pp__glass"></div>
+            </div>
+          </div>
         </div>
+        <div class="pp__shadow"></div>
       </div>
     </div>
-    <div class="pp__shadow"></div>
+
+    <div class="pp__slide pp__slide--photo" data-slide="1">
+      <img src="/frame-mockups/gallery-natural.jpg" alt="Gallery wall of natural-wood framed prints in a styled bedroom" class="pp__photo" loading="lazy" />
+    </div>
+    <div class="pp__slide pp__slide--photo" data-slide="2">
+      <img src="/frame-mockups/gallery-white.jpg" alt="Gallery wall of framed prints above a sideboard" class="pp__photo" loading="lazy" />
+    </div>
+    <div class="pp__slide pp__slide--photo" data-slide="3">
+      <img src="/frame-mockups/frame-corner-detail.jpg" alt="Close-up showing the natural-wood, dark-wood and black frame finishes" class="pp__photo" loading="lazy" />
+    </div>
   </div>
+
+  <div class="pp__dots" id="pp-dots" role="tablist" aria-label="Mockup carousel">
+    <button type="button" class="pp__dot" data-dot="0" aria-label="Your portrait in the frame"></button>
+    <button type="button" class="pp__dot" data-dot="1" aria-label="Gallery wall — natural wood"></button>
+    <button type="button" class="pp__dot" data-dot="2" aria-label="Gallery wall — styled"></button>
+    <button type="button" class="pp__dot" data-dot="3" aria-label="Frame finish detail"></button>
+  </div>
+
   <figcaption id="pp-caption" class="muted pp__caption">Preview · scaled down for screen</figcaption>
 </figure>
 
@@ -37,6 +69,82 @@
   /* The framed format casts the heaviest drop shadow (~34px below the frame),
      so we add extra margin under the stage to keep the shadow out of the caption. */
   .pp[data-format="framed"] .pp__stage { margin-bottom: 8px; }
+
+  /* ---- Carousel viewport — wraps the slides + nav arrows. ---- */
+  .pp__viewport {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* Slides: only the active one is visible. Photo slides only ever appear
+     for the framed format; for poster/canvas the carousel collapses to the
+     mockup slide regardless of which dot was last active. */
+  .pp__slide { display: none; }
+  .pp[data-slide="0"] .pp__slide--mockup { display: block; }
+  .pp[data-format="framed"][data-slide="1"] .pp__slide[data-slide="1"],
+  .pp[data-format="framed"][data-slide="2"] .pp__slide[data-slide="2"],
+  .pp[data-format="framed"][data-slide="3"] .pp__slide[data-slide="3"] { display: block; }
+
+  /* Photo slides keep the same on-screen width as the framed mockup so the
+     panel doesn't visibly resize as you cycle through. */
+  .pp__slide--photo {
+    width: var(--art-w, 240px);
+  }
+  .pp__photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-sm, 6px);
+    box-shadow:
+      0 14px 28px -16px rgba(0,0,0,.25),
+      0 4px 8px -4px rgba(0,0,0,.15);
+  }
+
+  /* ---- Nav arrows + dots: only visible when format = framed. ---- */
+  .pp__nav, .pp__dots { display: none; }
+  .pp[data-format="framed"] .pp__nav { display: grid; }
+  .pp[data-format="framed"] .pp__dots { display: flex; }
+
+  .pp__nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    z-index: 2;
+    place-items: center;
+    width: 36px; height: 36px;
+    padding: 0;
+    border: 1px solid var(--c-stroke-light);
+    border-radius: 50%;
+    background: rgba(255,255,255,.9);
+    color: var(--c-text);
+    font-size: 22px; line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease, transform .15s ease;
+  }
+  .pp__nav:hover { background: rgba(255,255,255,1); transform: translateY(-50%) scale(1.05); }
+  .pp__nav--prev { left: 8px; }
+  .pp__nav--next { right: 8px; }
+
+  .pp__dots {
+    justify-content: center; gap: 8px;
+    margin-top: -32px; /* tuck dots up under the stage's bottom margin */
+  }
+  .pp__dot {
+    width: 8px; height: 8px;
+    padding: 0; border: 0;
+    border-radius: 50%;
+    background: var(--c-stroke);
+    cursor: pointer;
+    transition: background .15s ease, transform .15s ease;
+  }
+  .pp__dot:hover { transform: scale(1.2); }
+  .pp[data-slide="0"] .pp__dot[data-dot="0"],
+  .pp[data-slide="1"] .pp__dot[data-dot="1"],
+  .pp[data-slide="2"] .pp__dot[data-dot="2"],
+  .pp[data-slide="3"] .pp__dot[data-dot="3"] {
+    background: var(--c-text);
+  }
 
   /* The stage is a width-constrained wrapper. Height adjusts to whatever
      aspect ratio the artwork actually has, so we never crop it. */
@@ -144,3 +252,40 @@
 
   .pp__caption { font-size: 13px; }
 </style>
+
+<script>
+  // Carousel wiring. The PDP toggles preview.dataset.format/.frame; we toggle
+  // preview.dataset.slide and let CSS handle which slide + dot is highlighted.
+  // Whenever the format changes away from "framed" we snap back to slide 0 so
+  // a non-framed product never inherits a stale photo slide.
+  (() => {
+    const preview = document.getElementById("product-preview");
+    const prev = document.getElementById("pp-prev");
+    const next = document.getElementById("pp-next");
+    const dots = document.getElementById("pp-dots");
+    if (!preview || !prev || !next || !dots) return;
+
+    const SLIDE_COUNT = 4;
+    const setSlide = (i: number) => {
+      const max = preview.dataset.format === "framed" ? SLIDE_COUNT : 1;
+      const next = ((i % max) + max) % max;
+      preview.dataset.slide = String(next);
+    };
+    const current = () => parseInt(preview.dataset.slide || "0", 10);
+
+    prev.addEventListener("click", () => setSlide(current() - 1));
+    next.addEventListener("click", () => setSlide(current() + 1));
+    dots.querySelectorAll<HTMLButtonElement>(".pp__dot").forEach((dot) => {
+      dot.addEventListener("click", () => {
+        const i = parseInt(dot.dataset.dot || "0", 10);
+        setSlide(i);
+      });
+    });
+
+    new MutationObserver(() => {
+      if (preview.dataset.format !== "framed" && preview.dataset.slide !== "0") {
+        preview.dataset.slide = "0";
+      }
+    }).observe(preview, { attributes: true, attributeFilter: ["data-format"] });
+  })();
+</script>
