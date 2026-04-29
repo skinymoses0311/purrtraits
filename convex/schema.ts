@@ -156,6 +156,13 @@ export default defineSchema({
     ),
     status: v.string(),
     gelatoOrderId: v.optional(v.string()),
+    // Idempotency markers — set the moment a Brevo send succeeds, so
+    // duplicate webhook deliveries don't double-email the customer.
+    confirmationEmailSentAt: v.optional(v.number()),
+    inProductionEmailSentAt: v.optional(v.number()),
+    inTransitEmailSentAt: v.optional(v.number()),
+    deliveredEmailSentAt: v.optional(v.number()),
+    canceledEmailSentAt: v.optional(v.number()),
   })
     .index("by_session", ["stripeSessionId"])
     .index("by_gelato", ["gelatoOrderId"]),

@@ -174,3 +174,53 @@ export const list = query({
     return await ctx.db.query("orders").order("desc").take(50);
   },
 });
+
+// Returns the order plus each line's joined product — used by the Brevo
+// confirmation email so the action doesn't have to round-trip per line.
+export const getInternalWithProducts = internalQuery({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const order = await ctx.db.get(id);
+    if (!order) return null;
+    const lines = order.lineItems ?? [];
+    const lineItemsWithProduct = await Promise.all(
+      lines.map(async (line) => ({
+        ...line,
+        product: await ctx.db.get(line.productId),
+      })),
+    );
+    const legacyProduct = order.productId ? await ctx.db.get(order.productId) : null;
+    return { order, lineItems: lineItemsWithProduct, legacyProduct };
+  },
+});
+
+// Looks up an order by its Gelato id (used by the Gelato webhook hook
+// before deciding whether to send a status email).
+export const getByGelatoIdInternal = internalQuery({
+  args: { gelatoOrderId: v.string() },
+  handler: async (ctx, { gelatoOrderId }) => {
+    return await ctx.db
+      .query("orders")
+      .withIndex("by_gelato", (q) => q.eq("gelatoOrderId", gelatoOrderId))
+      .unique();
+  },
+});
+
+// Stamps the relevant *EmailSentAt field. Caller checks the field beforehand
+// to avoid a double-send if two webhooks land at once.
+export const markEmailSent = internalMutation({
+  args: {
+    id: v.id("orders"),
+    stage: v.union(
+      v.literal("confirmation"),
+      v.literal("inProduction"),
+      v.literal("inTransit"),
+      v.literal("delivered"),
+      v.literal("canceled"),
+    ),
+  },
+  handler: async (ctx, { id, stage }) => {
+    const field = `${stage}EmailSentAt` as const;
+    await ctx.db.patch(id, { [field]: Date.now() });
+  },
+});

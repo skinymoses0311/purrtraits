@@ -174,6 +174,11 @@ export const handleStripeWebhook = internalAction({
 
       if (!orderId) return { received: true };
 
+      // Send the order confirmation email (idempotent on confirmationEmailSentAt).
+      await ctx.scheduler.runAfter(0, internal.brevo.sendOrderConfirmation, {
+        orderId,
+      });
+
       // Clear the cart on the originating Convex session so refreshing the
       // app doesn't show stale lines.
       const convexSessionId = session.metadata?.convexSessionId as

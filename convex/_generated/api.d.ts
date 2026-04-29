@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as brevo from "../brevo.js";
 import type * as cart from "../cart.js";
 import type * as fal from "../fal.js";
 import type * as files from "../files.js";
@@ -30,6 +31,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  brevo: typeof brevo;
   cart: typeof cart;
   fal: typeof fal;
   files: typeof files;

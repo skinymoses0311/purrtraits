@@ -233,13 +233,56 @@ export const handleWebhook = internalAction({
   args: { event: v.any() },
   handler: async (ctx, { event }): Promise<{ received: boolean }> => {
     console.log("Gelato webhook:", JSON.stringify(event));
-    const e = event as { event?: string; orderId?: string; fulfillmentStatus?: string };
-    if (e.event === "order_status_updated" && e.orderId && e.fulfillmentStatus) {
-      await ctx.runMutation(internal.orders.setStatusByGelatoId, {
-        gelatoOrderId: e.orderId,
-        status: e.fulfillmentStatus,
-      });
+    const e = event as {
+      event?: string;
+      orderId?: string;
+      fulfillmentStatus?: string;
+      comment?: string;
+    };
+    if (e.event !== "order_status_updated" || !e.orderId || !e.fulfillmentStatus) {
+      return { received: true };
     }
+
+    await ctx.runMutation(internal.orders.setStatusByGelatoId, {
+      gelatoOrderId: e.orderId,
+      status: e.fulfillmentStatus,
+    });
+
+    // Map Gelato status → email stage. Anything not in this map is silent.
+    // Per spec: only "in_production" triggers the in-production email
+    // (we ignore "passed_to_print_provider" so the customer gets one notice).
+    const stageByStatus: Record<
+      string,
+      "inProduction" | "inTransit" | "delivered" | "canceled"
+    > = {
+      in_production: "inProduction",
+      in_transit: "inTransit",
+      delivered: "delivered",
+      canceled: "canceled",
+    };
+    const stage = stageByStatus[e.fulfillmentStatus];
+    if (!stage) return { received: true };
+
+    const order = await ctx.runQuery(internal.orders.getByGelatoIdInternal, {
+      gelatoOrderId: e.orderId,
+    });
+    if (!order) return { received: true };
+
+    let tracking: { url?: string; carrier?: string; code?: string } | undefined;
+    if (stage === "inTransit") {
+      const fetched = await ctx.runAction(internal.brevo.fetchGelatoTracking, {
+        gelatoOrderId: e.orderId,
+      });
+      tracking = fetched ?? undefined;
+    }
+
+    await ctx.scheduler.runAfter(0, internal.brevo.sendStatusEmail, {
+      orderId: order._id,
+      stage,
+      tracking,
+      reason: stage === "canceled" ? e.comment : undefined,
+    });
+
     return { received: true };
   },
 });
