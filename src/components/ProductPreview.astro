@@ -62,27 +62,45 @@
     padding: 0;
     box-shadow: 0 14px 28px -16px rgba(0,0,0,.25), 0 4px 8px -4px rgba(0,0,0,.15);
   }
-  /* Light wood — pale, whitewashed/limewashed cream tone matching the real
-     frame product. Subtle gradient for depth, but the wood reads as nearly
-     solid in person. */
+  /* Natural wood — warm tan/oak with visible grain. The repeating gradient
+     suggests vertical wood-grain striations; the inset shadows form the
+     dark rebate line at the print edge plus a subtle chamfered highlight
+     just outside it. */
   .pp[data-format="framed"][data-frame="natural-wood"] .pp__frame {
     padding: 12px;
     background:
-      linear-gradient(135deg, #ece5d6 0%, #ddd4c0 50%, #d4cab4 100%);
+      repeating-linear-gradient(90deg,
+        rgba(165,135,90,0)   0px,
+        rgba(165,135,90,.10) 1px,
+        rgba(165,135,90,0)   3px,
+        rgba(115,85,50,.08)  5px,
+        rgba(165,135,90,0)   8px),
+      linear-gradient(135deg, #ead7b0 0%, #d8c498 40%, #e2cea3 70%, #c5b182 100%);
+    background-color: #d8c498;
     box-shadow:
-      inset 0 0 0 1px rgba(160,148,128,.55),
-      inset 0 0 6px rgba(140,128,108,.15),
+      inset 0 0 0 1px rgba(90,65,35,.7),
+      inset 0 0 0 2px rgba(255,240,210,.15),
+      inset 0 0 5px rgba(120,90,55,.22),
       0 14px 26px -14px rgba(0,0,0,.3),
       0 5px 10px -5px rgba(0,0,0,.18);
   }
-  /* Dark wood — deep espresso/walnut, near-black with warm undertones. */
+  /* Dark wood — warm walnut/espresso with reddish-brown undertones and the
+     same grain + rebate treatment as the natural variant. */
   .pp[data-format="framed"][data-frame="dark-wood"] .pp__frame {
     padding: 12px;
     background:
-      linear-gradient(135deg, #2a1a0f 0%, #1c1108 50%, #2e1d10 100%);
+      repeating-linear-gradient(90deg,
+        rgba(95,60,30,0)   0px,
+        rgba(95,60,30,.20) 1px,
+        rgba(95,60,30,0)   3px,
+        rgba(20,10,5,.18)  5px,
+        rgba(95,60,30,0)   8px),
+      linear-gradient(135deg, #3a2316 0%, #271610 40%, #3d2618 70%, #1d100a 100%);
+    background-color: #2a1810;
     box-shadow:
-      inset 0 0 0 1px rgba(10,5,2,.8),
-      inset 0 0 8px rgba(0,0,0,.45),
+      inset 0 0 0 1px rgba(0,0,0,.9),
+      inset 0 0 0 2px rgba(120,80,50,.18),
+      inset 0 0 7px rgba(0,0,0,.5),
       0 14px 26px -14px rgba(0,0,0,.4),
       0 5px 10px -5px rgba(0,0,0,.22);
   }
