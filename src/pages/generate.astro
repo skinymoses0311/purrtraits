@@ -10,14 +10,7 @@ import Layout from "../layouts/Layout.astro";
       <p class="muted" id="subtitle">Our AI is brushing 3 unique styles. About 30 seconds.</p>
       <div class="gen__dots" id="dots"></div>
 
-      <div class="gen__grid">
-        {["Oil painting", "Watercolour", "Pop art"].map((s) => (
-          <div class="gen__card">
-            <div class="shimmer gen__shimmer"></div>
-            <p class="display gen__label">{s}</p>
-          </div>
-        ))}
-      </div>
+      <div class="gen__grid" id="gen-grid"></div>
 
       <div id="error" class="gen__error" hidden>
         <p class="display">Something went wrong</p>
@@ -32,6 +25,7 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
 
   const client = makeClient();
   const sessionId = getSessionId();
@@ -41,9 +35,25 @@ import Layout from "../layouts/Layout.astro";
     const session = await client.query(api.sessions.get, { id: sessionId as any });
     if (!session?.petPhotoUrls?.length || !session?.quizAnswers) {
       window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
+    } else if (!session.selectedStyles || session.selectedStyles.length !== 3) {
+      window.location.href = "/style-pick";
     } else {
       const preview = document.getElementById("pet-preview") as HTMLImageElement;
       preview.src = session.petPhotoUrls[0];
+
+      const chosen = session.selectedStyles as Style[];
+
+      // Render shimmer cards labelled with the styles the user actually picked.
+      const grid = document.getElementById("gen-grid")!;
+      grid.innerHTML = chosen
+        .map(
+          (s) => `
+            <div class="gen__card">
+              <div class="shimmer gen__shimmer"></div>
+              <p class="display gen__label">${STYLE_LABELS[s] ?? s}</p>
+            </div>`,
+        )
+        .join("");
 
       const petName = session.quizAnswers?.name?.trim();
       if (petName) {
@@ -76,6 +86,7 @@ import Layout from "../layouts/Layout.astro";
       try {
         const result = await client.action(api.fal.generatePortraits, {
           sessionId: sessionId as any,
+          styles: chosen,
         });
         clearInterval(tick);
         if (result.count > 0) {

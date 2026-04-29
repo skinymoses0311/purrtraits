@@ -20,6 +20,7 @@ import type * as probe from "../probe.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
+import type * as styleScoring from "../styleScoring.js";
 import type * as tests from "../tests.js";
 
 import type {
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   products: typeof products;
   seed: typeof seed;
   sessions: typeof sessions;
+  styleScoring: typeof styleScoring;
   tests: typeof tests;
 }>;
 

@@ -3,6 +3,7 @@
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { ALL_STYLES, type Style } from "./styleScoring";
 
 // Nano Banana (Gemini 2.5 Flash Image) — image-editing mode. Takes 1+ reference
 // images + a prompt and returns a new styled image while preserving identity.
@@ -15,11 +16,8 @@ const FAL_URL = "https://fal.run/fal-ai/nano-banana/edit";
 const UPSCALE_URL = "https://fal.run/fal-ai/aura-sr";
 const UPSCALE_FACTOR = 4;
 
-const STYLES = ["oil", "watercolour", "pop"] as const;
-type Style = (typeof STYLES)[number];
-
 // ----- Prompt construction --------------------------------------------------
-// We send the same set of pet photos to four parallel calls, varying only the
+// We send the same set of pet photos to N parallel calls, varying only the
 // prompt. Each prompt is hand-tuned to give Nano Banana a clear stylistic
 // brief while explicitly telling it to preserve the pet's identity.
 
@@ -30,6 +28,20 @@ const STYLE_PROMPTS: Record<Style, string> = {
     "Render the scene as a delicate watercolour painting. Soft translucent washes of pigment, subtle paper texture, gentle blooms where colors bleed at the edges, light pastel palette with airy negative space. Loose impressionistic brushwork while keeping the pet's features precise. Light cream paper background.",
   pop:
     "Render the scene as a bold Andy Warhol-style pop art print. Vibrant flat blocks of saturated color, high-contrast outlines, retro silkscreen aesthetic, halftone dot patterns, two or three colour palette. Graphic and punchy.",
+  sketch:
+    "Render the scene as a hand-drawn pencil and charcoal sketch with a timeless monochrome feel. Fine graphite linework, layered crosshatching for tonal shading, soft smudged charcoal in the shadows, subtle paper grain visible throughout. Detailed naturalistic drawing on warm off-white paper, no colour beyond a faint sepia cast. Refined, classical, hand-crafted.",
+  impressionist:
+    "Render the scene as a Monet-style impressionist painting. Soft broken brushwork in dabs and short strokes, dreamy diffused natural light, harmonious dappled colour palette of muted pastels, less defined edges where forms melt into background. Painterly atmosphere with visible canvas texture, romantic and luminous.",
+  ukiyo:
+    "Render the scene as a Japanese woodblock print in the Ukiyo-e tradition (think Hokusai or Hiroshige). Bold confident black outlines, flat areas of solid colour with no gradients, limited refined palette of indigo, vermillion, ochre and ink black, decorative patterning, subtle paper texture. Graphic, elegant, and balanced.",
+  renaissance:
+    "Render the scene as a formal Renaissance royal portrait in the manner of the Old Masters. Ornate background with deep velvet drapery, gold filigree detailing and a heraldic motif, classical sidelight chiaroscuro illuminating the subject, rich earthy palette of crimson, gold and umber. Very regal, dignified, museum-quality oil-on-canvas finish.",
+  comic:
+    "Render the scene in a modern comic book / graphic novel style. Bold inked black outlines of varying weight, cel-shaded vibrant flat colour with crisp shadow shapes, dynamic energetic feel, subtle halftone dot shading, action-focused composition. High contrast and punchy without being silly.",
+  geometric:
+    "Render the scene in a low-poly geometric style. Form built from angular faceted triangular planes, clean flat-shaded surfaces with subtle gradients between facets, modern and striking modern graphic aesthetic, considered colour palette. Crisp vector-like edges, contemporary and decorative.",
+  botanical:
+    "Render the scene as a vintage botanical illustration in the style of 19th-century Victorian scientific plates. Fine ink linework with delicate stippling and crosshatching, muted earthy watercolour washes (sepia, sage, dusty rose, ochre), refined and naturalistic, on aged cream paper with subtle foxing. Elegant, scholarly, and timeless.",
 };
 
 // What the pet is actually doing in the portrait — driven by Q1 of the quiz.
@@ -173,6 +185,7 @@ async function generateOnePortrait(
 async function generateAllStyles(
   ctx: any,
   sessionId: any,
+  styles: Style[],
 ): Promise<{ style: Style; imageUrl: string; printFileUrl: string }[]> {
   const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
   if (!session) throw new Error("Session not found");
@@ -182,10 +195,10 @@ async function generateAllStyles(
   const activity = session.quizAnswers?.activity;
   const mood = session.quizAnswers?.mood;
 
-  // Fire all four styles in parallel. If one fails we keep the rest;
+  // Fire chosen styles in parallel. If one fails we keep the rest;
   // returning a partial gallery is better than blanking the screen.
   const results = await Promise.allSettled(
-    STYLES.map((style) =>
+    styles.map((style) =>
       generateOnePortrait(ctx, buildPrompt(style, activity, mood), photos).then(
         (urls) => ({ style, ...urls }),
       ),
@@ -203,23 +216,53 @@ async function generateAllStyles(
   return generations;
 }
 
+// Validate caller-supplied style keys against the canonical list and dedupe.
+// Returns at most 3 valid styles, in the order given.
+function resolveSelectedStyles(input: string[] | undefined, fallback: Style[]): Style[] {
+  const allow = new Set<string>(ALL_STYLES);
+  const seen = new Set<string>();
+  const valid: Style[] = [];
+  for (const s of input ?? []) {
+    if (allow.has(s) && !seen.has(s)) {
+      seen.add(s);
+      valid.push(s as Style);
+    }
+    if (valid.length === 3) break;
+  }
+  if (valid.length === 3) return valid;
+  // Backfill from the fallback (top-ranked) so we always generate exactly 3.
+  for (const s of fallback) {
+    if (!seen.has(s)) {
+      seen.add(s);
+      valid.push(s);
+      if (valid.length === 3) break;
+    }
+  }
+  return valid;
+}
+
 export const generatePortraits = action({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }): Promise<{ count: number }> => {
+  args: {
+    sessionId: v.id("sessions"),
+    styles: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { sessionId, styles }): Promise<{ count: number }> => {
     await ctx.runMutation(internal.sessions.setGenerationStatus, {
       id: sessionId,
       status: "generating",
       error: undefined,
     });
     try {
-      const generations = await generateAllStyles(ctx, sessionId);
+      const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
+      const ranked = (session?.rankedStyles ?? []) as Style[];
+      const chosen = resolveSelectedStyles(styles, ranked);
+      const generations = await generateAllStyles(ctx, sessionId, chosen);
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
         generations,
       });
       // Persist to the session-scoped gallery so users can revisit results
       // even after starting a new flow.
-      const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
       await ctx.runMutation(internal.sessions.appendGalleryItems, {
         id: sessionId,
         items: generations.map((g) => ({
@@ -245,8 +288,11 @@ export const generatePortraits = action({
 });
 
 export const regenerate = action({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }): Promise<{ count: number }> => {
+  args: {
+    sessionId: v.id("sessions"),
+    styles: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { sessionId, styles }): Promise<{ count: number }> => {
     const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
     if (!session) throw new Error("Session not found");
     if (session.regensRemaining <= 0) throw new Error("No regens left");
@@ -256,14 +302,20 @@ export const regenerate = action({
       status: "generating",
     });
     try {
-      const generations = await generateAllStyles(ctx, sessionId);
+      // Re-paint the same styles the user just saw, unless caller overrides.
+      const fallback = (session.generations?.map((g) => g.style) ?? []) as Style[];
+      const ranked = (session.rankedStyles ?? []) as Style[];
+      const chosen = resolveSelectedStyles(
+        styles ?? fallback,
+        ranked,
+      );
+      const generations = await generateAllStyles(ctx, sessionId, chosen);
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
         generations,
       });
       // Persist to the session-scoped gallery so users can revisit results
       // even after starting a new flow.
-      const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
       await ctx.runMutation(internal.sessions.appendGalleryItems, {
         id: sessionId,
         items: generations.map((g) => ({

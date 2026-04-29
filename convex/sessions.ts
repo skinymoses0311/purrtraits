@@ -1,5 +1,6 @@
 import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { scoreStyles } from "./styleScoring";
 
 export const create = mutation({
   args: {},
@@ -77,7 +78,8 @@ export const saveQuiz = mutation({
     }),
   },
   handler: async (ctx, { id, answers }) => {
-    await ctx.db.patch(id, { quizAnswers: answers });
+    const rankedStyles = scoreStyles(answers);
+    await ctx.db.patch(id, { quizAnswers: answers, rankedStyles });
   },
 });
 
@@ -85,6 +87,17 @@ export const selectStyle = mutation({
   args: { id: v.id("sessions"), style: v.string() },
   handler: async (ctx, { id, style }) => {
     await ctx.db.patch(id, { selectedStyle: style });
+  },
+});
+
+// The 3 styles the user picked on the post-quiz picker. We keep them on the
+// session so the loading screen and the regenerate button can both fan out
+// the same set without re-passing them through every navigation.
+export const setSelectedStyles = mutation({
+  args: { id: v.id("sessions"), styles: v.array(v.string()) },
+  handler: async (ctx, { id, styles }) => {
+    if (styles.length !== 3) throw new Error("Pick exactly 3 styles");
+    await ctx.db.patch(id, { selectedStyles: styles });
   },
 });
 
@@ -199,6 +212,8 @@ export const clearCurrentFlow = mutation({
       quizAnswers: undefined,
       generations: undefined,
       selectedStyle: undefined,
+      rankedStyles: undefined,
+      selectedStyles: undefined,
       generationStatus: "idle",
       generationError: undefined,
       regensRemaining: 2,

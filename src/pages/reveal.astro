@@ -23,12 +23,11 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { STYLE_LABELS } from "../../convex/styleScoring.ts";
 
-  const STYLE_LABELS: Record<string, string> = {
-    oil: "Oil Painting",
-    watercolour: "Watercolour",
-    pop: "Pop Art",
-  };
+  function labelFor(style: string): string {
+    return (STYLE_LABELS as Record<string, string>)[style] ?? style;
+  }
 
   const client = makeClient();
   const sessionId = getSessionId();
@@ -56,7 +55,7 @@ import Layout from "../layouts/Layout.astro";
             <img src="${g.imageUrl}" alt="" class="reveal__img protected-img is-loading-img" />
           </div>
           <div class="reveal__meta">
-            <span class="display">${STYLE_LABELS[g.style]}</span>
+            <span class="display">${labelFor(g.style)}</span>
             <span class="reveal__check" aria-hidden="true">✓</span>
           </div>
         `;
@@ -66,7 +65,7 @@ import Layout from "../layouts/Layout.astro";
             el.classList.toggle("selectable--active", el === card),
           );
           continueBtn.disabled = false;
-          continueBtn.textContent = `Choose ${STYLE_LABELS[g.style]} →`;
+          continueBtn.textContent = `Choose ${labelFor(g.style)} →`;
         });
         grid.appendChild(card);
       });

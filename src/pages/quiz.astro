@@ -275,7 +275,7 @@ import Layout from "../layouts/Layout.astro";
       fill.style.width = `${(n / TOTAL_STEPS) * 100}%`;
       label.textContent = `${n} of ${TOTAL_STEPS}`;
       prev.style.visibility = n === 1 ? "hidden" : "visible";
-      next.textContent = n === TOTAL_STEPS ? "Generate my portraits ✨" : "Next →";
+      next.textContent = n === TOTAL_STEPS ? "Pick your styles →" : "Next →";
       if (current.kind === "name") renderName(current);
       else if (current.kind === "breed") renderBreed(current);
       else renderChoices(current);
@@ -307,7 +307,7 @@ import Layout from "../layouts/Layout.astro";
           room: answers.room!,
         },
       });
-      window.location.href = "/generate";
+      window.location.href = "/style-pick";
     });
 
     prev.addEventListener("click", () => {

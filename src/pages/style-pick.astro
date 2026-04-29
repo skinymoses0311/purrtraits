@@ -1,0 +1,284 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Pick your styles · Purrtraits">
+  <main class="page container">
+    <a href="/quiz" class="back-link muted">← Back</a>
+
+    <header class="pick__header">
+      <h1 id="pick-title">We think these styles suit your pet best</h1>
+      <p class="muted" id="pick-sub">
+        We'll paint your pet in <strong>three</strong> styles. Our top picks are
+        already selected — swap any of them by tapping below.
+      </p>
+    </header>
+
+    <section class="pick__top" aria-labelledby="suggested-h">
+      <h2 id="suggested-h" class="pick__section-title">Our top picks</h2>
+      <div class="pick__top-grid" id="top-grid"></div>
+    </section>
+
+    <section class="pick__all" aria-labelledby="all-h">
+      <div class="pick__all-head">
+        <h2 id="all-h" class="pick__section-title">All styles</h2>
+        <span class="muted pick__counter" id="counter">3 of 3 selected</span>
+      </div>
+      <div class="pick__all-grid" id="all-grid"></div>
+    </section>
+
+    <p class="pick__hint muted" id="hint" hidden>
+      You've picked 3 — tap a selected style to swap it for another.
+    </p>
+
+    <div class="pick__footer">
+      <button id="go" class="btn btn--primary btn--lg">
+        Generate my portraits →
+      </button>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { api } from "../../convex/_generated/api.js";
+  import {
+    ALL_STYLES,
+    STYLE_LABELS,
+    STYLE_BLURBS,
+    scoreStyles,
+    type Style,
+  } from "../../convex/styleScoring.ts";
+
+  const client = makeClient();
+  const sessionId = getSessionId();
+
+  if (!requireOrRedirect(sessionId, "/upload")) {
+    // redirected
+  } else {
+    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    if (!session?.quizAnswers) {
+      window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
+    } else {
+      const petName = (session.quizAnswers.name ?? "").trim();
+      if (petName) {
+        document.title = `Pick ${petName}'s styles · Purrtraits`;
+        const titleEl = document.getElementById("pick-title")!;
+        titleEl.textContent = `We think these styles suit ${petName} best`;
+      }
+
+      // Prefer the server-side ranking saved on the session; fall back to a
+      // fresh client-side score so an older session still gets a sensible
+      // pre-selection.
+      const ranked: Style[] =
+        ((session.rankedStyles as Style[] | undefined)?.filter((s) =>
+          (ALL_STYLES as readonly string[]).includes(s),
+        ) as Style[] | undefined) ?? scoreStyles(session.quizAnswers);
+
+      // Pad in any styles the saved ranking is missing (e.g. if the spec
+      // grew) so we always render all 10.
+      const known = new Set<string>(ranked);
+      for (const s of ALL_STYLES) if (!known.has(s)) ranked.push(s);
+
+      // Selection order matters: if a 4th gets picked we evict the oldest.
+      const selected: Style[] = ranked.slice(0, 3);
+
+      const topGrid = document.getElementById("top-grid")!;
+      const allGrid = document.getElementById("all-grid")!;
+      const counter = document.getElementById("counter")!;
+      const hint = document.getElementById("hint")!;
+      const go = document.getElementById("go") as HTMLButtonElement;
+
+      function escapeHtml(s: string) {
+        return s.replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        }[c]!));
+      }
+
+      function renderTopPicks() {
+        const top = ranked.slice(0, 3);
+        topGrid.innerHTML = top
+          .map(
+            (s, i) => `
+              <div class="pick__top-card" data-style="${s}">
+                <span class="pick__top-rank">${i + 1}</span>
+                <div>
+                  <p class="display pick__top-title">${escapeHtml(STYLE_LABELS[s])}</p>
+                  <p class="muted pick__top-blurb">${escapeHtml(STYLE_BLURBS[s])}</p>
+                </div>
+              </div>`,
+          )
+          .join("");
+      }
+
+      function renderAll() {
+        allGrid.innerHTML = ranked
+          .map((s) => {
+            const isSel = selected.includes(s);
+            return `
+              <button class="selectable pick__tile ${isSel ? "selectable--active" : ""}"
+                      data-style="${s}" type="button"
+                      aria-pressed="${isSel}">
+                <span class="pick__tile-check" aria-hidden="true">✓</span>
+                <span class="display pick__tile-title">${escapeHtml(STYLE_LABELS[s])}</span>
+                <span class="muted pick__tile-blurb">${escapeHtml(STYLE_BLURBS[s])}</span>
+              </button>`;
+          })
+          .join("");
+
+        allGrid.querySelectorAll<HTMLButtonElement>(".pick__tile").forEach((btn) => {
+          btn.addEventListener("click", () => toggle(btn.dataset.style as Style));
+        });
+      }
+
+      function updateCounter() {
+        counter.textContent = `${selected.length} of 3 selected`;
+        hint.hidden = selected.length < 3;
+        go.disabled = selected.length !== 3;
+      }
+
+      function toggle(style: Style) {
+        const idx = selected.indexOf(style);
+        if (idx >= 0) {
+          // Tapping a selected tile deselects it — but only if we're at the
+          // cap. Below the cap we let the user freely toggle.
+          selected.splice(idx, 1);
+        } else {
+          if (selected.length >= 3) {
+            // Evict the oldest selection so the new one fits.
+            selected.shift();
+          }
+          selected.push(style);
+        }
+        renderAll();
+        updateCounter();
+      }
+
+      renderTopPicks();
+      renderAll();
+      updateCounter();
+
+      go.addEventListener("click", async () => {
+        if (selected.length !== 3) return;
+        go.disabled = true;
+        const original = go.textContent;
+        go.textContent = "Saving…";
+        try {
+          await client.mutation(api.sessions.setSelectedStyles, {
+            id: sessionId as any,
+            styles: selected,
+          });
+          window.location.href = "/generate";
+        } catch (err) {
+          go.disabled = false;
+          go.textContent = original;
+          alert("Couldn't save styles: " + (err as Error).message);
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .back-link { display: inline-block; margin-bottom: 16px; }
+
+  .pick__header { max-width: 720px; margin: 0 auto 32px; text-align: center; }
+  .pick__header h1 { margin-bottom: 8px; }
+
+  .pick__section-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    margin-bottom: 14px;
+  }
+
+  .pick__top { margin-bottom: 36px; }
+  .pick__top-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .pick__top-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .pick__top-card {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--c-pink-light);
+    border: 2px solid var(--c-pink);
+    border-radius: var(--r-md);
+    padding: 14px 16px;
+  }
+  .pick__top-rank {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--c-pink);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pick__top-title { font-size: 22px; line-height: 1.1; }
+  .pick__top-blurb { font-size: 13px; margin-top: 2px; }
+
+  .pick__all-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .pick__counter {
+    font-family: var(--font-display);
+    font-size: 16px;
+  }
+
+  .pick__all-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (min-width: 700px) {
+    .pick__all-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (min-width: 1000px) {
+    .pick__all-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  .pick__tile {
+    position: relative;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 16px 14px;
+    text-align: left;
+    font-family: inherit;
+    background: var(--c-white);
+    border: 2.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: border-color .15s ease, transform .08s ease, background .15s ease;
+  }
+  .pick__tile:hover { transform: translateY(-1px); border-color: var(--c-stroke); }
+  .pick__tile.selectable--active {
+    border-color: var(--c-pink);
+    background: var(--c-pink-light);
+  }
+
+  .pick__tile-check {
+    position: absolute; top: 10px; right: 12px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--c-pink);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: none;
+    align-items: center; justify-content: center;
+  }
+  .pick__tile.selectable--active .pick__tile-check { display: flex; }
+
+  .pick__tile-title { font-size: 20px; line-height: 1.1; }
+  .pick__tile-blurb { font-size: 12.5px; line-height: 1.3; }
+
+  .pick__hint { margin-top: 16px; text-align: center; font-size: 14px; }
+
+  .pick__footer {
+    margin-top: 32px;
+    display: flex; justify-content: center;
+  }
+</style>

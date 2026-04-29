@@ -47,6 +47,12 @@ export default defineSchema({
     ),
     generationError: v.optional(v.string()),
     selectedStyle: v.optional(v.string()),
+    // Quiz-derived ranking of all 10 styles, highest-scoring first. Computed
+    // at quiz-save time; the top 3 are pre-suggested on the picker.
+    rankedStyles: v.optional(v.array(v.string())),
+    // The 3 styles the user actually picked to generate. Set on the picker
+    // screen and consumed by the fal action.
+    selectedStyles: v.optional(v.array(v.string())),
     regensRemaining: v.number(),
     // Accumulating session gallery — every successful generation appends
     // its 4 portraits here so the user can revisit / buy any of them.
