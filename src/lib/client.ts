@@ -63,3 +63,50 @@ export function disableImageGrabbers(root: ParentNode = document) {
     img.draggable = false;
   });
 }
+
+// Wire up a brand-aligned loading skeleton for portrait images so the
+// browser's broken-image / alt-text placeholder is never seen. The
+// helper looks for any <img data-loadable> (or .protected-img / images
+// inside an .img-loading-wrap), tags both the image and its wrapper
+// with .is-loading until the src finishes loading, then swaps to a
+// short fade-in. Idempotent — safe to call after any dynamic render.
+export function attachImageLoading(root: ParentNode = document) {
+  const sel =
+    "img.protected-img, img[data-loadable], .img-loading-wrap img";
+  root.querySelectorAll<HTMLImageElement>(sel).forEach((img) => {
+    if ((img as any).__loadingWired) return;
+    (img as any).__loadingWired = true;
+
+    const wrap = img.closest<HTMLElement>(".protected-wrap, .img-loading-wrap");
+
+    const isReady = () =>
+      img.complete && img.naturalWidth > 0;
+
+    const markLoading = () => {
+      img.classList.add("is-loading-img");
+      img.classList.remove("is-loaded");
+      if (wrap) wrap.classList.add("is-loading");
+    };
+    const markDone = () => {
+      img.classList.remove("is-loading-img");
+      img.classList.add("is-loaded");
+      if (wrap) wrap.classList.remove("is-loading");
+    };
+
+    if (!img.getAttribute("src") || !isReady()) {
+      markLoading();
+    }
+
+    img.addEventListener("load", markDone);
+    img.addEventListener("error", markDone);
+
+    // Observe future src swaps so the skeleton reappears between
+    // generations (e.g. regenerate on /reveal).
+    const obs = new MutationObserver(() => {
+      if (!isReady()) markLoading();
+    });
+    obs.observe(img, { attributes: true, attributeFilter: ["src"] });
+
+    if (isReady()) markDone();
+  });
+}

@@ -26,7 +26,7 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient } from "../lib/client.ts";
+  import { makeClient, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
 
   const client = makeClient();
@@ -121,7 +121,7 @@ import Layout from "../layouts/Layout.astro";
         const card = document.createElement("div");
         card.className = "success-line";
         card.innerHTML = `
-          ${thumbSrc ? `<img class="success-line__img" src="${thumbSrc}" alt="${heading}" />` : ""}
+          ${thumbSrc ? `<div class="img-loading-wrap success-line__thumb is-loading"><img class="success-line__img" src="${thumbSrc}" alt="" data-loadable /></div>` : ""}
           <div class="success-line__body">
             <div class="success-line__title">${heading}</div>
             <div class="success-line__meta muted">Qty ${line.quantity}</div>
@@ -132,6 +132,8 @@ import Layout from "../layouts/Layout.astro";
         `;
         linesEl.appendChild(card);
       });
+
+      attachImageLoading(linesEl);
 
       details.hidden = false;
       const steps = hasPhysical
@@ -175,10 +177,13 @@ import Layout from "../layouts/Layout.astro";
     border-radius: var(--r-md); padding: 14px;
     text-align: left;
   }
-  .success-line__img {
-    width: 96px; height: 96px; object-fit: cover;
-    border-radius: var(--r-sm); flex-shrink: 0;
+  .success-line__thumb {
+    width: 96px; height: 96px; flex-shrink: 0;
+    border-radius: var(--r-sm); overflow: hidden;
     border: 1px solid var(--c-stroke-light);
+  }
+  .success-line__img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
   }
   .success-line__body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .success-line__title { font-weight: 600; color: var(--c-dark); font-size: 15px; }
