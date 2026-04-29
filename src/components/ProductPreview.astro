@@ -62,25 +62,29 @@
     padding: 0;
     box-shadow: 0 14px 28px -16px rgba(0,0,0,.25), 0 4px 8px -4px rgba(0,0,0,.15);
   }
+  /* Light wood — pale, whitewashed/limewashed cream tone matching the real
+     frame product. Subtle gradient for depth, but the wood reads as nearly
+     solid in person. */
   .pp[data-format="framed"][data-frame="natural-wood"] .pp__frame {
-    padding: 18px;
+    padding: 12px;
     background:
-      linear-gradient(140deg, #c89c6f 0%, #b88556 30%, #d4a87a 55%, #b58452 80%, #a87445 100%);
+      linear-gradient(135deg, #ece5d6 0%, #ddd4c0 50%, #d4cab4 100%);
     box-shadow:
-      inset 0 0 0 2px #8e623a,
-      inset 0 0 18px rgba(0,0,0,.25),
-      0 18px 32px -16px rgba(0,0,0,.35),
-      0 6px 12px -6px rgba(0,0,0,.2);
+      inset 0 0 0 1px rgba(160,148,128,.55),
+      inset 0 0 6px rgba(140,128,108,.15),
+      0 14px 26px -14px rgba(0,0,0,.3),
+      0 5px 10px -5px rgba(0,0,0,.18);
   }
+  /* Dark wood — deep espresso/walnut, near-black with warm undertones. */
   .pp[data-format="framed"][data-frame="dark-wood"] .pp__frame {
-    padding: 18px;
+    padding: 12px;
     background:
-      linear-gradient(140deg, #4a2f20 0%, #3a2316 30%, #5b3a26 55%, #2e1c11 80%, #3a2316 100%);
+      linear-gradient(135deg, #2a1a0f 0%, #1c1108 50%, #2e1d10 100%);
     box-shadow:
-      inset 0 0 0 2px #1d100a,
-      inset 0 0 18px rgba(0,0,0,.45),
-      0 18px 32px -16px rgba(0,0,0,.4),
-      0 6px 12px -6px rgba(0,0,0,.25);
+      inset 0 0 0 1px rgba(10,5,2,.8),
+      inset 0 0 8px rgba(0,0,0,.45),
+      0 14px 26px -14px rgba(0,0,0,.4),
+      0 5px 10px -5px rgba(0,0,0,.22);
   }
   .pp[data-format="canvas"] .pp__frame {
     padding: 0;
@@ -89,14 +93,12 @@
       0 6px 12px -6px rgba(0,0,0,.2);
   }
 
-  /* ---- Mat board (the visible white border between frame and art) ---- */
+  /* ---- Mat board (kept in DOM but not used by any current product —
+     real framed prints sit directly inside the frame with no mat). ---- */
   .pp__mat {
-    background: var(--c-white);
-    transition: padding .2s ease;
+    background: transparent;
+    padding: 0;
   }
-  .pp[data-format="framed"] .pp__mat { padding: 14px; }
-  .pp[data-format="poster"] .pp__mat,
-  .pp[data-format="canvas"] .pp__mat { padding: 0; background: transparent; }
 
   /* ---- Canvas wrap (chunky 3D edge for canvas products) ---- */
   .pp__canvas-wrap { position: relative; line-height: 0; }
