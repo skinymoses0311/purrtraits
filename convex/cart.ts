@@ -10,11 +10,12 @@ export const addItem = mutation({
     sessionId: v.id("sessions"),
     productId: v.id("products"),
     printFileUrl: v.string(),
+    displayUrl: v.optional(v.string()),
     style: v.string(),
     petName: v.optional(v.string()),
     quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { sessionId, productId, printFileUrl, style, petName, quantity }) => {
+  handler: async (ctx, { sessionId, productId, printFileUrl, displayUrl, style, petName, quantity }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) throw new Error("Session not found");
     const product = await ctx.db.get(productId);
@@ -31,15 +32,17 @@ export const addItem = mutation({
       const existing = cart[existingIndex];
       cart[existingIndex] = {
         ...existing,
-        // If the existing line had no name (e.g. legacy add), fold in the
-        // newly-supplied one so the cart UI shows the pet name on next view.
+        // If the existing line had no name/displayUrl (e.g. legacy add), fold
+        // the newly-supplied values in so the cart UI improves on next view.
         petName: existing.petName ?? petName,
+        displayUrl: existing.displayUrl ?? displayUrl,
         quantity: isDigital ? 1 : existing.quantity + requested,
       };
     } else {
       cart.push({
         productId,
         printFileUrl,
+        displayUrl,
         style,
         petName,
         quantity: isDigital ? 1 : requested,
@@ -134,6 +137,7 @@ export const getWithProducts = query({
         index,
         productId: line.productId,
         printFileUrl: line.printFileUrl,
+        displayUrl: line.displayUrl,
         style: line.style,
         petName: line.petName,
         quantity: line.quantity,
@@ -181,6 +185,7 @@ export const getInternalForCheckout = internalQuery({
       items: valid.map(({ line, product }) => ({
         productId: line.productId,
         printFileUrl: line.printFileUrl,
+        displayUrl: line.displayUrl,
         style: line.style,
         petName: line.petName,
         quantity: line.quantity,

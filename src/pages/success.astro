@@ -115,10 +115,13 @@ import Layout from "../layouts/Layout.astro";
         const heading = linePetName
           ? `${linePetName} · ${styleText} · ${formatText}`
           : `${styleText} · ${formatText}`;
+        // Thumb uses small display URL when available; download is always the
+        // print-quality file so the buyer gets the high-res asset.
+        const thumbSrc = line.displayUrl ?? line.printFileUrl;
         const card = document.createElement("div");
         card.className = "success-line";
         card.innerHTML = `
-          ${line.printFileUrl ? `<img class="success-line__img" src="${line.printFileUrl}" alt="${heading}" />` : ""}
+          ${thumbSrc ? `<img class="success-line__img" src="${thumbSrc}" alt="${heading}" />` : ""}
           <div class="success-line__body">
             <div class="success-line__title">${heading}</div>
             <div class="success-line__meta muted">Qty ${line.quantity}</div>

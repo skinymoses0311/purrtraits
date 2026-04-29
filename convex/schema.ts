@@ -24,11 +24,15 @@ export default defineSchema({
       }),
     ),
     // One generation per style (always all 4).
+    // imageUrl is the small display version (~1024px, used in UI).
+    // printFileUrl is the upscaled high-res version (~4096px, used for prints
+    // and digital downloads). Optional during the legacy single-URL flow.
     generations: v.optional(
       v.array(
         v.object({
           style: v.string(),
           imageUrl: v.string(),
+          printFileUrl: v.optional(v.string()),
         }),
       ),
     ),
@@ -51,6 +55,7 @@ export default defineSchema({
         v.object({
           style: v.string(),
           imageUrl: v.string(),
+          printFileUrl: v.optional(v.string()),
           activity: v.optional(v.string()),
           mood: v.optional(v.string()),
           petName: v.optional(v.string()),
@@ -64,7 +69,11 @@ export default defineSchema({
       v.array(
         v.object({
           productId: v.id("products"),
+          // printFileUrl: high-res, sent to Gelato + used for digital download.
+          // displayUrl: small display version for cart thumbs (avoids loading
+          // a multi-megabyte print file into a 64px tile).
           printFileUrl: v.string(),
+          displayUrl: v.optional(v.string()),
           style: v.string(),
           petName: v.optional(v.string()),
           quantity: v.number(),
@@ -118,6 +127,7 @@ export default defineSchema({
         v.object({
           productId: v.id("products"),
           printFileUrl: v.string(),
+          displayUrl: v.optional(v.string()),
           style: v.string(),
           petName: v.optional(v.string()),
           quantity: v.number(),

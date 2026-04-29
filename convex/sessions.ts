@@ -112,7 +112,11 @@ export const setGenerations = internalMutation({
   args: {
     id: v.id("sessions"),
     generations: v.array(
-      v.object({ style: v.string(), imageUrl: v.string() }),
+      v.object({
+        style: v.string(),
+        imageUrl: v.string(),
+        printFileUrl: v.optional(v.string()),
+      }),
     ),
   },
   handler: async (ctx, { id, generations }) => {
@@ -139,6 +143,7 @@ export const appendGalleryItems = internalMutation({
       v.object({
         style: v.string(),
         imageUrl: v.string(),
+        printFileUrl: v.optional(v.string()),
         activity: v.optional(v.string()),
         mood: v.optional(v.string()),
         petName: v.optional(v.string()),
@@ -170,7 +175,13 @@ export const useFromGallery = mutation({
     const item = items[index];
     if (!item) throw new Error("Gallery item not found");
     await ctx.db.patch(id, {
-      generations: [{ style: item.style, imageUrl: item.imageUrl }],
+      generations: [
+        {
+          style: item.style,
+          imageUrl: item.imageUrl,
+          printFileUrl: item.printFileUrl,
+        },
+      ],
       selectedStyle: item.style,
     });
   },

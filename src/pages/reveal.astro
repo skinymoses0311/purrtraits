@@ -128,7 +128,9 @@ import Layout from "../layouts/Layout.astro";
   @media (min-width: 800px) { .reveal__grid { grid-template-columns: repeat(3, 1fr); } }
 
   .reveal__card { padding: 0; font-family: inherit; }
-  .reveal__img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; }
+  .reveal__img {
+    width: 100%; height: auto; display: block;
+  }
   .reveal__meta {
     padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
     font-size: 18px;

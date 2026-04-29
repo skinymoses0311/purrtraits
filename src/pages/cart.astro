@@ -153,7 +153,7 @@ import Layout from "../layouts/Layout.astro";
         card.innerHTML = `
           <div class="cart-row__product">
             <div class="protected-wrap cart-row__thumb-wrap">
-              <img class="cart-row__thumb protected-img" alt="${titleText} portrait" src="${it.printFileUrl}" />
+              <img class="cart-row__thumb protected-img" alt="${titleText} portrait" src="${it.displayUrl ?? it.printFileUrl}" />
             </div>
             <div class="cart-row__info">
               <div class="cart-row__title">${titleText}</div>

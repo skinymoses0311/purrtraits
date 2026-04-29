@@ -16,6 +16,7 @@ const shippingValidator = v.object({
 const lineItemValidator = v.object({
   productId: v.id("products"),
   printFileUrl: v.string(),
+  displayUrl: v.optional(v.string()),
   style: v.string(),
   petName: v.optional(v.string()),
   quantity: v.number(),

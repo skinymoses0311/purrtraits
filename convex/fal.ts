@@ -148,17 +148,24 @@ async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
 }
 
 // Two-step pipeline: Nano Banana for the artistic transformation, then a
-// clarity upscale so the print file is high-DPI. Failures in step 2 fall
-// back to the lower-res source so the user still gets a portrait.
-// Final URL is persisted to Convex storage so it survives fal's TTL.
+// 4× upscale so the print file is high-DPI. We persist both results to
+// Convex storage and return them separately:
+//   - imageUrl: the un-upscaled (~1024px) version for fast UI loads
+//   - printFileUrl: the 4× upscaled (~4096px) version for print + downloads
+// Loading the upscaled version into a gallery card or PDP hero is wasteful
+// (it can be 1.5–2 MB per image), so the UI never reaches for it.
 async function generateOnePortrait(
   ctx: any,
   prompt: string,
   imageUrls: string[],
-): Promise<string> {
+): Promise<{ imageUrl: string; printFileUrl: string }> {
   const lowRes = await callNanoBanana(prompt, imageUrls);
+  // Persist the display version first so the user can see something quickly
+  // even if the upscaler is slow or fails.
+  const display = await persistToConvexStorage(ctx, lowRes);
   const hiRes = await upscale(lowRes);
-  return await persistToConvexStorage(ctx, hiRes ?? lowRes);
+  const print = hiRes ? await persistToConvexStorage(ctx, hiRes) : display;
+  return { imageUrl: display, printFileUrl: print };
 }
 
 // ----- Generation orchestration --------------------------------------------
@@ -166,7 +173,7 @@ async function generateOnePortrait(
 async function generateAllStyles(
   ctx: any,
   sessionId: any,
-): Promise<{ style: Style; imageUrl: string }[]> {
+): Promise<{ style: Style; imageUrl: string; printFileUrl: string }[]> {
   const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
   if (!session) throw new Error("Session not found");
   const photos = session.petPhotoUrls ?? [];
@@ -180,12 +187,12 @@ async function generateAllStyles(
   const results = await Promise.allSettled(
     STYLES.map((style) =>
       generateOnePortrait(ctx, buildPrompt(style, activity, mood), photos).then(
-        (url) => ({ style, imageUrl: url }),
+        (urls) => ({ style, ...urls }),
       ),
     ),
   );
 
-  const generations: { style: Style; imageUrl: string }[] = [];
+  const generations: { style: Style; imageUrl: string; printFileUrl: string }[] = [];
   const errors: string[] = [];
   for (const r of results) {
     if (r.status === "fulfilled") generations.push(r.value);
@@ -218,6 +225,7 @@ export const generatePortraits = action({
         items: generations.map((g) => ({
           style: g.style,
           imageUrl: g.imageUrl,
+          printFileUrl: g.printFileUrl,
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
@@ -261,6 +269,7 @@ export const regenerate = action({
         items: generations.map((g) => ({
           style: g.style,
           imageUrl: g.imageUrl,
+          printFileUrl: g.printFileUrl,
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,

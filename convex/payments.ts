@@ -111,6 +111,7 @@ export const createCheckoutSession = action({
       lineItems: cart.items.map((item) => ({
         productId: item.productId as Id<"products">,
         printFileUrl: item.printFileUrl,
+        displayUrl: item.displayUrl,
         style: item.style,
         petName: item.petName,
         quantity: item.quantity,
