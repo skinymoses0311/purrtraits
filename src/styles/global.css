@@ -236,12 +236,31 @@ img { max-width: 100%; display: block; }
   background-repeat: repeat;
   background-position: center;
   /* Container-aware tile size so the watermark scales with the image. */
-  background-size: clamp(200px, 42cqw, 360px) clamp(120px, 25cqw, 215px);
-  /* Fade the centre tile so it doesn't sit on the focal point of the
-     portrait. The mask leaves the edge tiles at full strength so the
-     mark is still everywhere a cropper might try to keep. */
-  -webkit-mask-image: radial-gradient(ellipse 32% 28% at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 45%, #000 75%);
-          mask-image: radial-gradient(ellipse 32% 28% at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 45%, #000 75%);
+  --wm-tile-w: clamp(200px, 42cqw, 360px);
+  --wm-tile-h: clamp(120px, 25cqw, 215px);
+  background-size: var(--wm-tile-w) var(--wm-tile-h);
+  /* Dim only the centre tile uniformly so it doesn't sit on the focal
+     point of the portrait. The mask is full opacity everywhere, except a
+     centred rectangle the size of one tile where it drops to ~25%. Edge
+     tiles stay at full strength so the mark is still everywhere a
+     cropper would try to keep.
+     How: layer 1 is full alpha across the whole image, layer 2 is a
+     centred rectangle at 0.75 alpha. mask-composite: subtract gives
+     (1 - 0) = 1 outside the rect and (1 - 0.75) = 0.25 inside. */
+  -webkit-mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75));
+          mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75));
+  -webkit-mask-size: 100% 100%, var(--wm-tile-w) var(--wm-tile-h);
+          mask-size: 100% 100%, var(--wm-tile-w) var(--wm-tile-h);
+  -webkit-mask-position: center, center;
+          mask-position: center, center;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-composite: source-out;
+          mask-composite: subtract;
   pointer-events: none;
   user-select: none;
 }
