@@ -72,10 +72,10 @@ export const getMyRegensRemaining = query({
   },
 });
 
-// Returns the user's gallery across every session they own. Each session's
-// galleryItems are appended to the result in newest-first order. Cheap for
-// the expected scale (a user has at most a few sessions × 3 items each), but
-// can be denormalized later if it becomes a hot path.
+// Returns the user's gallery across every session they own. Each item is
+// stamped with its source session id and the per-session index so the
+// "Buy this one" flow can hand both back to useFromUserGallery. Cheap for
+// the expected scale (a user has at most a few sessions × ~3 items each).
 export const getUserGallery = query({
   args: {},
   handler: async (ctx) => {
@@ -86,7 +86,11 @@ export const getUserGallery = query({
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
     const items = sessions.flatMap((s) =>
-      (s.galleryItems ?? []).map((it) => ({ ...it, sessionId: s._id })),
+      (s.galleryItems ?? []).map((it, index) => ({
+        ...it,
+        sessionId: s._id,
+        index,
+      })),
     );
     items.sort((a, b) => b.createdAt - a.createdAt);
     return items;
@@ -283,6 +287,55 @@ export const useFromGallery = mutation({
     const item = items[index];
     if (!item) throw new Error("Gallery item not found");
     await ctx.db.patch(id, {
+      generations: [
+        {
+          style: item.style,
+          imageUrl: item.imageUrl,
+          printFileUrl: item.printFileUrl,
+        },
+      ],
+      selectedStyle: item.style,
+    });
+  },
+});
+
+// Cross-browser variant of useFromGallery. The /gallery page now shows items
+// from every session the user owns (see getUserGallery), which means the
+// item the user wants to buy may live on a different session than their
+// current local one — typical when they sign in fresh on a new device.
+//
+// The caller passes their *current* session id (the one in localStorage) and
+// a reference to the source: { sourceSessionId, index }. We verify the user
+// owns both, then copy the chosen generation onto the target session so the
+// rest of the PDP/checkout flow stays unchanged.
+export const useFromUserGallery = mutation({
+  args: {
+    targetSessionId: v.id("sessions"),
+    sourceSessionId: v.id("sessions"),
+    index: v.number(),
+  },
+  handler: async (ctx, { targetSessionId, sourceSessionId, index }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const source = await ctx.db.get(sourceSessionId);
+    if (!source) throw new Error("Source session not found");
+    if (source.userId !== userId) throw new Error("Not your gallery");
+
+    const item = (source.galleryItems ?? [])[index];
+    if (!item) throw new Error("Gallery item not found");
+
+    const target = await ctx.db.get(targetSessionId);
+    if (!target) throw new Error("Target session not found");
+    // If the target was created anonymously, claim it for this user so the
+    // resulting order links back to the account too.
+    if (!target.userId) {
+      await ctx.db.patch(targetSessionId, { userId });
+    } else if (target.userId !== userId) {
+      throw new Error("Not your session");
+    }
+
+    await ctx.db.patch(targetSessionId, {
       generations: [
         {
           style: item.style,

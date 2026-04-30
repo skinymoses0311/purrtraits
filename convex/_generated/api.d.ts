@@ -24,6 +24,7 @@ import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as styleScoring from "../styleScoring.js";
 import type * as tests from "../tests.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   styleScoring: typeof styleScoring;
   tests: typeof tests;
+  users: typeof users;
 }>;
 
 /**

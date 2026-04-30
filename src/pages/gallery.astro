@@ -33,8 +33,10 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { makeClient, getSessionId, setSessionId, disableImageGrabbers, attachImageLoading, ensureSession } from "../lib/client.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
+  import type { Id } from "../../convex/_generated/dataModel";
 
   type Style = "oil" | "watercolour" | "pop";
 
@@ -56,8 +58,11 @@ import Layout from "../layouts/Layout.astro";
     adventuring: "🏔️ Adventure",
   };
 
-  const client = makeClient();
   const sessionId = getSessionId();
+  const userScoped = isSignedIn();
+  // When signed in, every authed call (getUserGallery + useFromUserGallery)
+  // needs the JWT. Anonymous users keep using the un-authed read client.
+  const client = userScoped ? makeAuthedClient() : makeClient();
 
   const grid = document.getElementById("grid")!;
   const empty = document.getElementById("empty")!;
@@ -69,17 +74,44 @@ import Layout from "../layouts/Layout.astro";
   type Item = {
     style: string;
     imageUrl: string;
+    printFileUrl?: string;
     activity?: string;
     mood?: string;
     petName?: string;
     createdAt: number;
+    // For user-scoped items, track the source session + per-session index so
+    // useFromUserGallery can find them. _index is kept for the legacy
+    // session-only path.
     _index: number;
+    sessionId?: string;
   };
 
   let allItems: Item[] = [];
   let currentFilter: "all" | Style = "all";
 
-  if (!sessionId) {
+  if (userScoped) {
+    // Cross-session view: every gallery item across every session this user
+    // owns. Already sorted newest-first server-side by getUserGallery.
+    const userItems = await client.query(api.sessions.getUserGallery, {});
+    if (!userItems || userItems.length === 0) {
+      showEmpty();
+    } else {
+      allItems = userItems.map((it: any) => ({
+        style: it.style,
+        imageUrl: it.imageUrl,
+        printFileUrl: it.printFileUrl,
+        activity: it.activity,
+        mood: it.mood,
+        petName: it.petName,
+        createdAt: it.createdAt,
+        sessionId: it.sessionId,
+        _index: it.index,
+      }));
+      renderHeaderMeta(true);
+      renderFilters();
+      renderGrid();
+    }
+  } else if (!sessionId) {
     showEmpty();
   } else {
     const session = await client.query(api.sessions.get, { id: sessionId as any });
@@ -87,23 +119,24 @@ import Layout from "../layouts/Layout.astro";
     if (items.length === 0) {
       showEmpty();
     } else {
-      // Newest first
       allItems = [...items]
         .map((it: any, i: number) => ({ ...it, _index: i }))
         .reverse();
-
-      // Header copy: count + activity tag(s) seen this session
-      const activities = new Set(allItems.map((i) => i.activity).filter(Boolean));
-      const activityBits = [...activities]
-        .map((a) => ACTIVITY_LABELS[a as string] ?? a)
-        .join(" · ");
-      meta.innerHTML = activityBits
-        ? `${allItems.length} portraits · <span class="g-sub__hl">${activityBits}</span>`
-        : `${allItems.length} portrait${allItems.length === 1 ? "" : "s"} this session.`;
-
+      renderHeaderMeta(false);
       renderFilters();
       renderGrid();
     }
+  }
+
+  function renderHeaderMeta(isUserScoped: boolean) {
+    const activities = new Set(allItems.map((i) => i.activity).filter(Boolean));
+    const activityBits = [...activities]
+      .map((a) => ACTIVITY_LABELS[a as string] ?? a)
+      .join(" · ");
+    const scope = isUserScoped ? "across your account" : "this session";
+    meta.innerHTML = activityBits
+      ? `${allItems.length} portraits ${scope} · <span class="g-sub__hl">${activityBits}</span>`
+      : `${allItems.length} portrait${allItems.length === 1 ? "" : "s"} ${scope}.`;
   }
 
   function showEmpty() {
@@ -175,13 +208,28 @@ import Layout from "../layouts/Layout.astro";
     grid.querySelectorAll<HTMLButtonElement>(".g-card__buy").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const i = parseInt(btn.dataset.i!);
+        const item = visible.find((v) => v._index === i);
         btn.disabled = true;
         btn.textContent = "Loading…";
         try {
-          await client.mutation(api.sessions.useFromGallery, {
-            id: sessionId as any,
-            index: i,
-          });
+          if (userScoped && item?.sessionId) {
+            // Cross-session "buy this": ensure a local session exists (it
+            // may not on a fresh browser), then have the server copy the
+            // chosen item onto it. The result is indistinguishable from the
+            // original PDP flow downstream.
+            const targetSessionId = await ensureSession(client);
+            await client.mutation(api.sessions.useFromUserGallery, {
+              targetSessionId: targetSessionId,
+              sourceSessionId: item.sessionId as Id<"sessions">,
+              index: item._index,
+            });
+            setSessionId(targetSessionId);
+          } else {
+            await client.mutation(api.sessions.useFromGallery, {
+              id: sessionId as any,
+              index: i,
+            });
+          }
           window.location.href = "/pdp";
         } catch (err) {
           btn.disabled = false;

@@ -16,6 +16,10 @@ const path = Astro.url.pathname;
     </div>
 
     <div class="nav__right">
+      <!-- Auth widget: replaced at runtime once we know the user's state.
+           Hidden until the script runs so we don't flash "Sign in" for a
+           returning authed user, or "Account" for a fresh anonymous one. -->
+      <div class="nav__auth" id="nav-auth" hidden></div>
       <a href="/cart" class="nav__cart" aria-label="Cart">
         <span class="nav__cart-icon">🛒</span>
         <span class="nav__cart-badge" id="nav-cart-badge" hidden>0</span>
@@ -101,8 +105,94 @@ const path = Astro.url.pathname;
   }
 </style>
 
+<style is:global>
+  /* The auth widget HTML is injected via innerHTML at runtime, so it
+     doesn't carry Astro's per-component class hash. These rules need to
+     match dynamically-added DOM, hence is:global. */
+  .nav__auth { display: inline-flex; align-items: center; }
+  .nav__signin {
+    font-family: var(--font-display);
+    font-size: 16px;
+    color: var(--c-text);
+    padding: 6px 14px;
+    border-radius: 100px;
+    border: 1.5px solid var(--c-stroke-light);
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .nav__signin:hover {
+    border-color: var(--c-pink);
+    background: var(--c-pink-light);
+    color: var(--c-dark);
+  }
+
+  .nav__account { position: relative; }
+  /* <summary> defaults to display:list-item, which renders a disclosure
+     triangle via ::marker. Force it back to flex to drop the marker box;
+     ::-webkit-details-marker handles older Safari. */
+  .nav__account-trigger {
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    padding: 4px 10px 4px 4px;
+    border-radius: 100px;
+    border: 1.5px solid var(--c-stroke-light);
+    background: var(--c-white);
+    list-style: none;
+    transition: border-color .15s ease;
+  }
+  .nav__account-trigger::-webkit-details-marker,
+  .nav__account-trigger::marker { display: none; content: ""; }
+  .nav__account[open] .nav__account-trigger,
+  .nav__account-trigger:hover { border-color: var(--c-pink); }
+  .nav__account-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--c-pink); color: white;
+    font-family: var(--font-display); font-size: 14px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav__account-email {
+    font-family: var(--font-body); font-size: 13px; color: var(--c-text);
+    max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .nav__account-menu {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    min-width: 220px;
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.08);
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    z-index: 60;
+  }
+  .nav__account-meta {
+    font-size: 13px; color: var(--c-light); line-height: 1.4; margin: 0;
+  }
+  .nav__account-meta strong {
+    color: var(--c-dark); font-weight: 600;
+    word-break: break-all;
+  }
+  .nav__account-signout {
+    font-family: inherit; font-size: 14px;
+    padding: 8px 14px; border-radius: 100px;
+    background: var(--c-fill); border: 1.5px solid var(--c-stroke-light);
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .nav__account-signout:hover { background: var(--c-pink-light); border-color: var(--c-pink); }
+
+  @media (max-width: 600px) {
+    .nav__account-email { display: none; }
+  }
+</style>
+
 <script>
   import { makeClient, getSessionId } from "../lib/client.ts";
+  import {
+    isSignedIn,
+    makeAuthedClient,
+    clearAuthLocalStorage,
+  } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
 
   const btn = document.getElementById('nav-menu-btn');
@@ -132,5 +222,71 @@ const path = Astro.url.pathname;
         badge.hidden = true;
       }
     });
+  }
+
+  // Auth widget — vanilla so the nav stays free of React. Renders one of:
+  //   - "Sign in" link (anonymous)
+  //   - email + sign-out button (authed)
+  // Looks at the JWT in localStorage written by the React island on
+  // /sign-up, then verifies via api.users.me to pick up the email/avatar.
+  const authEl = document.getElementById('nav-auth') as HTMLElement | null;
+  if (authEl) {
+    if (!isSignedIn()) {
+      // Anonymous: link to /sign-up with the current path as ?next= so the
+      // user comes back where they were once they sign in.
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      authEl.innerHTML = `<a href="/sign-up?next=${next}" class="nav__signin">Sign in</a>`;
+      authEl.hidden = false;
+    } else {
+      const client = makeAuthedClient();
+      client
+        .query(api.users.me, {})
+        .then((me) => {
+          if (!me) {
+            // JWT present but server says no user — token may be stale.
+            // Treat as anonymous for the UI; sign-out call would fail.
+            clearAuthLocalStorage();
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            authEl.innerHTML = `<a href="/sign-up?next=${next}" class="nav__signin">Sign in</a>`;
+            authEl.hidden = false;
+            return;
+          }
+          const display = me.email ?? me.name ?? "Account";
+          authEl.innerHTML = `
+            <details class="nav__account">
+              <summary class="nav__account-trigger" aria-label="Account menu">
+                <span class="nav__account-avatar" aria-hidden="true">${display.slice(0, 1).toUpperCase()}</span>
+                <span class="nav__account-email">${display}</span>
+              </summary>
+              <div class="nav__account-menu" role="menu">
+                <p class="nav__account-meta">Signed in as<br/><strong>${display}</strong></p>
+                <button class="nav__account-signout" id="nav-signout">Sign out</button>
+              </div>
+            </details>
+          `;
+          authEl.hidden = false;
+          document
+            .getElementById('nav-signout')
+            ?.addEventListener('click', async () => {
+              try {
+                // Server-side: invalidate the auth session/refresh token so
+                // a stolen JWT can't outlive its window of usefulness.
+                await client.action(api.auth.signOut, {});
+              } catch {
+                // Best-effort: even if the server call fails (e.g. expired
+                // token), nuking local tokens is enough for the UX.
+              }
+              clearAuthLocalStorage();
+              window.location.href = '/';
+            });
+        })
+        .catch(() => {
+          // Network blip / token issue — fall back to the signed-out CTA
+          // rather than blank space.
+          const next = encodeURIComponent(window.location.pathname + window.location.search);
+          authEl.innerHTML = `<a href="/sign-up?next=${next}" class="nav__signin">Sign in</a>`;
+          authEl.hidden = false;
+        });
+    }
   }
 </script>
