@@ -187,6 +187,10 @@ export default defineSchema({
     ),
     status: v.string(),
     gelatoOrderId: v.optional(v.string()),
+    // Set the first time fal.upscaleAndFulfil successfully patches the order's
+    // print URLs to their high-res versions. Used to make duplicate Stripe
+    // webhooks noop the upscale instead of paying for it again.
+    printFileHiResUpscaledAt: v.optional(v.number()),
     // Idempotency markers — set the moment a Brevo send succeeds, so
     // duplicate webhook deliveries don't double-email the customer.
     confirmationEmailSentAt: v.optional(v.number()),

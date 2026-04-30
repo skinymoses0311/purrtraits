@@ -160,25 +160,28 @@ async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
   }
 }
 
-// Two-step pipeline: Nano Banana for the artistic transformation, then a
-// 4× upscale so the print file is high-DPI. We persist both results to
-// Convex storage and return them separately:
-//   - imageUrl: the un-upscaled (~1024px) version for fast UI loads
-//   - printFileUrl: the 4× upscaled (~4096px) version for print + downloads
-// Loading the upscaled version into a gallery card or PDP hero is wasteful
-// (it can be 1.5–2 MB per image), so the UI never reaches for it.
+// Single-step pipeline: Nano Banana for the artistic transformation. We
+// persist the ~1024px result to Convex storage and use it as both the
+// display URL and the (placeholder) print URL. The 4× upscale is deferred
+// to order-completion time — see `upscaleAndFulfil` below — so we don't
+// burn Convex storage on the ~90% of generations that never get bought.
 async function generateOnePortrait(
   ctx: any,
   prompt: string,
   imageUrls: string[],
 ): Promise<{ imageUrl: string; printFileUrl: string }> {
   const lowRes = await callNanoBanana(prompt, imageUrls);
-  // Persist the display version first so the user can see something quickly
-  // even if the upscaler is slow or fails.
   const display = await persistToConvexStorage(ctx, lowRes);
-  const hiRes = await upscale(lowRes);
-  const print = hiRes ? await persistToConvexStorage(ctx, hiRes) : display;
-  return { imageUrl: display, printFileUrl: print };
+  return { imageUrl: display, printFileUrl: display };
+}
+
+// Upscale + persist a single low-res URL. Used by `upscaleAndFulfil` at order
+// completion. Falls back to the input URL if upscaling fails so we never
+// block fulfilment on a transient fal failure.
+async function upscaleAndPersist(ctx: any, lowResUrl: string): Promise<string> {
+  const hi = await upscale(lowResUrl);
+  if (!hi) return lowResUrl;
+  return await persistToConvexStorage(ctx, hi);
 }
 
 // ----- Generation orchestration --------------------------------------------
@@ -367,6 +370,76 @@ export const regenerate = action({
         error: message,
       });
       throw err;
+    }
+  },
+});
+
+// ----- Order-time upscale + fulfilment -------------------------------------
+// Triggered from the Stripe webhook once payment has settled. Walks the
+// order's lineItems, upscales each unique source image to ~4096px, persists
+// the high-res file to Convex storage, and patches the order so that the
+// confirmation email and Gelato dispatch both pull from the upscaled URL.
+//
+// Done here (not at generation time) so we only pay storage + fal costs on
+// images that actually convert to a purchase. The previous flow upscaled
+// 3× per session up front — most sessions never bought, so the bytes were
+// wasted.
+//
+// Idempotent on `printFileHiResUpscaledAt`: a duplicate Stripe webhook will
+// noop the upscale and just re-fire the (also-idempotent) email + Gelato.
+export const upscaleAndFulfil = internalAction({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }): Promise<void> => {
+    const order = await ctx.runQuery(internal.orders.getInternal, { id: orderId });
+    if (!order) return;
+
+    if (!order.printFileHiResUpscaledAt) {
+      const lines = order.lineItems ?? [];
+      if (lines.length > 0) {
+        // Cart lines that share a source image (e.g. the same portrait sold
+        // as both a print and a digital) are deduped so we upscale once.
+        const cache = new Map<string, string>();
+        const updated: typeof lines = [];
+        for (const line of lines) {
+          let hi = cache.get(line.printFileUrl);
+          if (!hi) {
+            hi = await upscaleAndPersist(ctx, line.printFileUrl);
+            cache.set(line.printFileUrl, hi);
+          }
+          updated.push({ ...line, printFileUrl: hi });
+        }
+        await ctx.runMutation(internal.orders.setUpscaledLineItems, {
+          id: orderId,
+          lineItems: updated,
+        });
+      } else if (order.printFileUrl) {
+        // Legacy single-product order shape.
+        const hi = await upscaleAndPersist(ctx, order.printFileUrl);
+        await ctx.runMutation(internal.orders.setUpscaledLegacyPrintUrl, {
+          id: orderId,
+          printFileUrl: hi,
+        });
+      }
+    }
+
+    // Confirmation email reads the order's lineItems; with the upscale done
+    // above, digital download links now point at the high-res file.
+    await ctx.scheduler.runAfter(0, internal.brevo.sendOrderConfirmation, {
+      orderId,
+    });
+
+    const hasPhysical = await ctx.runQuery(internal.orders.hasPhysicalLines, {
+      id: orderId,
+    });
+    if (hasPhysical) {
+      await ctx.scheduler.runAfter(0, internal.gelato.fulfillConvexOrder, {
+        orderId,
+      });
+    } else {
+      await ctx.runMutation(internal.orders.setStatus, {
+        id: orderId,
+        status: "fulfilled",
+      });
     }
   },
 });

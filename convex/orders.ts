@@ -159,6 +159,34 @@ export const setStatus = internalMutation({
   },
 });
 
+// Used by fal.upscaleAndFulfil at order-completion time. Replaces each
+// line's printFileUrl with its high-res counterpart and stamps the
+// idempotency marker so a duplicate webhook can short-circuit.
+export const setUpscaledLineItems = internalMutation({
+  args: {
+    id: v.id("orders"),
+    lineItems: v.array(lineItemValidator),
+  },
+  handler: async (ctx, { id, lineItems }) => {
+    await ctx.db.patch(id, {
+      lineItems,
+      printFileHiResUpscaledAt: Date.now(),
+    });
+  },
+});
+
+// Same as setUpscaledLineItems but for legacy single-product orders that
+// store the URL on the top-level `printFileUrl` field.
+export const setUpscaledLegacyPrintUrl = internalMutation({
+  args: { id: v.id("orders"), printFileUrl: v.string() },
+  handler: async (ctx, { id, printFileUrl }) => {
+    await ctx.db.patch(id, {
+      printFileUrl,
+      printFileHiResUpscaledAt: Date.now(),
+    });
+  },
+});
+
 export const setStatusByGelatoId = internalMutation({
   args: { gelatoOrderId: v.string(), status: v.string() },
   handler: async (ctx, { gelatoOrderId, status }) => {

@@ -174,11 +174,6 @@ export const handleStripeWebhook = internalAction({
 
       if (!orderId) return { received: true };
 
-      // Send the order confirmation email (idempotent on confirmationEmailSentAt).
-      await ctx.scheduler.runAfter(0, internal.brevo.sendOrderConfirmation, {
-        orderId,
-      });
-
       // Refill the buyer's generation budget — every purchase grants 3
       // fresh regens. Pulled off the order's userId (set from the session
       // at createPending time).
@@ -202,24 +197,13 @@ export const handleStripeWebhook = internalAction({
         });
       }
 
-      // Decide fulfillment: if any line is physical, fire one combined Gelato
-      // order. If everything is digital, mark fulfilled immediately.
-      const order = await ctx.runQuery(internal.orders.getInternal, {
-        id: orderId,
+      // Upscale → confirmation email → Gelato. We defer upscaling to here
+      // so we don't pay storage/fal costs for previews that never convert.
+      // The action is idempotent on `printFileHiResUpscaledAt` and the
+      // downstream email/Gelato calls are idempotent on their own markers.
+      await ctx.scheduler.runAfter(0, internal.fal.upscaleAndFulfil, {
+        orderId,
       });
-      const hasPhysical = await ctx.runQuery(internal.orders.hasPhysicalLines, {
-        id: orderId,
-      });
-      if (order && hasPhysical) {
-        await ctx.scheduler.runAfter(0, internal.gelato.fulfillConvexOrder, {
-          orderId,
-        });
-      } else if (order) {
-        await ctx.runMutation(internal.orders.setStatus, {
-          id: orderId,
-          status: "fulfilled",
-        });
-      }
     }
 
     return { received: true };
