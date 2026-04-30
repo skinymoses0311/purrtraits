@@ -3,6 +3,7 @@
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { ALL_STYLES, type Style } from "./styleScoring";
 
 // Nano Banana (Gemini 2.5 Flash Image) — image-editing mode. Takes 1+ reference
@@ -247,6 +248,23 @@ export const generatePortraits = action({
     styles: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { sessionId, styles }): Promise<{ count: number }> => {
+    // Require auth — the gate is on /sign-up before the user gets here.
+    // Defense in depth in case someone hits the action directly.
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    // Stamp the session with the user (idempotent). This handles the
+    // sign-up→generate transition without a separate round trip from the
+    // frontend.
+    await ctx.runMutation(internal.sessions.linkSessionToUserInternal, {
+      sessionId,
+      userId,
+    });
+    // Consume a regen up-front; refund if the AI call fails. This is the
+    // serializable way to enforce a 3-per-user budget — checking and
+    // decrementing in the same mutation prevents a double-tap from
+    // generating two sets when the user only has one regen left.
+    await ctx.runMutation(internal.sessions.consumeRegen, { userId });
+
     await ctx.runMutation(internal.sessions.setGenerationStatus, {
       id: sessionId,
       status: "generating",
@@ -276,6 +294,8 @@ export const generatePortraits = action({
       });
       return { count: generations.length };
     } catch (err) {
+      // Refund the regen we charged — the user got nothing.
+      await ctx.runMutation(internal.sessions.refundRegen, { userId });
       const message = err instanceof Error ? err.message : String(err);
       await ctx.runMutation(internal.sessions.setGenerationStatus, {
         id: sessionId,
@@ -293,9 +313,19 @@ export const regenerate = action({
     styles: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { sessionId, styles }): Promise<{ count: number }> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
     const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
     if (!session) throw new Error("Session not found");
-    if (session.regensRemaining <= 0) throw new Error("No regens left");
+
+    await ctx.runMutation(internal.sessions.linkSessionToUserInternal, {
+      sessionId,
+      userId,
+    });
+    // Consume up-front; refund on failure. Throws OUT_OF_REGENS if the user
+    // has no budget left.
+    await ctx.runMutation(internal.sessions.consumeRegen, { userId });
 
     await ctx.runMutation(internal.sessions.setGenerationStatus, {
       id: sessionId,
@@ -327,9 +357,9 @@ export const regenerate = action({
           petName: session?.quizAnswers?.name,
         })),
       });
-      await ctx.runMutation(internal.sessions.decrementRegens, { id: sessionId });
       return { count: generations.length };
     } catch (err) {
+      await ctx.runMutation(internal.sessions.refundRegen, { userId });
       const message = err instanceof Error ? err.message : String(err);
       await ctx.runMutation(internal.sessions.setGenerationStatus, {
         id: sessionId,

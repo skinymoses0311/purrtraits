@@ -24,15 +24,26 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
 
-  const client = makeClient();
   const sessionId = getSessionId();
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
+  } else if (!isSignedIn()) {
+    // The fal action requires auth; bounce through /sign-up first. Style
+    // selections + photos persist on the session, so the user resumes here
+    // after signing up.
+    window.location.href = "/sign-up?next=/generate";
   } else {
-    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    // The pre-fal queries can stay un-authed (sessions.get is public), but
+    // we use the authed client throughout to avoid juggling two clients.
+    const client = makeAuthedClient();
+    // Un-authed lookup of the session is fine and keeps the initial page
+    // load fast; the action call is the one that actually requires auth.
+    const readClient = makeClient();
+    const session = await readClient.query(api.sessions.get, { id: sessionId as any });
     if (!session?.petPhotoUrls?.length || !session?.quizAnswers) {
       window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
     } else if (!session.selectedStyles || session.selectedStyles.length !== 3) {

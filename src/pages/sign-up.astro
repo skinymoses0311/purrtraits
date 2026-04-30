@@ -1,0 +1,134 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AuthGate from "../components/AuthGate.tsx";
+
+// Optional ?next= override so the gate can be reused from /reveal etc.
+// Defaults to /generate (the post-quiz transition into fal).
+const url = Astro.url;
+const nextRaw = url.searchParams.get("next") ?? "/generate";
+// Only allow same-origin relative paths.
+const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/generate";
+---
+
+<Layout title="Sign up · Purrtraits">
+  <main class="page container auth-page">
+    <header class="auth-page__header">
+      <h1>One last step</h1>
+      <p class="muted">
+        Create a free account to see your portraits — your photos and quiz
+        answers stay with you, and you'll keep your generations forever.
+      </p>
+    </header>
+
+    <div class="auth-page__card">
+      <AuthGate client:load next={next} />
+    </div>
+  </main>
+</Layout>
+
+<style is:global>
+  .auth-page { max-width: 460px; }
+  .auth-page__header { text-align: center; margin-bottom: 24px; }
+  .auth-page__header h1 { margin-bottom: 8px; }
+  .auth-page__card {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
+    padding: 24px;
+  }
+
+  .auth__tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: var(--c-pink-light);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .auth__tab {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .auth__tab--active {
+    background: var(--c-white);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    font-weight: 600;
+  }
+
+  .auth__google {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .auth__google-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    color: #4285F4;
+    font-weight: 700;
+    border: 1px solid var(--c-stroke-light);
+  }
+
+  .auth__divider {
+    text-align: center;
+    margin: 18px 0;
+    position: relative;
+    color: var(--c-muted);
+    font-size: 13px;
+  }
+  .auth__divider::before,
+  .auth__divider::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 24px);
+    height: 1px;
+    background: var(--c-stroke-light);
+  }
+  .auth__divider::before { left: 0; }
+  .auth__divider::after { right: 0; }
+  .auth__divider span {
+    background: var(--c-white);
+    padding: 0 8px;
+  }
+
+  .auth__form { display: flex; flex-direction: column; gap: 14px; }
+  .auth__field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .auth__field span { font-weight: 600; }
+  .auth__field input {
+    font-family: inherit;
+    font-size: 16px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-sm, 8px);
+    background: var(--c-white);
+  }
+  .auth__field input:focus {
+    outline: 2px solid var(--c-pink);
+    outline-offset: 1px;
+  }
+
+  .auth__err {
+    color: #c0353a;
+    font-size: 13px;
+    background: #fde9ea;
+    border: 1px solid #f4b8bb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 0;
+  }
+
+  .auth__submit { margin-top: 4px; }
+</style>

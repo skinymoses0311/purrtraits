@@ -48,6 +48,9 @@ export const createPending = internalMutation({
 
     return await ctx.db.insert("orders", {
       sessionId: args.sessionId,
+      // Inherit userId from the originating session so auth gates and
+      // future order-history queries don't need an extra join.
+      userId: session?.userId,
       stripeSessionId: args.stripeSessionId,
       currency: args.currency,
       amountTotal: 0,

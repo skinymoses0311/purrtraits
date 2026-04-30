@@ -12,8 +12,19 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/react": "^5.0.4",
+    "@auth/core": "^0.37.0",
+    "@convex-dev/auth": "^0.0.92",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "astro": "^6.1.9",
     "convex": "^1.36.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "stripe": "^22.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "typescript": "^5.9.3"
   }
 }

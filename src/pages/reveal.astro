@@ -21,7 +21,8 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { STYLE_LABELS } from "../../convex/styleScoring.ts";
 
@@ -29,12 +30,19 @@ import Layout from "../layouts/Layout.astro";
     return (STYLE_LABELS as Record<string, string>)[style] ?? style;
   }
 
-  const client = makeClient();
   const sessionId = getSessionId();
 
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
+  } else if (!isSignedIn()) {
+    // Reveal is only reachable for authed users — anyone here without a token
+    // came back via stale URL after sign-out. Re-gate them at /sign-up.
+    window.location.href = "/sign-up?next=/reveal";
   } else {
+    // Authed client so the regenerate action and getMyRegensRemaining query
+    // include the JWT from the React-island sign-in.
+    const client = makeAuthedClient();
+
     const grid = document.getElementById("grid")!;
     const continueBtn = document.getElementById("continue") as HTMLButtonElement;
     const regenBtn = document.getElementById("regen") as HTMLButtonElement;
@@ -73,7 +81,10 @@ import Layout from "../layouts/Layout.astro";
       attachImageLoading(grid);
     }
 
-    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    const [session, regens] = await Promise.all([
+      client.query(api.sessions.get, { id: sessionId as any }),
+      client.query(api.sessions.getMyRegensRemaining, {}),
+    ]);
     if (!session?.generations) {
       window.location.href = "/generate";
     } else {
@@ -86,17 +97,21 @@ import Layout from "../layouts/Layout.astro";
         if (sub) sub.textContent = `Click a style for ${petName}, then choose your format.`;
       }
 
-      render(session.generations, session.regensRemaining);
+      render(session.generations, regens ?? 0);
 
       regenBtn.addEventListener("click", async () => {
         regenBtn.disabled = true;
         regenBtn.textContent = "Regenerating…";
         try {
           await client.action(api.fal.regenerate, { sessionId: sessionId as any });
-          const updated = await client.query(api.sessions.get, { id: sessionId as any });
-          render(updated!.generations!, updated!.regensRemaining);
-          regenBtn.textContent = `Regenerate (${updated!.regensRemaining} left)`;
-          regenBtn.disabled = updated!.regensRemaining <= 0;
+          const [updated, updatedRegens] = await Promise.all([
+            client.query(api.sessions.get, { id: sessionId as any }),
+            client.query(api.sessions.getMyRegensRemaining, {}),
+          ]);
+          const remaining = updatedRegens ?? 0;
+          render(updated!.generations!, remaining);
+          regenBtn.textContent = `Regenerate (${remaining} left)`;
+          regenBtn.disabled = remaining <= 0;
         } catch (err) {
           alert("Regeneration failed: " + (err as Error).message);
           regenBtn.disabled = false;

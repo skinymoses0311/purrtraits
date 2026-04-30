@@ -179,6 +179,18 @@ export const handleStripeWebhook = internalAction({
         orderId,
       });
 
+      // Refill the buyer's generation budget — every purchase grants 3
+      // fresh regens. Pulled off the order's userId (set from the session
+      // at createPending time).
+      const orderForUserId = await ctx.runQuery(internal.orders.getInternal, {
+        id: orderId,
+      });
+      if (orderForUserId?.userId) {
+        await ctx.runMutation(internal.sessions.resetRegens, {
+          userId: orderForUserId.userId,
+        });
+      }
+
       // Clear the cart on the originating Convex session so refreshing the
       // app doesn't show stale lines.
       const convexSessionId = session.metadata?.convexSessionId as

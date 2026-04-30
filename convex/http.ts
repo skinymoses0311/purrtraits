@@ -1,8 +1,12 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { auth } from "./auth";
 
 const http = httpRouter();
+
+// Convex Auth's sign-in / OAuth callback / token-refresh routes.
+auth.addHttpRoutes(http);
 
 http.route({
   path: "/stripe/webhook",

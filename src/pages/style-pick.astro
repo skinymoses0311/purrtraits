@@ -41,6 +41,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
+  import { isSignedIn } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import {
     ALL_STYLES,
@@ -168,7 +169,9 @@ import Layout from "../layouts/Layout.astro";
             id: sessionId as any,
             styles: selected,
           });
-          window.location.href = "/generate";
+          // Auth gate: anonymous users sign up / sign in before fal is hit.
+          // After auth the React island sends them on to /generate.
+          window.location.href = isSignedIn() ? "/generate" : "/sign-up?next=/generate";
         } catch (err) {
           go.disabled = false;
           go.textContent = original;

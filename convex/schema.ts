@@ -1,10 +1,37 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
+  // Convex Auth tables (users, authAccounts, authSessions, etc.). The `users`
+  // table is overridden below with app-specific fields layered on top.
+  ...authTables,
+
+  // Same shape as authTables.users + regensRemaining. Convex schemas validate
+  // every document against the table validator at write time, so app-level
+  // fields must be declared here rather than just patched in via callbacks.
+  users: defineTable({
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // Generation budget — see fal.ts. Initialized to 3 by createOrUpdateUser
+    // in convex/auth.ts; reset to 3 on order completion in payments.ts.
+    regensRemaining: v.optional(v.number()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
+
   // Anonymous client session — created on first visit, ID kept in localStorage.
   // Tracks the customer's journey: photo upload → quiz → generations → selection.
+  // Once the user signs up at the auth gate the session is stamped with their
+  // userId; sessions started by an already-signed-in user get the userId at
+  // creation time.
   sessions: defineTable({
+    userId: v.optional(v.id("users")),
     // Multiple pet photos: more reference images = better likeness from
     // Nano Banana. Stored as parallel arrays.
     petPhotoStorageIds: v.optional(v.array(v.id("_storage"))),
@@ -53,7 +80,10 @@ export default defineSchema({
     // The 3 styles the user actually picked to generate. Set on the picker
     // screen and consumed by the fal action.
     selectedStyles: v.optional(v.array(v.string())),
-    regensRemaining: v.number(),
+    // Legacy: regen budget used to live on the session. With auth in place
+    // it lives on the user instead. Kept optional so existing rows still
+    // validate; new code reads/writes from the users table.
+    regensRemaining: v.optional(v.number()),
     // Accumulating session gallery — every successful generation appends
     // its 4 portraits here so the user can revisit / buy any of them.
     galleryItems: v.optional(
@@ -87,7 +117,7 @@ export default defineSchema({
         }),
       ),
     ),
-  }),
+  }).index("by_userId", ["userId"]),
 
   products: defineTable({
     name: v.string(),
@@ -118,6 +148,7 @@ export default defineSchema({
     .index("by_active", ["active"]),
 
   orders: defineTable({
+    userId: v.optional(v.id("users")),
     // Legacy single-product fields — kept optional so old orders (pre-cart)
     // still validate. New multi-item orders use `lineItems` below.
     productId: v.optional(v.id("products")),
@@ -165,5 +196,6 @@ export default defineSchema({
     canceledEmailSentAt: v.optional(v.number()),
   })
     .index("by_session", ["stripeSessionId"])
-    .index("by_gelato", ["gelatoOrderId"]),
+    .index("by_gelato", ["gelatoOrderId"])
+    .index("by_userId", ["userId"]),
 });

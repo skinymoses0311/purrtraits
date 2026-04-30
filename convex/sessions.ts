@@ -1,12 +1,16 @@
 import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { scoreStyles } from "./styleScoring";
 
 export const create = mutation({
   args: {},
   handler: async (ctx) => {
+    // If a signed-in user starts a new quiz, stamp the new session with their
+    // userId immediately so all downstream rows are tied to them.
+    const userId = await getAuthUserId(ctx);
     return await ctx.db.insert("sessions", {
-      regensRemaining: 2,
+      userId: userId ?? undefined,
       generationStatus: "idle",
       petPhotoStorageIds: [],
       petPhotoUrls: [],
@@ -22,6 +26,71 @@ export const get = query({
 export const getInternal = internalQuery({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
+// Called by the React auth island after sign-up / sign-in: stamps the
+// just-authenticated user onto the anonymous session that was started before
+// the gate. Idempotent — safe to call repeatedly. If the session is already
+// owned by a different user the call is a no-op (defensive — should not
+// happen via normal flow).
+export const linkSessionToUser = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const session = await ctx.db.get(sessionId);
+    if (!session) throw new Error("Session not found");
+    if (session.userId && session.userId !== userId) return;
+    if (session.userId === userId) return;
+    await ctx.db.patch(sessionId, { userId });
+  },
+});
+
+// Internal counterpart used by the fal action (which has already resolved
+// the userId via getAuthUserId on the action ctx). Same idempotent semantics.
+export const linkSessionToUserInternal = internalMutation({
+  args: { sessionId: v.id("sessions"), userId: v.id("users") },
+  handler: async (ctx, { sessionId, userId }) => {
+    const session = await ctx.db.get(sessionId);
+    if (!session) return;
+    if (session.userId === userId) return;
+    if (session.userId && session.userId !== userId) return;
+    await ctx.db.patch(sessionId, { userId });
+  },
+});
+
+// Reads the calling user's regen budget. Used by the generate / regenerate
+// pages to decide whether to send the request or show "out of regens".
+export const getMyRegensRemaining = query({
+  args: {},
+  handler: async (ctx): Promise<number | null> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+    return user.regensRemaining ?? 3;
+  },
+});
+
+// Returns the user's gallery across every session they own. Each session's
+// galleryItems are appended to the result in newest-first order. Cheap for
+// the expected scale (a user has at most a few sessions × 3 items each), but
+// can be denormalized later if it becomes a hot path.
+export const getUserGallery = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    const items = sessions.flatMap((s) =>
+      (s.galleryItems ?? []).map((it) => ({ ...it, sessionId: s._id })),
+    );
+    items.sort((a, b) => b.createdAt - a.createdAt);
+    return items;
+  },
 });
 
 export const addPhoto = mutation({
@@ -137,12 +206,38 @@ export const setGenerations = internalMutation({
   },
 });
 
-export const decrementRegens = internalMutation({
-  args: { id: v.id("sessions") },
-  handler: async (ctx, { id }) => {
-    const s = await ctx.db.get(id);
-    if (!s) return;
-    await ctx.db.patch(id, { regensRemaining: Math.max(0, s.regensRemaining - 1) });
+// Atomic "do you have a regen, and if so deduct one". Returns the new
+// remaining count. Throws if the user is out. Called from the fal action
+// before incurring AI cost. If generation later fails, callers should
+// `refundRegen` to give it back.
+export const consumeRegen = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+    const remaining = user.regensRemaining ?? 3;
+    if (remaining <= 0) throw new Error("OUT_OF_REGENS");
+    await ctx.db.patch(userId, { regensRemaining: remaining - 1 });
+    return remaining - 1;
+  },
+});
+
+export const refundRegen = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user) return;
+    const remaining = user.regensRemaining ?? 3;
+    await ctx.db.patch(userId, { regensRemaining: remaining + 1 });
+  },
+});
+
+// Resets a user's regens back to 3. Called from the Stripe webhook when an
+// order completes — every purchase grants 3 fresh generations.
+export const resetRegens = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await ctx.db.patch(userId, { regensRemaining: 3 });
   },
 });
 
@@ -216,7 +311,6 @@ export const clearCurrentFlow = mutation({
       selectedStyles: undefined,
       generationStatus: "idle",
       generationError: undefined,
-      regensRemaining: 2,
     });
   },
 });
