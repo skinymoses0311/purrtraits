@@ -37,19 +37,11 @@ import Layout from "../layouts/Layout.astro";
   import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import type { Id } from "../../convex/_generated/dataModel";
+  import { ALL_STYLES, STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
 
-  type Style = "oil" | "watercolour" | "pop";
-
-  const STYLE_LABELS: Record<Style, string> = {
-    oil: "Oil Painting",
-    watercolour: "Watercolour",
-    pop: "Pop Art",
-  };
   const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
     { key: "all", label: "All styles" },
-    { key: "oil", label: "Oil Painting" },
-    { key: "watercolour", label: "Watercolour" },
-    { key: "pop", label: "Pop Art" },
+    ...ALL_STYLES.map((s) => ({ key: s, label: STYLE_LABELS[s] })),
   ];
   const ACTIVITY_LABELS: Record<string, string> = {
     regal: "👑 Regal",
@@ -329,8 +321,10 @@ import Layout from "../layouts/Layout.astro";
 
   .g-card__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .g-card__row {
-    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 4px 10px; flex-wrap: wrap;
   }
+  .g-card__row > div { min-width: 0; flex: 1 1 auto; }
   .g-card__title { font-size: 15px; font-weight: 600; color: var(--c-dark); }
   .g-card__sub { font-size: 12px; color: var(--c-light); margin-top: 2px; }
   .g-card__price { font-size: 16px; font-weight: 700; color: var(--c-dark); white-space: nowrap; }
