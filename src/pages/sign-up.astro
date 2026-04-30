@@ -2,12 +2,15 @@
 import Layout from "../layouts/Layout.astro";
 import AuthGate from "../components/AuthGate.tsx";
 
-// Optional ?next= override so the gate can be reused from /reveal etc.
-// Defaults to /generate (the post-quiz transition into fal).
+// Optional ?next= override. The quiz gate (style-pick / generate / reveal)
+// always passes ?next=/generate; nav-driven sign-ins pass the current
+// page. If neither is set we default to home — sending an out-of-flow
+// sign-in to /generate would just bounce them to /upload because they
+// have no session, which is worse than going home.
 const url = Astro.url;
-const nextRaw = url.searchParams.get("next") ?? "/generate";
+const nextRaw = url.searchParams.get("next") ?? "/";
 // Only allow same-origin relative paths.
-const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/generate";
+const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
 ---
 
 <Layout title="Sign up · Purrtraits">

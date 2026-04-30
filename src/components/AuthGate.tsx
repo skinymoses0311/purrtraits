@@ -16,12 +16,26 @@ const SESSION_STORAGE_KEY = "purrtraits.sessionId";
 const convex = new ConvexReactClient(PUBLIC_CONVEX_URL);
 
 type Props = {
-  // Where to send the user once they're signed in. Falls back to /generate
-  // (the gate's primary use case is the post-quiz transition into fal).
+  // Optional fallback for `next` if no `?next=` is in the URL. The page
+  // template passes this, but the runtime URL is always preferred (Astro
+  // prerenders /sign-up.astro, so the SSR-baked `next` would otherwise be
+  // stale across query-string variants).
   next?: string;
 };
 
-export default function AuthGate({ next = "/generate" }: Props) {
+// Read ?next= client-side so it reflects the actual URL the user is on.
+// Falls back to the SSR-passed prop, then to "/". Only allows same-origin
+// relative paths to avoid open-redirect risk.
+function resolveNext(propNext: string): string {
+  if (typeof window === "undefined") return propNext;
+  const fromUrl = new URLSearchParams(window.location.search).get("next");
+  const candidate = fromUrl ?? propNext ?? "/";
+  if (candidate.startsWith("/") && !candidate.startsWith("//")) return candidate;
+  return "/";
+}
+
+export default function AuthGate({ next: propNext = "/" }: Props) {
+  const next = resolveNext(propNext);
   return (
     <ConvexAuthProvider client={convex}>
       <AuthCard next={next} />
