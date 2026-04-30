@@ -6,7 +6,25 @@ import Layout from "../layouts/Layout.astro";
   <main class="page container">
     <a href="/" class="back-link muted">← Back</a>
 
-    <div class="upload">
+    <!-- Out-of-regens panel — shown only for signed-in users whose
+         regensRemaining has dropped to 0. Revealed by the script below
+         after it queries getMyRegensRemaining; hidden by default so
+         anonymous and in-budget users don't get a flash of this state. -->
+    <div class="upload__exhausted" id="upload-exhausted" hidden>
+      <div class="upload__exhausted-card">
+        <span class="upload__exhausted-icon" aria-hidden="true">🎨</span>
+        <h1>You've used your 3 free portraits</h1>
+        <p class="muted">
+          Buy any portrait from your gallery to unlock 3 more generations.
+          Every order resets your budget.
+        </p>
+        <div class="upload__exhausted-actions">
+          <a href="/gallery" class="btn btn--primary">Go to my gallery →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload" id="upload-main" hidden>
       <div class="upload__intro">
         <h1>Upload your pet's photos</h1>
         <p class="muted">
@@ -75,6 +93,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, ensureSession } from "../lib/client.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { cropToAspect } from "../lib/crop.ts";
   import { api } from "../../convex/_generated/api.js";
   import type { Id } from "../../convex/_generated/dataModel";
@@ -82,6 +101,27 @@ import Layout from "../layouts/Layout.astro";
   const MAX_PHOTOS = 5;
   const MAX_BYTES = 10 * 1024 * 1024;
 
+  // Block signed-in users with no regens left BEFORE we render any of the
+  // upload UI — letting them upload + quiz only to fail at generate.astro
+  // surfaced a raw OUT_OF_REGENS error which was confusing. Anonymous
+  // users still pass through; they get fresh budget at first sign-up.
+  const exhaustedEl = document.getElementById("upload-exhausted")!;
+  const mainEl = document.getElementById("upload-main")!;
+  let gated = false;
+  if (isSignedIn()) {
+    const authed = makeAuthedClient();
+    const remaining = await authed.query(api.sessions.getMyRegensRemaining, {});
+    if ((remaining ?? 0) <= 0) {
+      gated = true;
+      exhaustedEl.hidden = false;
+    }
+  }
+  if (!gated) {
+    mainEl.hidden = false;
+    initUploadFlow();
+  }
+
+  async function initUploadFlow() {
   const client = makeClient();
   const fileInput = document.getElementById("file") as HTMLInputElement;
   const dropzone = document.getElementById("dropzone")!;
@@ -379,9 +419,32 @@ import Layout from "../layouts/Layout.astro";
   });
 
   refresh();
+  } // end initUploadFlow
 </script>
 
 <style is:global>
+  /* Out-of-regens empty state — shown when a signed-in user has burned
+     through their 3 generations and hasn't bought anything to refresh
+     the budget. Same pink-light card vocabulary as the rest of the app. */
+  .upload__exhausted {
+    max-width: 560px; margin: 32px auto 0; text-align: center;
+  }
+  .upload__exhausted-card {
+    background: var(--c-pink-light);
+    border: 1.5px solid var(--c-pink);
+    border-radius: var(--r-md);
+    padding: 40px 28px;
+  }
+  .upload__exhausted-icon {
+    font-size: 56px; line-height: 1; display: block; margin-bottom: 12px;
+  }
+  .upload__exhausted-card h1 { margin-bottom: 12px; font-size: 32px; }
+  .upload__exhausted-card .muted { font-size: 16px; line-height: 1.5; }
+  .upload__exhausted-actions {
+    margin-top: 24px;
+    display: flex; justify-content: center;
+  }
+
   /* Page-local layout ---------------------------------------------- */
   .upload .back-link { display: inline-block; margin-bottom: 16px; }
   .upload__intro {

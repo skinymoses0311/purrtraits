@@ -12,7 +12,7 @@ const path = Astro.url.pathname;
     <div class="nav__links">
       <a href="/#how" class:list={["nav__link", { active: path === "/" }]}>How it works</a>
       <a href="/gallery" class:list={["nav__link", { active: path === "/gallery" }]}>My gallery</a>
-      <a href="/upload" class="btn btn--primary nav__cta">Create Portrait</a>
+      <a href="/upload" class="btn btn--primary nav__cta" id="nav-create-cta">Create Portrait</a>
     </div>
 
     <div class="nav__right">
@@ -222,6 +222,24 @@ const path = Astro.url.pathname;
         badge.hidden = true;
       }
     });
+  }
+
+  // "Create Portrait" CTA gating — when a signed-in user has used all
+  // 3 generations, point them at their gallery to complete a purchase
+  // (which resets the budget) instead of dropping them into a flow that
+  // will dead-end at the generate step.
+  const createCta = document.getElementById('nav-create-cta') as HTMLAnchorElement | null;
+  if (createCta && isSignedIn()) {
+    const authedForCta = makeAuthedClient();
+    authedForCta
+      .query(api.sessions.getMyRegensRemaining, {})
+      .then((remaining) => {
+        if ((remaining ?? 0) <= 0) {
+          createCta.href = '/gallery';
+          createCta.textContent = 'View my gallery';
+        }
+      })
+      .catch(() => { /* leave CTA as default */ });
   }
 
   // Auth widget — vanilla so the nav stays free of React. Renders one of:
