@@ -88,20 +88,34 @@
   .pp[data-format="framed"][data-slide="2"] .pp__slide[data-slide="2"],
   .pp[data-format="framed"][data-slide="3"] .pp__slide[data-slide="3"] { display: block; }
 
-  /* Photo slides keep the same on-screen width as the framed mockup so the
-     panel doesn't visibly resize as you cycle through. */
+  /* Photo slides fill the viewport edge-to-edge using object-fit: cover, so
+     the image goes corner-to-corner instead of sitting on the beige panel. */
   .pp__slide--photo {
-    width: var(--art-w, 240px);
+    width: 100%;
+    aspect-ratio: 1 / 1;
   }
   .pp__photo {
     display: block;
     width: 100%;
-    height: auto;
-    border-radius: var(--r-sm, 6px);
-    box-shadow:
-      0 14px 28px -16px rgba(0,0,0,.25),
-      0 4px 8px -4px rgba(0,0,0,.15);
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--r-md);
   }
+
+  /* Strip the beige presentation panel for photo slides — only the mockup
+     slide (slide 0) gets the framed-print container styling. */
+  .pp[data-format="framed"]:not([data-slide="0"]) {
+    padding: 0;
+    gap: 12px;
+    background: transparent;
+    border-color: transparent;
+  }
+  /* The dots' negative margin tucks them under the mockup's drop shadow;
+     on photo slides there is no shadow so reset it to avoid overlap. */
+  .pp[data-format="framed"]:not([data-slide="0"]) .pp__dots { margin-top: 0; }
+
+  /* Caption only describes the mockup, so hide it on the lifestyle slides. */
+  .pp:not([data-slide="0"]) .pp__caption { display: none; }
 
   /* ---- Nav arrows + dots: only visible when format = framed. ---- */
   .pp__nav, .pp__dots { display: none; }
