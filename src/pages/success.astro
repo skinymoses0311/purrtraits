@@ -28,7 +28,7 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
-  import { track } from "../lib/analytics.ts";
+  import { track, trackEcommerce } from "../lib/analytics.ts";
 
   // Map an order line into the GA4 ecommerce item shape. Mirrors the
   // helper in cart.astro so purchase events use the same item_id keys.
@@ -180,7 +180,7 @@ import Layout from "../layouts/Layout.astro";
           // a flat $30 when any physical line is present (convex/cart.ts).
           const amountTotalCents = Number(order.amountTotal ?? 0);
           const shippingCents = hasPhysical ? 3000 : 0;
-          track("purchase", {
+          trackEcommerce("purchase", {
             transaction_id: stripeSessionId,
             value: amountTotalCents / 100,
             shipping: shippingCents / 100,

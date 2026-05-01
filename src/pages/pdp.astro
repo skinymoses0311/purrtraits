@@ -56,7 +56,7 @@ import ProductPreview from "../components/ProductPreview.astro";
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { STYLE_LABELS } from "../../convex/styleScoring.ts";
-  import { track } from "../lib/analytics.ts";
+  import { track, trackEcommerce } from "../lib/analytics.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
   type Size = "small" | "medium" | "large";
@@ -294,7 +294,7 @@ import ProductPreview from "../components/ProductPreview.astro";
               quantity: 1,
               selectedStyle,
             });
-            track("add_to_cart", {
+            trackEcommerce("add_to_cart", {
               currency: "USD",
               value: product.priceCents / 100,
               items: [item],
@@ -329,7 +329,7 @@ import ProductPreview from "../components/ProductPreview.astro";
           quantity: 1,
           selectedStyle,
         });
-        track("view_item", {
+        trackEcommerce("view_item", {
           currency: "USD",
           value: initialProduct.priceCents / 100,
           items: [item],

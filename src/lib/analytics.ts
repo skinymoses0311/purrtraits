@@ -19,6 +19,25 @@ export function track(event: string, params: Record<string, unknown> = {}): void
   }
 }
 
+// GA4-compliant ecommerce push. Wraps the payload in `ecommerce: {...}` so
+// GTM's built-in Enhanced Ecommerce variable picks it up directly, and emits
+// a `ecommerce: null` push first to clear any prior ecommerce object on the
+// dataLayer (the canonical pattern from Google's GA4 docs — without the
+// reset, two back-to-back add_to_cart events can leak items between them).
+export function trackEcommerce(
+  event: string,
+  payload: { currency?: string; value?: number; items: Ga4Item[] } & Record<string, unknown>,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ ecommerce: null });
+    window.dataLayer.push({ event, ecommerce: payload });
+  } catch {
+    // Swallow — analytics must never break the app.
+  }
+}
+
 export function setUserId(userId: string | null | undefined): void {
   if (typeof window === "undefined") return;
   if (!userId) return;

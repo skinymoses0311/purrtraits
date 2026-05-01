@@ -69,7 +69,7 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
-  import { track } from "../lib/analytics.ts";
+  import { track, trackEcommerce } from "../lib/analytics.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
 
@@ -147,7 +147,7 @@ import Layout from "../layouts/Layout.astro";
       latestCart = cart;
       if (!viewCartFired) {
         viewCartFired = true;
-        track("view_cart", {
+        trackEcommerce("view_cart", {
           currency: (cart.currency ?? "usd").toUpperCase(),
           value: cart.totalCents / 100,
           items: cart.items.map(lineToEcommerceItem),
@@ -264,7 +264,7 @@ import Layout from "../layouts/Layout.astro";
       // Fire begin_checkout BEFORE the network call so the event reaches GA
       // even on slow/failing Stripe handoffs (the redirect may steal the page).
       if (latestCart) {
-        track("begin_checkout", {
+        trackEcommerce("begin_checkout", {
           currency: (latestCart.currency ?? "usd").toUpperCase(),
           value: latestCart.totalCents / 100,
           items: latestCart.items.map(lineToEcommerceItem),
