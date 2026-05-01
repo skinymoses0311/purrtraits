@@ -1,0 +1,213 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const lastUpdated = "1 May 2026";
+---
+
+<Layout title="Cookie Policy — Purrtraits">
+  <section class="legal page">
+    <div class="container legal__inner">
+      <header class="legal__header">
+        <p class="legal__eyebrow">LEGAL</p>
+        <h1 class="legal__title display">Cookie Policy</h1>
+        <p class="muted legal__updated">Last updated: {lastUpdated}</p>
+      </header>
+
+      <article class="legal__body">
+        <p>
+          This Cookie Policy explains how Purrtraits uses cookies and
+          similar storage technologies on
+          <a href="https://purrtraits.shop">purrtraits.shop</a>
+          (the "Site"). It should be read alongside our
+          <a href="/privacy">Privacy Policy</a>, which describes how we
+          handle personal data more generally.
+        </p>
+
+        <h2 class="legal__h2">1. What are cookies?</h2>
+        <p>
+          Cookies are small text files placed on your device when you
+          visit a website. They are widely used to make websites work,
+          remember preferences, and provide information to site
+          owners. We also use related technologies such as
+          <code>localStorage</code> and <code>sessionStorage</code> in
+          your browser; for simplicity we refer to all of these as
+          "cookies" in this policy.
+        </p>
+
+        <h2 class="legal__h2">2. Cookies we use</h2>
+
+        <h3 class="legal__h3">a) Strictly necessary cookies</h3>
+        <p>
+          These are required for the Site to function and cannot be
+          switched off. They are usually only set in response to
+          actions you take, such as signing in, filling in forms, or
+          adding items to your cart. We rely on legitimate interests
+          for these — your consent is not required.
+        </p>
+        <ul class="legal__list">
+          <li>
+            <strong>Session ID</strong> — a random identifier that
+            links your browser to your cart, quiz answers, and
+            generated portraits while you use the Site.
+          </li>
+          <li>
+            <strong>Authentication tokens</strong> — keep you signed
+            in across pages once you create an account.
+          </li>
+          <li>
+            <strong>Cart state</strong> — remembers what you have
+            added to your basket so it survives a refresh.
+          </li>
+          <li>
+            <strong>Cookie-consent preferences</strong> — remembers
+            your choices about non-essential cookies so we don't ask
+            again every visit.
+          </li>
+        </ul>
+
+        <h3 class="legal__h3">b) Analytics &amp; advertising cookies</h3>
+        <p>
+          With your consent, we set cookies to understand how the Site
+          is used and to show you advertising. These are set by us and
+          by Google AdSense.
+        </p>
+        <ul class="legal__list">
+          <li>
+            <strong>Google AdSense</strong> — Google sets cookies
+            (including, where applicable, the <code>NID</code>,
+            <code>IDE</code>, and <code>__gads</code> /
+            <code>__gpi</code> cookies) to serve ads, measure ad
+            performance, prevent the same ad being shown repeatedly,
+            and — where you opt in to personalised advertising — to
+            tailor ads to your interests. For details see
+            <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">policies.google.com/technologies/ads</a>.
+          </li>
+          <li>
+            <strong>Product analytics</strong> — basic event logging
+            (pages visited, buttons clicked, performance metrics) so
+            we can fix issues and improve the product. We do not use
+            this data to identify individuals beyond your account.
+          </li>
+        </ul>
+
+        <h2 class="legal__h2">3. Managing your cookie choices</h2>
+        <p>You can control non-essential cookies in several ways:</p>
+        <ul class="legal__list">
+          <li>
+            <strong>Our cookie banner.</strong> When you first visit
+            the Site we ask whether you consent to advertising and
+            analytics cookies. You can change your choice at any time
+            by clearing your cookies for this Site, which will trigger
+            the banner again on your next visit.
+          </li>
+          <li>
+            <strong>Browser settings.</strong> Most browsers let you
+            view, block, or delete cookies. Doing so may break parts
+            of the Site (for example sign-in or your cart). See the
+            help pages for
+            <a href="https://support.google.com/chrome/answer/95647" target="_blank" rel="noopener">Chrome</a>,
+            <a href="https://support.mozilla.org/kb/cookies-information-websites-store-on-your-computer" target="_blank" rel="noopener">Firefox</a>,
+            <a href="https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac" target="_blank" rel="noopener">Safari</a>,
+            or
+            <a href="https://support.microsoft.com/microsoft-edge" target="_blank" rel="noopener">Edge</a>.
+          </li>
+          <li>
+            <strong>Google Ads Settings.</strong> You can opt out of
+            personalised advertising from Google specifically at
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener">adssettings.google.com</a>.
+          </li>
+          <li>
+            <strong>Industry opt-outs.</strong> You can opt out of
+            many advertising-network cookies via
+            <a href="https://www.youronlinechoices.com/uk/" target="_blank" rel="noopener">Your Online Choices</a>
+            (for UK and EU users).
+          </li>
+        </ul>
+
+        <h2 class="legal__h2">4. Do Not Track</h2>
+        <p>
+          Some browsers send a "Do Not Track" signal. There is no
+          common industry standard for how to respond to it, so the
+          Site does not currently change behaviour based on the
+          signal. We do honour the cookie-consent choice you make on
+          our banner.
+        </p>
+
+        <h2 class="legal__h2">5. Changes to this policy</h2>
+        <p>
+          We may update this Cookie Policy from time to time —
+          for example if we add new tools or change advertising
+          partners. When we make material changes we will update the
+          "Last updated" date above.
+        </p>
+
+        <h2 class="legal__h2">6. Contact us</h2>
+        <p>
+          If you have any questions about how we use cookies, email
+          <a href="mailto:privacy@purrtraits.shop">privacy@purrtraits.shop</a>.
+          For more about how we handle personal data, please read our
+          <a href="/privacy">Privacy Policy</a>.
+        </p>
+      </article>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .legal__inner { max-width: 760px; }
+  .legal__header { text-align: center; margin-bottom: 36px; }
+  .legal__eyebrow {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--c-pink);
+    margin-bottom: 6px;
+  }
+  .legal__title { margin-bottom: 8px; }
+  .legal__updated { font-size: 14px; }
+
+  .legal__body {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-lg);
+    padding: 28px 22px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--c-dark);
+  }
+  .legal__body p { margin-bottom: 14px; }
+  .legal__body a { color: var(--c-pink); text-decoration: underline; text-underline-offset: 2px; }
+  .legal__body a:hover { color: #c98399; }
+  .legal__body code {
+    background: var(--c-fill);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+  }
+  .legal__body ul.legal__list {
+    margin: 6px 0 18px 22px;
+    padding: 0;
+  }
+  .legal__body ul.legal__list li { margin-bottom: 8px; }
+
+  .legal__h2 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--c-dark);
+    margin: 28px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid var(--c-pink-light);
+  }
+  .legal__h3 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    color: var(--c-dark);
+    margin: 18px 0 6px;
+  }
+
+  @media (min-width: 768px) {
+    .legal__body { padding: 44px 48px; font-size: 16px; }
+    .legal__h2 { font-size: 30px; }
+    .legal__h3 { font-size: 22px; }
+  }
+</style>

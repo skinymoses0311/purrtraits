@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
 
 interface Props {
   title?: string;
@@ -21,9 +22,20 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5797288699504998"
          crossorigin="anonymous"></script>
     <title>{title}</title>
+    <style>
+      /* Sticky-footer scaffold: body is a column flex container, the main
+         <slot> content flexes to fill, and the footer sits below — so on
+         short pages (privacy/cookies) the footer doesn't float in the
+         middle of the viewport. */
+      body { min-height: 100vh; display: flex; flex-direction: column; }
+      .layout__main { flex: 1 0 auto; display: flex; flex-direction: column; }
+    </style>
   </head>
   <body>
     {!hideNav && <Nav />}
-    <slot />
+    <main class="layout__main">
+      <slot />
+    </main>
+    <Footer />
   </body>
 </html>

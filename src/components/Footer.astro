@@ -1,0 +1,105 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+  <div class="container footer__inner">
+    <div class="footer__brand">
+      <span class="footer__logo">
+        <span class="footer__paw">🐾</span>
+        <span class="footer__name">Purrtraits</span>
+      </span>
+      <p class="footer__tagline muted">Museum-worthy art for your pet.</p>
+    </div>
+
+    <nav class="footer__links" aria-label="Footer">
+      <a href="/privacy" class="footer__link">Privacy Policy</a>
+      <a href="/cookies" class="footer__link">Cookie Policy</a>
+    </nav>
+
+    <p class="footer__copy muted">© {year} Purrtraits. All rights reserved.</p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-top: auto;
+    background: var(--c-pink-light);
+    border-top: 1.5px solid var(--c-stroke-light);
+    padding: 32px 0 28px;
+  }
+  .footer__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+  .footer__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .footer__logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--c-dark);
+  }
+  .footer__paw {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--c-pink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .footer__tagline {
+    font-family: var(--font-display);
+    font-size: 16px;
+    color: var(--c-text);
+  }
+  .footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 20px;
+  }
+  .footer__link {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--c-text);
+    padding: 6px 14px;
+    border-radius: var(--r-pill);
+    border: 1.5px solid transparent;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .footer__link:hover {
+    color: var(--c-dark);
+    border-color: var(--c-pink);
+    background: var(--c-white);
+  }
+  .footer__copy {
+    font-size: 13px;
+    color: var(--c-text);
+  }
+
+  @media (min-width: 768px) {
+    .footer { padding: 40px 0 32px; }
+    .footer__inner {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+      gap: 24px;
+    }
+    .footer__brand { align-items: flex-start; }
+    .footer__copy { text-align: right; }
+  }
+</style>

@@ -1,0 +1,330 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const lastUpdated = "1 May 2026";
+---
+
+<Layout title="Privacy Policy — Purrtraits">
+  <section class="legal page">
+    <div class="container legal__inner">
+      <header class="legal__header">
+        <p class="legal__eyebrow">LEGAL</p>
+        <h1 class="legal__title display">Privacy Policy</h1>
+        <p class="muted legal__updated">Last updated: {lastUpdated}</p>
+      </header>
+
+      <article class="legal__body">
+        <p>
+          Purrtraits ("we", "us", "our") is a UK-based service that turns
+          photographs of pets into AI-generated portraits, available as
+          digital downloads or as physical prints fulfilled by our print
+          partner. This Privacy Policy explains what personal data we
+          collect, how we use it, who we share it with, how long we keep
+          it, and the rights you have under the UK General Data
+          Protection Regulation (UK GDPR) and the Data Protection Act
+          2018.
+        </p>
+        <p>
+          By using <a href="https://purrtraits.shop">purrtraits.shop</a>
+          (the "Site") you agree to the practices described below. If
+          you do not agree, please do not use the Site.
+        </p>
+
+        <h2 class="legal__h2">1. Who we are</h2>
+        <p>
+          Purrtraits is the data controller for the personal data
+          described in this policy. You can reach us at
+          <a href="mailto:privacy@purrtraits.shop">privacy@purrtraits.shop</a>
+          for any privacy questions, requests, or complaints.
+        </p>
+
+        <h2 class="legal__h2">2. The data we collect</h2>
+        <p>We collect the following categories of personal data:</p>
+        <ul class="legal__list">
+          <li>
+            <strong>Account &amp; contact data.</strong> Email address,
+            display name, and (where you create an account) a hashed
+            password or a third-party identifier used for sign-in.
+          </li>
+          <li>
+            <strong>Pet photographs you upload.</strong> The image files
+            you submit so we can generate portraits, plus any pet name
+            or short description you provide.
+          </li>
+          <li>
+            <strong>Generated portraits.</strong> The AI-generated
+            images we produce on your behalf and any selections you
+            make (style, framing, size).
+          </li>
+          <li>
+            <strong>Order &amp; shipping data.</strong> If you buy a
+            physical print, your delivery address, recipient name, and
+            order details. Payment card details are handled directly by
+            our payment processor — we do not see or store full card
+            numbers.
+          </li>
+          <li>
+            <strong>Quiz responses.</strong> Answers you give in our
+            on-site quiz (e.g. about your pet's personality and your
+            style preferences) so we can recommend portrait styles.
+          </li>
+          <li>
+            <strong>Session &amp; usage data.</strong> A session
+            identifier we set in your browser, basic device and
+            browser information, pages visited, referring URL,
+            approximate location derived from IP, and event timestamps.
+          </li>
+          <li>
+            <strong>Communications.</strong> Messages you send us by
+            email or through any contact form.
+          </li>
+        </ul>
+
+        <h2 class="legal__h2">3. How we use your data &amp; legal bases</h2>
+        <p>
+          Under UK GDPR we only process personal data when we have a
+          lawful basis to do so. Our uses and bases are:
+        </p>
+        <ul class="legal__list">
+          <li>
+            <strong>To provide the service</strong> — generating
+            portraits from your photos, fulfilling orders, providing
+            customer support. Legal basis: <em>performance of a
+            contract</em>.
+          </li>
+          <li>
+            <strong>To process payments</strong> — sharing the minimum
+            transaction information needed with our payment processor.
+            Legal basis: <em>performance of a contract</em>.
+          </li>
+          <li>
+            <strong>To run and secure the Site</strong> — preventing
+            fraud and abuse, debugging, securing accounts. Legal basis:
+            <em>legitimate interests</em> in operating a safe service.
+          </li>
+          <li>
+            <strong>To improve the service</strong> — measuring how
+            features are used so we can fix problems and improve the
+            product. Legal basis: <em>legitimate interests</em>.
+          </li>
+          <li>
+            <strong>To show advertising</strong> — including
+            personalised advertising via Google AdSense where you have
+            consented to advertising cookies. Legal basis:
+            <em>consent</em>.
+          </li>
+          <li>
+            <strong>To comply with our legal obligations</strong> — for
+            example tax, accounting, and responding to lawful requests
+            from authorities. Legal basis: <em>legal obligation</em>.
+          </li>
+        </ul>
+
+        <h2 class="legal__h2">4. AI image generation &amp; your photos</h2>
+        <p>
+          The photos you upload are sent to our AI image-generation
+          partner (fal.ai) so they can produce a portrait. We send only
+          what is needed to generate your image and we do not use your
+          uploaded photos to train any general-purpose AI model. We
+          retain uploaded photos and generated portraits in our backend
+          (Convex) so you can return to your gallery and re-order
+          prints; you can ask us to delete them at any time (see
+          section 9).
+        </p>
+
+        <h2 class="legal__h2">5. Third-party processors we share data with</h2>
+        <p>
+          We use the following service providers ("processors") to run
+          Purrtraits. They process personal data on our instructions
+          under written agreements that include UK-GDPR-compliant
+          safeguards. Where data is transferred outside the UK we rely
+          on the UK Addendum to the EU Standard Contractual Clauses or
+          on UK adequacy decisions.
+        </p>
+        <ul class="legal__list">
+          <li>
+            <strong>Stripe</strong> — payment processing. Receives
+            transaction details and the card information you enter at
+            checkout. See <a href="https://stripe.com/privacy" target="_blank" rel="noopener">stripe.com/privacy</a>.
+          </li>
+          <li>
+            <strong>fal.ai</strong> — AI image generation. Receives the
+            pet photos you upload and the prompt parameters needed to
+            produce your portrait. See <a href="https://fal.ai/privacy-policy" target="_blank" rel="noopener">fal.ai/privacy-policy</a>.
+          </li>
+          <li>
+            <strong>Gelato</strong> — print-on-demand fulfilment.
+            Receives the final portrait file, your shipping address,
+            and order details so it can print and ship your order. See
+            <a href="https://www.gelato.com/legal/privacy-policy" target="_blank" rel="noopener">gelato.com/legal/privacy-policy</a>.
+          </li>
+          <li>
+            <strong>Convex</strong> — our backend database and
+            application platform. Hosts your account, gallery, orders,
+            and session data. See <a href="https://www.convex.dev/legal/privacy" target="_blank" rel="noopener">convex.dev/legal/privacy</a>.
+          </li>
+          <li>
+            <strong>Google AdSense</strong> — serves advertising on the
+            Site. Where you consent to advertising cookies, Google may
+            collect device, browsing, and approximate-location signals
+            to personalise ads. See
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>
+            and
+            <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">policies.google.com/technologies/ads</a>.
+          </li>
+        </ul>
+        <p>
+          We do not sell your personal data. We do not share your pet
+          photos or generated portraits with anyone other than the
+          processors above, except where we are legally required to do
+          so.
+        </p>
+
+        <h2 class="legal__h2">6. Cookies and similar technologies</h2>
+        <p>
+          We use a small number of cookies and similar storage
+          mechanisms to keep you signed in, remember your cart, and
+          (with your consent) to serve advertising. For full details
+          and to manage your choices, see our
+          <a href="/cookies">Cookie Policy</a>.
+        </p>
+
+        <h2 class="legal__h2">7. International transfers</h2>
+        <p>
+          Some of our processors are based outside the UK (for example
+          in the United States). When personal data is transferred
+          outside the UK we rely on transfer mechanisms recognised
+          under UK GDPR — typically the UK International Data Transfer
+          Addendum to the EU Standard Contractual Clauses, or transfers
+          to jurisdictions covered by a UK adequacy decision.
+        </p>
+
+        <h2 class="legal__h2">8. How long we keep your data</h2>
+        <ul class="legal__list">
+          <li>
+            <strong>Account data &amp; gallery</strong> — kept while
+            your account is active. If you delete your account or ask
+            us to delete your data, we remove it within 30 days unless
+            we are required to keep it longer for legal or accounting
+            reasons.
+          </li>
+          <li>
+            <strong>Uploaded photos &amp; generated portraits</strong>
+            — kept while your account is active so you can re-download
+            and re-order, then deleted on account deletion or on
+            request.
+          </li>
+          <li>
+            <strong>Order &amp; payment records</strong> — kept for up
+            to 7 years to comply with UK tax and accounting law.
+          </li>
+          <li>
+            <strong>Session &amp; analytics data</strong> — kept for up
+            to 26 months, then deleted or aggregated.
+          </li>
+          <li>
+            <strong>Support emails</strong> — kept for up to 3 years
+            after the last contact.
+          </li>
+        </ul>
+
+        <h2 class="legal__h2">9. Your rights under UK GDPR</h2>
+        <p>You have the right to:</p>
+        <ul class="legal__list">
+          <li>request access to the personal data we hold about you;</li>
+          <li>ask us to correct inaccurate or incomplete data;</li>
+          <li>ask us to delete your personal data ("right to be forgotten");</li>
+          <li>ask us to restrict or object to certain processing;</li>
+          <li>request a portable copy of the data you provided to us;</li>
+          <li>withdraw consent at any time, where we rely on consent (e.g. advertising cookies); and</li>
+          <li>complain to the UK Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" target="_blank" rel="noopener">ico.org.uk</a>.</li>
+        </ul>
+        <p>
+          To exercise any of these rights, email
+          <a href="mailto:privacy@purrtraits.shop">privacy@purrtraits.shop</a>.
+          We will respond within one month. We may need to verify your
+          identity before acting on a request.
+        </p>
+
+        <h2 class="legal__h2">10. Security</h2>
+        <p>
+          We use industry-standard technical and organisational
+          measures to protect your data — including encryption in
+          transit (TLS), access controls, and reputable hosting
+          providers. No system is perfectly secure, but we work to
+          keep your data safe and will notify you and the ICO of any
+          personal-data breach where required by law.
+        </p>
+
+        <h2 class="legal__h2">11. Children</h2>
+        <p>
+          Purrtraits is not directed at children. We do not knowingly
+          collect personal data from anyone under 16. If you believe a
+          child has provided us with personal data, please contact us
+          and we will delete it.
+        </p>
+
+        <h2 class="legal__h2">12. Changes to this policy</h2>
+        <p>
+          We may update this Privacy Policy from time to time. When we
+          make material changes we will update the "Last updated" date
+          above and, where appropriate, notify you by email or via a
+          notice on the Site.
+        </p>
+
+        <h2 class="legal__h2">13. Contact us</h2>
+        <p>
+          For any questions about this Privacy Policy or how we handle
+          your data, email
+          <a href="mailto:privacy@purrtraits.shop">privacy@purrtraits.shop</a>.
+        </p>
+      </article>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .legal__inner { max-width: 760px; }
+  .legal__header { text-align: center; margin-bottom: 36px; }
+  .legal__eyebrow {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--c-pink);
+    margin-bottom: 6px;
+  }
+  .legal__title { margin-bottom: 8px; }
+  .legal__updated { font-size: 14px; }
+
+  .legal__body {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-lg);
+    padding: 28px 22px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--c-dark);
+  }
+  .legal__body p { margin-bottom: 14px; }
+  .legal__body a { color: var(--c-pink); text-decoration: underline; text-underline-offset: 2px; }
+  .legal__body a:hover { color: #c98399; }
+  .legal__body ul.legal__list {
+    margin: 6px 0 18px 22px;
+    padding: 0;
+  }
+  .legal__body ul.legal__list li { margin-bottom: 8px; }
+
+  .legal__h2 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--c-dark);
+    margin: 28px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid var(--c-pink-light);
+  }
+
+  @media (min-width: 768px) {
+    .legal__body { padding: 44px 48px; font-size: 16px; }
+    .legal__h2 { font-size: 30px; }
+  }
+</style>
