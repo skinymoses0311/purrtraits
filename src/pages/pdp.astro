@@ -55,16 +55,11 @@ import ProductPreview from "../components/ProductPreview.astro";
 <script>
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { STYLE_LABELS } from "../../convex/styleScoring.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
   type Size = "small" | "medium" | "large";
   type Frame = "natural-wood" | "dark-wood";
-
-  const STYLE_LABELS: Record<string, string> = {
-    oil: "Oil Painting",
-    watercolour: "Watercolour",
-    pop: "Pop Art",
-  };
   const FORMAT_LABELS: Record<Format, string> = {
     digital: "Digital",
     poster: "Poster",
@@ -88,7 +83,7 @@ import ProductPreview from "../components/ProductPreview.astro";
     } else {
       const products = await client.query(api.products.list, {});
       const selectedStyle = session.selectedStyle;
-      const styleLabel = STYLE_LABELS[selectedStyle] ?? selectedStyle;
+      const styleLabel = (STYLE_LABELS as Record<string, string>)[selectedStyle] ?? selectedStyle;
       const portrait = session.generations.find((g) => g.style === selectedStyle)!;
 
       // DOM refs
