@@ -298,18 +298,26 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-empty__title { font-size: 26px; }
 
+  /* The gallery <main> is a flex item of Layout's flex-column body.
+     min-width:auto + width:auto lets a flex item's content blow past the
+     viewport — clamp explicitly so the grid actually respects its parent. */
+  .page.container { width: 100%; min-width: 0; }
+
   /* Outer container padding so cards don't go edge to edge on mobile */
   @media (max-width: 767px) {
     .page.container { padding: 0 16px; }
   }
 
   /* Grid ------------------------------------------------------- */
+  /* minmax(0, 1fr) — without it, the intrinsic width of the AI-generated
+     images (often 1024px+) sets each grid item's min-content size and the
+     grid blows out wider than the viewport on mobile. */
   .g-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
   }
-  @media (min-width: 720px) { .g-grid { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
-  @media (min-width: 1024px) { .g-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; } }
+  @media (min-width: 720px) { .g-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; } }
+  @media (min-width: 1024px) { .g-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; } }
 
   /* Card ------------------------------------------------------- */
   .g-card {
