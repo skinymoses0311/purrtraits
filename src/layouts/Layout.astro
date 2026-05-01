@@ -19,6 +19,15 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
     <!-- ?v=2 forces browsers to refetch when the favicon changes; bump it on
          future favicon updates to skip the aggressive favicon cache. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <!-- Google Tag Manager -->
+    <script is:inline>
+      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+      new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+      j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+      'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+      })(window,document,'script','dataLayer','GTM-MHRPN2P3');
+    </script>
+    <!-- End Google Tag Manager -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5797288699504998"
          crossorigin="anonymous"></script>
     <title>{title}</title>
@@ -32,10 +41,24 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
     </style>
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MHRPN2P3"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
     {!hideNav && <Nav />}
     <main class="layout__main">
       <slot />
     </main>
     <Footer />
+
+    <script>
+      // Emit a user_data event into the dataLayer on every page load for
+      // authed users so GTM/GA4 can stitch sessions to a stable userId. The
+      // module decodes the sub claim from the JWT — non-authed visits are a no-op.
+      import { getCurrentUserId } from "../lib/authStorage.ts";
+      import { setUserId } from "../lib/analytics.ts";
+      const uid = getCurrentUserId();
+      if (uid) setUserId(uid);
+    </script>
   </body>
 </html>

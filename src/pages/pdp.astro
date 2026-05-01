@@ -56,10 +56,37 @@ import ProductPreview from "../components/ProductPreview.astro";
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { STYLE_LABELS } from "../../convex/styleScoring.ts";
+  import { track } from "../lib/analytics.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
   type Size = "small" | "medium" | "large";
   type Frame = "natural-wood" | "dark-wood";
+
+  // GA4 ecommerce item shape used by view_item / add_to_cart. Centralised
+  // so both events emit the same item_id and the portrait_style custom
+  // dimension stays consistent across the funnel.
+  function buildEcommerceItem(opts: {
+    productId: string;
+    format: string;
+    size?: string;
+    frame?: string;
+    priceCents: number;
+    quantity: number;
+    selectedStyle: string;
+  }) {
+    const sizePart = opts.size ? ` - ${opts.size}` : "";
+    const framePart = opts.frame ? ` - ${opts.frame}` : "";
+    return {
+      item_id: opts.productId,
+      item_name: `${opts.format}${sizePart}${framePart}`,
+      item_category: opts.format,
+      item_variant: opts.size,
+      item_brand: "Purrtraits",
+      price: opts.priceCents / 100,
+      quantity: opts.quantity,
+      portrait_style: opts.selectedStyle,
+    };
+  }
   const FORMAT_LABELS: Record<Format, string> = {
     digital: "Digital",
     poster: "Poster",
@@ -245,6 +272,7 @@ import ProductPreview from "../components/ProductPreview.astro";
         }
         buy.disabled = true;
         buy.textContent = "Adding…";
+        const product = findProduct();
         try {
           await client.mutation(api.cart.addItem, {
             sessionId: sessionId as any,
@@ -256,6 +284,22 @@ import ProductPreview from "../components/ProductPreview.astro";
             style: selectedStyle,
             petName: petName ?? undefined,
           });
+          if (product) {
+            const item = buildEcommerceItem({
+              productId,
+              format: product.format,
+              size: product.format === "digital" ? undefined : product.size,
+              frame: product.format === "framed" ? product.frame : undefined,
+              priceCents: product.priceCents,
+              quantity: 1,
+              selectedStyle,
+            });
+            track("add_to_cart", {
+              currency: "USD",
+              value: product.priceCents / 100,
+              items: [item],
+            });
+          }
           buy.textContent = "Added to cart ✓";
           addedFlashTimer = window.setTimeout(() => {
             buy.disabled = false;
@@ -270,6 +314,27 @@ import ProductPreview from "../components/ProductPreview.astro";
       });
 
       render();
+
+      // view_item fires once on page load with the default selection
+      // (digital format, medium size). Subsequent format/size changes are
+      // measured separately via add_to_cart so we don't drown GA in churn.
+      const initialProduct = findProduct();
+      if (initialProduct) {
+        const item = buildEcommerceItem({
+          productId: String(initialProduct._id),
+          format: initialProduct.format,
+          size: initialProduct.format === "digital" ? undefined : initialProduct.size,
+          frame: initialProduct.format === "framed" ? initialProduct.frame : undefined,
+          priceCents: initialProduct.priceCents,
+          quantity: 1,
+          selectedStyle,
+        });
+        track("view_item", {
+          currency: "USD",
+          value: initialProduct.priceCents / 100,
+          items: [item],
+        });
+      }
     }
   }
 </script>

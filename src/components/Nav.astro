@@ -193,6 +193,7 @@ const path = Astro.url.pathname;
     makeAuthedClient,
     clearAuthLocalStorage,
   } from "../lib/authStorage.ts";
+  import { setUserId } from "../lib/analytics.ts";
   import { api } from "../../convex/_generated/api.js";
 
   const btn = document.getElementById('nav-menu-btn');
@@ -269,6 +270,9 @@ const path = Astro.url.pathname;
             authEl.hidden = false;
             return;
           }
+          // Push the resolved Convex userId into the dataLayer on every
+          // authed page load so GA4 can stitch sessions to a stable id.
+          if (me._id) setUserId(String(me._id));
           const display = me.email ?? me.name ?? "Account";
           authEl.innerHTML = `
             <details class="nav__account">

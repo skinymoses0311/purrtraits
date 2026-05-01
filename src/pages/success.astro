@@ -28,6 +28,25 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { track } from "../lib/analytics.ts";
+
+  // Map an order line into the GA4 ecommerce item shape. Mirrors the
+  // helper in cart.astro so purchase events use the same item_id keys.
+  function lineToEcommerceItem(it: any) {
+    const product = it.product ?? {};
+    const sizePart = product.format === "digital" || !product.size ? "" : ` - ${product.size}`;
+    const framePart = product.format === "framed" && product.frame ? ` - ${product.frame}` : "";
+    return {
+      item_id: String(product._id ?? ""),
+      item_name: `${product.format ?? ""}${sizePart}${framePart}`,
+      item_category: product.format,
+      item_variant: product.size,
+      item_brand: "Purrtraits",
+      price: (product.priceCents ?? 0) / 100,
+      quantity: it.quantity,
+      portrait_style: it.style,
+    };
+  }
 
   const client = makeClient();
   const params = new URLSearchParams(window.location.search);
@@ -126,7 +145,7 @@ import Layout from "../layouts/Layout.astro";
             <div class="success-line__title">${heading}</div>
             <div class="success-line__meta muted">Qty ${line.quantity}</div>
             ${isDigital && line.printFileUrl
-              ? `<a class="btn btn--primary success-line__download" href="${line.printFileUrl}" download>⬇ Download</a>`
+              ? `<a class="btn btn--primary success-line__download" href="${line.printFileUrl}" download data-style="${line.style ?? ""}">⬇ Download</a>`
               : ""}
           </div>
         `;
@@ -134,6 +153,44 @@ import Layout from "../layouts/Layout.astro";
       });
 
       attachImageLoading(linesEl);
+
+      // download_clicked: digital deliverables only. Wire up after render so
+      // the dynamically-injected anchors are bound. The native download still
+      // fires — we just shadow it with a tracking call.
+      linesEl.querySelectorAll<HTMLAnchorElement>(".success-line__download").forEach((a) => {
+        a.addEventListener("click", () => {
+          track("download_clicked", {
+            format: "digital",
+            style: a.dataset.style ?? "",
+          });
+        });
+      });
+
+      // purchase fires once per Stripe session. Guard with sessionStorage so
+      // a refresh, back-button, or duplicate render doesn't double-count
+      // revenue. Key includes the stripe session id to keep distinct purchases
+      // independent within the same browser session.
+      const purchaseFlagKey = `purrtraits.purchaseFired.${stripeSessionId}`;
+      try {
+        if (!sessionStorage.getItem(purchaseFlagKey)) {
+          sessionStorage.setItem(purchaseFlagKey, "1");
+          // Stripe's amount_total is the grand total in cents — see
+          // convex/orders.ts markPaid. Shipping isn't stored separately
+          // on the order, so derive it the same way the cart does:
+          // a flat $30 when any physical line is present (convex/cart.ts).
+          const amountTotalCents = Number(order.amountTotal ?? 0);
+          const shippingCents = hasPhysical ? 3000 : 0;
+          track("purchase", {
+            transaction_id: stripeSessionId,
+            value: amountTotalCents / 100,
+            shipping: shippingCents / 100,
+            currency: (order.currency ?? "usd").toUpperCase(),
+            items: lines.map(lineToEcommerceItem),
+          });
+        }
+      } catch {
+        // Non-fatal — analytics must never break the success page.
+      }
 
       details.hidden = false;
       const steps = hasPhysical

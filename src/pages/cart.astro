@@ -69,8 +69,27 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { track } from "../lib/analytics.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
+
+  // Map a cart line into the GA4 ecommerce item shape. quantity comes from
+  // the line, price reflects the unit (not line) cost so GA can multiply.
+  function lineToEcommerceItem(it: any) {
+    const product = it.product ?? {};
+    const sizePart = product.format === "digital" || !product.size ? "" : ` - ${product.size}`;
+    const framePart = product.format === "framed" && product.frame ? ` - ${product.frame}` : "";
+    return {
+      item_id: String(it.productId ?? product._id ?? ""),
+      item_name: `${product.format ?? ""}${sizePart}${framePart}`,
+      item_category: product.format,
+      item_variant: product.size,
+      item_brand: "Purrtraits",
+      price: (product.priceCents ?? 0) / 100,
+      quantity: it.quantity,
+      portrait_style: it.style,
+    };
+  }
 
   const FORMAT_LABEL: Record<Format, string> = {
     digital: "Digital Download",
@@ -108,6 +127,13 @@ import Layout from "../layouts/Layout.astro";
   const sumTotal = document.getElementById("sum-total")!;
   const checkoutBtn = document.getElementById("checkout-btn") as HTMLButtonElement;
 
+  // view_cart should fire once per page load, not on every onUpdate tick
+  // (cart subscriptions re-fire when quantities change). Latch it here.
+  let viewCartFired = false;
+  // Latest cart snapshot so the checkout handler can build begin_checkout
+  // items without a separate query.
+  let latestCart: any = null;
+
   if (!sessionId) {
     showEmpty(0);
   } else {
@@ -117,6 +143,15 @@ import Layout from "../layouts/Layout.astro";
       if (!cart || cart.items.length === 0) {
         showEmpty(0);
         return;
+      }
+      latestCart = cart;
+      if (!viewCartFired) {
+        viewCartFired = true;
+        track("view_cart", {
+          currency: (cart.currency ?? "usd").toUpperCase(),
+          value: cart.totalCents / 100,
+          items: cart.items.map(lineToEcommerceItem),
+        });
       }
       withItems.hidden = false;
       empty.hidden = true;
@@ -226,6 +261,15 @@ import Layout from "../layouts/Layout.astro";
       const original = checkoutBtn.textContent;
       checkoutBtn.disabled = true;
       checkoutBtn.textContent = "Redirecting…";
+      // Fire begin_checkout BEFORE the network call so the event reaches GA
+      // even on slow/failing Stripe handoffs (the redirect may steal the page).
+      if (latestCart) {
+        track("begin_checkout", {
+          currency: (latestCart.currency ?? "usd").toUpperCase(),
+          value: latestCart.totalCents / 100,
+          items: latestCart.items.map(lineToEcommerceItem),
+        });
+      }
       try {
         const url = await client.action(api.payments.createCheckoutSession, {
           sessionId: sessionId as any,

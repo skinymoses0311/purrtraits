@@ -55,17 +55,34 @@ function setTokens(jwt: string | null, refreshToken: string | null) {
   else localStorage.setItem(REFRESH_KEY, refreshToken);
 }
 
-// Decodes the exp claim from a JWT without verifying. We only use this to
-// decide whether to refresh; the real signature/exp check happens server-side.
-function jwtExpUnixSeconds(token: string): number | null {
+// Decodes a claim from a JWT without verifying. We only use these for client-side
+// checks (refresh timing, analytics user_id); the real signature/exp check happens server-side.
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.exp === "number" ? payload.exp : null;
+    return JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
   } catch {
     return null;
   }
+}
+
+function jwtExpUnixSeconds(token: string): number | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+  return typeof payload.exp === "number" ? payload.exp : null;
+}
+
+// Pull the userId (sub claim) out of the stored JWT. Returns null if no
+// token is present or the claim is missing/malformed. Used by the analytics
+// bootstrap so every page load can emit a user_data event for authed users.
+export function getCurrentUserId(): string | null {
+  const token = getStoredJwt();
+  if (!token) return null;
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+  const sub = payload.sub;
+  return typeof sub === "string" ? sub : null;
 }
 
 function isJwtFresh(token: string): boolean {

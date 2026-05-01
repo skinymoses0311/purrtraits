@@ -43,6 +43,7 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
   import { isSignedIn } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { track } from "../lib/analytics.ts";
   import {
     ALL_STYLES,
     STYLE_LABELS,
@@ -83,6 +84,14 @@ import Layout from "../layouts/Layout.astro";
 
       // Selection order matters: if a 4th gets picked we evict the oldest.
       const selected: Style[] = ranked.slice(0, 3);
+
+      // styles_suggested fires once with the server-side ranking so we can
+      // measure how often the user keeps the suggested top 3 vs swaps them.
+      track("styles_suggested", {
+        top_style_1: ranked[0],
+        top_style_2: ranked[1],
+        top_style_3: ranked[2],
+      });
 
       const topGrid = document.getElementById("top-grid")!;
       const allGrid = document.getElementById("all-grid")!;
@@ -140,7 +149,8 @@ import Layout from "../layouts/Layout.astro";
 
       function toggle(style: Style) {
         const idx = selected.indexOf(style);
-        if (idx >= 0) {
+        const wasSelected = idx >= 0;
+        if (wasSelected) {
           // Tapping a selected tile deselects it — but only if we're at the
           // cap. Below the cap we let the user freely toggle.
           selected.splice(idx, 1);
@@ -151,6 +161,10 @@ import Layout from "../layouts/Layout.astro";
           }
           selected.push(style);
         }
+        track("style_toggled", {
+          style,
+          action: wasSelected ? "deselected" : "selected",
+        });
         renderAll();
         updateCounter();
       }
@@ -164,6 +178,11 @@ import Layout from "../layouts/Layout.astro";
         go.disabled = true;
         const original = go.textContent;
         go.textContent = "Saving…";
+        track("styles_confirmed", {
+          style_1: selected[0],
+          style_2: selected[1],
+          style_3: selected[2],
+        });
         try {
           await client.mutation(api.sessions.setSelectedStyles, {
             id: sessionId as any,

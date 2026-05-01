@@ -38,6 +38,7 @@ import Layout from "../layouts/Layout.astro";
   import { api } from "../../convex/_generated/api.js";
   import type { Id } from "../../convex/_generated/dataModel";
   import { ALL_STYLES, STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
+  import { track } from "../lib/analytics.ts";
 
   const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
     { key: "all", label: "All styles" },
@@ -157,6 +158,11 @@ import Layout from "../layouts/Layout.astro";
       btn.setAttribute("aria-selected", String(currentFilter === f.key));
       btn.addEventListener("click", () => {
         currentFilter = f.key as any;
+        // Only track explicit style picks — "All styles" is the default
+        // unfiltered view and would just create noise in GA.
+        if (f.key !== "all") {
+          track("gallery_filter_applied", { filter: f.key });
+        }
         renderFilters();
         renderGrid();
       });
@@ -216,6 +222,9 @@ import Layout from "../layouts/Layout.astro";
       btn.addEventListener("click", async () => {
         const i = parseInt(btn.dataset.i!);
         const item = visible.find((v) => v._index === i);
+        if (item) {
+          track("portrait_added_from_gallery", { style: item.style });
+        }
         btn.disabled = true;
         btn.textContent = "Loading…";
         try {

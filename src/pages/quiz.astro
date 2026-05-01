@@ -28,12 +28,18 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { DOG_BREEDS } from "../lib/dogBreeds.ts";
+  import { track } from "../lib/analytics.ts";
 
   const client = makeClient();
   const sessionId = getSessionId();
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
   } else {
+    // quiz_start fires once per page load. The page is a script-only
+    // entry — there's no React re-render to dedupe against — so a single
+    // call here is sufficient.
+    track("quiz_start");
+
     const TOTAL_STEPS = 7;
 
     type AnswerKey = "name" | "breed" | "age" | "lifestyle" | "activity" | "mood" | "room";
@@ -288,6 +294,19 @@ import Layout from "../layouts/Layout.astro";
     }
 
     next.addEventListener("click", async () => {
+      // Capture the step we're leaving so the event reflects the answer
+      // the user just locked in (not the step we're about to render).
+      const completedStep = step;
+      const completedKey = buildSteps()[completedStep - 1].key;
+      const completedAnswer = answers[completedKey];
+      if (completedAnswer) {
+        track("quiz_step_complete", {
+          step_number: completedStep,
+          step_name: completedKey,
+          answer: completedAnswer,
+        });
+      }
+
       if (step < TOTAL_STEPS) {
         showStep(step + 1);
         return;
@@ -295,6 +314,12 @@ import Layout from "../layouts/Layout.astro";
       // Submit
       next.disabled = true;
       next.textContent = "Saving...";
+      track("quiz_complete", {
+        activity: answers.activity,
+        mood: answers.mood,
+        lifestyle: answers.lifestyle,
+        room: answers.room,
+      });
       await client.mutation(api.sessions.saveQuiz, {
         id: sessionId as any,
         answers: {

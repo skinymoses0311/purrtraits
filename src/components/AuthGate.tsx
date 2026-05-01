@@ -7,9 +7,15 @@ import {
 } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
+import { track, setUserId } from "../lib/analytics";
+import { getCurrentUserId } from "../lib/authStorage";
 
 const PUBLIC_CONVEX_URL = import.meta.env.PUBLIC_CONVEX_URL as string;
 const SESSION_STORAGE_KEY = "purrtraits.sessionId";
+// Carries the user's just-clicked auth intent across the Google OAuth
+// redirect so the post-return code can fire the right sign_up vs sign_in
+// event. Cleared as soon as we read it.
+const PENDING_AUTH_KEY = "purrtraits.pendingAuth";
 
 // Single ConvexReactClient per page load. Module-scoped so the OAuth code
 // exchange runs against the same client the form-based flows used.
@@ -91,6 +97,28 @@ function AuthCard({ next }: { next: string }) {
   }, [isLoading, isAuthenticated]);
 
   async function linkAndContinue() {
+    // Stitch GA4 sessions to the just-confirmed userId BEFORE firing the
+    // auth event, so the sign_up / sign_in hit carries the right user_id.
+    try {
+      setUserId(getCurrentUserId());
+    } catch {
+      // Non-fatal.
+    }
+    // If this run completes a Google OAuth flow, fire the auth event the
+    // user originally intended (sign_up vs sign_in based on which tab was
+    // active when they clicked Continue with Google).
+    try {
+      if (typeof window !== "undefined") {
+        const pending = sessionStorage.getItem(PENDING_AUTH_KEY);
+        if (pending) {
+          sessionStorage.removeItem(PENDING_AUTH_KEY);
+          const intent = pending === "signUp" ? "sign_up" : "sign_in";
+          track(intent, { method: "google" });
+        }
+      }
+    } catch {
+      // Non-fatal — analytics must never break navigation.
+    }
     // Stamp the in-progress anonymous session with the new userId so
     // generations + orders are tied to the account. Best-effort — the fal
     // action also calls linkSessionToUserInternal as a backstop.
@@ -115,6 +143,14 @@ function AuthCard({ next }: { next: string }) {
     formData.set("flow", mode);
     try {
       await signIn("password", formData);
+      try {
+        // setUserId before firing the event so GA4 stitches the sign-up hit
+        // to the just-issued userId.
+        setUserId(getCurrentUserId());
+        track(mode === "signUp" ? "sign_up" : "sign_in", { method: "email" });
+      } catch {
+        // Non-fatal.
+      }
       // useConvexAuth will flip to authenticated; the effect above handles
       // the redirect. Leave `pending` true so the form stays disabled until
       // navigation kicks in.
@@ -140,6 +176,14 @@ function AuthCard({ next }: { next: string }) {
     setErr(null);
     setPending(true);
     try {
+      // Persist the user's intent (sign-up vs sign-in tab) across the OAuth
+      // round trip so the post-callback handler can fire the right analytics
+      // event with method='google'.
+      try {
+        sessionStorage.setItem(PENDING_AUTH_KEY, mode);
+      } catch {
+        // Non-fatal.
+      }
       // CRITICAL: redirect back to /sign-up (a React-island page) rather
       // than directly to /generate. Google's callback comes back as
       // ${SITE_URL}${redirectTo}?code=<code>; only a page with

@@ -32,6 +32,7 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, requireOrRedirect, attachImageLoading } from "../lib/client.ts";
   import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
+  import { track } from "../lib/analytics.ts";
   import { STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
 
   const sessionId = getSessionId();
@@ -100,6 +101,8 @@ import Layout from "../layouts/Layout.astro";
         frame = (frame + 1) % total;
         renderDots();
       }, 400);
+
+      try { track("generation_started", { styles: chosen }); } catch { /* noop */ }
 
       try {
         const result = await client.action(api.fal.generatePortraits, {
