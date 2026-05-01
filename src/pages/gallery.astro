@@ -49,6 +49,12 @@ import Layout from "../layouts/Layout.astro";
     napping: "💤 Napping",
     adventuring: "🏔️ Adventure",
   };
+  const MOOD_LABELS: Record<string, string> = {
+    calm: "😌 Calm",
+    playful: "😄 Playful",
+    regal: "👑 Regal",
+    quirky: "🤪 Quirky",
+  };
 
   const sessionId = getSessionId();
   const userScoped = isSignedIn();
@@ -170,15 +176,24 @@ import Layout from "../layouts/Layout.astro";
       card.className = "g-card";
       const styleLabel = STYLE_LABELS[it.style as Style] ?? it.style;
       const titleText = it.petName ? `${it.petName} · ${styleLabel}` : styleLabel;
-      const activity =
-        it.activity && ACTIVITY_LABELS[it.activity]
-          ? `<span class="g-card__tag">${ACTIVITY_LABELS[it.activity]}</span>`
+      const activityLabel =
+        it.activity && ACTIVITY_LABELS[it.activity] ? ACTIVITY_LABELS[it.activity] : "";
+      const moodLabel =
+        it.mood && MOOD_LABELS[it.mood] ? MOOD_LABELS[it.mood] : "";
+      // Dedupe when both resolve to the same label (e.g. activity=regal + mood=regal).
+      const showMood = moodLabel && moodLabel !== activityLabel;
+      const tags =
+        activityLabel || showMood
+          ? `<div class="g-card__tags">
+               ${activityLabel ? `<span class="g-card__tag">${activityLabel}</span>` : ""}
+               ${showMood ? `<span class="g-card__tag">${moodLabel}</span>` : ""}
+             </div>`
           : "";
       card.innerHTML = `
         <div class="g-card__media protected-wrap is-loading is-loading--hero">
           <img src="${it.imageUrl}" alt="" class="g-card__img protected-img is-loading-img" />
           <div class="g-card__hover">🔍 Preview</div>
-          ${activity}
+          ${tags}
         </div>
         <div class="g-card__body">
           <div class="g-card__row">
@@ -312,11 +327,17 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-card:hover .g-card__hover { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  .g-card__tags {
+    position: absolute; top: 8px; left: 8px; right: 8px;
+    display: flex; gap: 5px; flex-wrap: nowrap;
+    pointer-events: none;
+  }
   .g-card__tag {
-    position: absolute; top: 10px; left: 10px;
     background: rgba(255,255,255,.92); border: 1px solid var(--c-stroke-light);
-    backdrop-filter: blur(4px); padding: 4px 12px; border-radius: 100px;
-    font-size: 12px; color: var(--c-dark);
+    backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 100px;
+    font-size: 11px; line-height: 1.35; color: var(--c-dark);
+    min-width: 0; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   .g-card__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
