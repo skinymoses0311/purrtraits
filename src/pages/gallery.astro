@@ -298,10 +298,15 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-empty__title { font-size: 26px; }
 
+  /* Outer container padding so cards don't go edge to edge on mobile */
+  @media (max-width: 767px) {
+    .page.container { padding: 0 16px; }
+  }
+
   /* Grid ------------------------------------------------------- */
   .g-grid {
-    display: grid; gap: 16px;
-    grid-template-columns: repeat(2, 1fr);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); gap: 12px;
   }
   @media (min-width: 720px) { .g-grid { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
   @media (min-width: 1024px) { .g-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; } }
@@ -316,10 +321,8 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
   .g-card__media { position: relative; }
-  /* Let the AI output dictate the displayed ratio — image renders at native
-     ratio, no cream letterbox, no crop. */
   .g-card__img {
-    width: 100%; height: auto; display: block;
+    width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block;
   }
   .g-card__hover {
     position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%) translateY(6px);
