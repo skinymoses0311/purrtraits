@@ -3,28 +3,116 @@ import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout title="Order confirmed · Purrtraits">
-  <main class="page container">
-    <div class="success">
-      <div class="success__check">✓</div>
-      <h1 id="title">Your Purrtrait is on its way!</h1>
-      <p class="muted" id="sub">We're confirming your order…</p>
+  <!-- Slim green ribbon — full bleed across the viewport, sits flush
+       under the nav. Renders before the page container so it can break
+       out of the .page padding. -->
+  <div class="success-ribbon" id="ribbon">
+    <div class="success-ribbon__inner">
+      <span class="success-ribbon__check" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="success-ribbon__text" id="ribbon-text">Confirming your order…</span>
+      <span class="success-ribbon__email muted" id="ribbon-email"></span>
+    </div>
+  </div>
 
-      <div class="success__upscaling" id="upscaling" hidden>
-        <div class="success__upscaling-paw img-loading-wrap is-loading"></div>
-        <p class="muted success__upscaling-text">Upscaling your high-resolution image…</p>
-      </div>
+  <main class="page success-page container">
+    <!-- Upscaling state — shown after Stripe confirms but before
+         fal.upscaleAndFulfil patches printFileHiResUpscaledAt. The
+         pulsing-paw loader sits where the portrait will eventually be. -->
+    <div class="success-loading" id="upscaling" hidden>
+      <div class="success-loading__paw img-loading-wrap is-loading"></div>
+      <h1 class="success-loading__title" id="upscaling-title">Upscaling your high-res image…</h1>
+      <p class="muted">This usually takes a few seconds.</p>
+    </div>
 
-      <div class="success__lines" id="lines" hidden></div>
+    <!-- Pending — shown if Stripe hasn't confirmed within 60s. -->
+    <div class="success-pending" id="pending" hidden>
+      <h1 class="success-pending__title">We're still confirming your order.</h1>
+      <p class="muted">This can take up to a minute. Refresh the page if it doesn't update.</p>
+    </div>
 
-      <div class="success__details" id="details" hidden>
-        <p class="display success__details-title">What happens next</p>
-        <ol class="steps-list" id="steps-list"></ol>
-        <p class="muted" id="meta"></p>
-      </div>
+    <!-- Main content — shown once the order is paid + upscaled. -->
+    <div class="success" id="success" hidden>
+      <div class="success__hero">
+        <!-- LEFT — portrait or carousel -->
+        <div class="success__portrait">
+          <div class="success__carousel" id="carousel">
+            <!-- Slides injected by JS -->
+          </div>
+          <div class="success__carousel-nav" id="carousel-nav" hidden>
+            <button type="button" class="carousel-arrow" id="carousel-prev" aria-label="Previous">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="carousel-dots" id="carousel-dots"></div>
+            <button type="button" class="carousel-arrow" id="carousel-next" aria-label="Next">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="success__caption">
+            <div class="success__caption-text">
+              <div class="success__caption-name" id="caption-name"></div>
+              <div class="success__caption-meta muted" id="caption-meta"></div>
+            </div>
+            <button type="button" class="success__caption-download btn-pill btn-pill--primary" id="caption-download" hidden>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 19h14" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="caption-download-label">Download high-res</span>
+            </button>
+          </div>
+        </div>
 
-      <div class="success__actions">
-        <a href="/upload" class="btn btn--primary">Create another portrait →</a>
-        <a href="/gallery" class="btn">View my gallery</a>
+        <!-- RIGHT — headline + body -->
+        <div class="success__body">
+          <div class="success__headline">
+            <h1 class="success__title" id="title"></h1>
+            <p class="success__sub muted" id="sub"></p>
+          </div>
+
+          <!-- Status tracker (physical orders only) -->
+          <section class="card-soft" id="tracker" hidden>
+            <header class="card-soft__head">
+              <h2 class="card-soft__title">Where your order is</h2>
+              <span class="card-soft__meta muted" id="tracker-eta"></span>
+            </header>
+            <div class="stepper" id="stepper"></div>
+          </section>
+
+          <!-- Downloads list (digital-only orders) -->
+          <section class="card-soft" id="downloads" hidden>
+            <header class="card-soft__head">
+              <h2 class="card-soft__title">Your files</h2>
+            </header>
+            <div class="file-list" id="file-list"></div>
+            <div class="file-note">
+              <span aria-hidden="true">📧</span>
+              <span class="muted">We've also emailed you the download links.</span>
+            </div>
+          </section>
+
+          <!-- Bottom row: order meta + (digital: upsell + CTAs / physical: CTAs) -->
+          <div class="success__footer">
+            <section class="card-soft success__meta">
+              <div class="meta-head">
+                <span class="meta-eyebrow">Order</span>
+                <span class="meta-id" id="meta-id"></span>
+              </div>
+              <div class="meta-divider"></div>
+              <div class="meta-rows" id="meta-rows"></div>
+              <div class="meta-receipt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span id="meta-email" class="muted"></span>
+              </div>
+            </section>
+
+            <div class="success__actions" id="actions">
+              <!-- Print upsell (digital-only) injected here by JS -->
+              <a href="/upload" class="btn-pill btn-pill--primary btn-pill--block">Create another portrait →</a>
+              <a href="/gallery" class="btn-pill btn-pill--ghost btn-pill--block">View my gallery</a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -35,9 +123,6 @@ import Layout from "../layouts/Layout.astro";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
 
-  // Build a friendly download filename from the pet name + style. Falls back
-  // to "portrait" when the legacy single-product order shape doesn't carry a
-  // pet name. Stripped to a-z0-9-_ to keep Windows/macOS file managers happy.
   function makeDownloadFilename(petName: string | undefined, style: string | undefined) {
     const slug = (s: string) =>
       s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -60,12 +145,9 @@ import Layout from "../layouts/Layout.astro";
     document.body.appendChild(a);
     a.click();
     a.remove();
-    // Revoke after a tick so the browser has had time to start the save.
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   }
 
-  // Map an order line into the GA4 ecommerce item shape. Mirrors the
-  // helper in cart.astro so purchase events use the same item_id keys.
   function lineToEcommerceItem(it: any) {
     const product = it.product ?? {};
     const sizePart = product.format === "digital" || !product.size ? "" : ` - ${product.size}`;
@@ -82,44 +164,71 @@ import Layout from "../layouts/Layout.astro";
     };
   }
 
-  const client = makeClient();
-  const params = new URLSearchParams(window.location.search);
-  const stripeSessionId = params.get("session_id");
-
-  const title = document.getElementById("title")!;
-  const sub = document.getElementById("sub")!;
-  const linesEl = document.getElementById("lines")!;
-  const details = document.getElementById("details")!;
-  const stepsList = document.getElementById("steps-list")!;
-  const meta = document.getElementById("meta")!;
-  const upscalingEl = document.getElementById("upscaling")!;
-
   const STYLE_LABEL: Record<string, string> = {
     oil: "Oil Painting",
     watercolour: "Watercolour",
     pop: "Pop Art",
   };
   const FORMAT_LABEL: Record<string, string> = {
-    digital: "Digital",
+    digital: "Digital download",
     poster: "Poster",
     framed: "Framed",
     canvas: "Canvas",
   };
+  const SIZE_LABEL: Record<string, string> = {
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
+  };
+
+  function formatProduct(product: any): string {
+    if (!product) return "";
+    const fmt = FORMAT_LABEL[product.format] ?? product.format ?? "";
+    if (product.format === "digital") return fmt;
+    const size = product.size ? SIZE_LABEL[product.size] ?? product.size : "";
+    return [fmt, size].filter(Boolean).join(" · ");
+  }
+
+  function formatEta(creationTimeMs: number): string {
+    const startMs = creationTimeMs + 3 * 24 * 60 * 60 * 1000;
+    const endMs = creationTimeMs + 7 * 24 * 60 * 60 * 1000;
+    const fmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+    const start = fmt.format(new Date(startMs));
+    const end = fmt.format(new Date(endMs));
+    return `${start} – ${end}`;
+  }
+
+  function currencySymbol(currency: string): string {
+    switch (currency.toUpperCase()) {
+      case "GBP": return "£";
+      case "EUR": return "€";
+      default:    return "$";
+    }
+  }
+
+  const client = makeClient();
+  const params = new URLSearchParams(window.location.search);
+  const stripeSessionId = params.get("session_id");
+
+  const ribbonText = document.getElementById("ribbon-text")!;
+  const ribbonEmail = document.getElementById("ribbon-email")!;
+  const upscalingEl = document.getElementById("upscaling")!;
+  const pendingEl = document.getElementById("pending")!;
+  const successEl = document.getElementById("success")!;
+
+  const ribbonEl = document.getElementById("ribbon")!;
 
   if (!stripeSessionId) {
-    title.textContent = "Hmm, no order found.";
-    sub.textContent = "Looks like you came here directly. Try starting a new portrait below.";
+    upscalingEl.hidden = true;
+    ribbonEl.hidden = true;
+    pendingEl.hidden = false;
+    pendingEl.querySelector(".success-pending__title")!.textContent = "Hmm, no order found.";
+    pendingEl.querySelector("p")!.textContent = "Looks like you came here directly. Try starting a new portrait below.";
   } else {
     // Two-phase wait: first for Stripe to settle (status leaves "pending"),
-    // then for fal.upscaleAndFulfil to swap each line's printFileUrl with the
-    // 4× upscaled version (signalled by printFileHiResUpscaledAt). The
-    // auto-download below depends on those URLs being upscaled — without
-    // this wait it would race the upscale and grab the ~1024px preview.
-    //
-    // 100 × 600ms = 60s ceiling. If the upscale never lands (action errored
-    // before patching the order), we proceed anyway with whatever
-    // printFileUrl is set to — falling back to the low-res preview is
-    // better than blocking the page indefinitely.
+    // then for fal.upscaleAndFulfil to swap each line's printFileUrl with
+    // the 4× upscaled version (signalled by printFileHiResUpscaledAt).
+    upscalingEl.hidden = false;
     let attempts = 0;
     let result: any = null;
     let upscalingShown = false;
@@ -128,9 +237,8 @@ import Layout from "../layouts/Layout.astro";
       if (result?.order && result.order.status !== "pending") {
         if (result.order.printFileHiResUpscaledAt) break;
         if (!upscalingShown) {
-          title.textContent = "Payment confirmed!";
-          sub.textContent = "Upscaling your high-resolution image…";
-          upscalingEl.hidden = false;
+          ribbonText.textContent = "Payment received · Upscaling your image";
+          (document.getElementById("upscaling-title")!).textContent = "Upscaling your high-res image…";
           upscalingShown = true;
         }
       }
@@ -141,226 +249,778 @@ import Layout from "../layouts/Layout.astro";
     upscalingEl.hidden = true;
 
     if (!result?.order || result.order.status === "pending") {
-      title.textContent = "We're still confirming your order.";
-      sub.textContent = "This can take up to a minute. Refresh the page if it doesn't update.";
+      ribbonEl.hidden = true;
+      pendingEl.hidden = false;
     } else {
-      const { order, lineItems, legacyProduct } = result;
+      renderSuccess(result, stripeSessionId);
+    }
+  }
 
-      // Normalize legacy single-product orders into a single line for display.
-      const lines: Array<{
-        product: any;
-        printFileUrl?: string;
-        style?: string;
-        quantity: number;
-      }> = lineItems && lineItems.length > 0
-        ? lineItems
-        : legacyProduct
-          ? [{ product: legacyProduct, printFileUrl: order.printFileUrl, style: order.selectedStyle, quantity: 1 }]
-          : [];
+  function renderSuccess(result: any, stripeSessionId: string) {
+    const { order, lineItems, legacyProduct } = result;
 
-      const hasPhysical = lines.some((l) => l.product?.format && l.product.format !== "digital");
-      const petName = (order.petName as string | undefined)?.trim()
-        || lines.find((l) => l.petName)?.petName?.trim();
-      const possessive = petName ? `${petName}'s` : "Your";
+    // Normalize legacy single-product orders into a single line for display.
+    const lines: any[] = lineItems && lineItems.length > 0
+      ? lineItems
+      : legacyProduct
+        ? [{ product: legacyProduct, printFileUrl: order.printFileUrl, style: order.selectedStyle, quantity: 1, petName: order.petName }]
+        : [];
 
-      if (petName) {
-        document.title = `${possessive} Purrtrait · Purrtraits`;
+    const hasPhysical = lines.some((l) => l.product?.format && l.product.format !== "digital");
+    const orderPetName = (order.petName as string | undefined)?.trim()
+      || lines.find((l) => l.petName)?.petName?.trim();
+    const possessive = orderPetName ? `${orderPetName}'s` : "Your";
+
+    if (orderPetName) {
+      document.title = `${possessive} Purrtrait · Purrtraits`;
+    }
+
+    // Ribbon copy varies by order type; email line shown if known.
+    ribbonText.textContent = hasPhysical
+      ? "Payment received · Your order is confirmed"
+      : "Payment received · Files unlocked instantly";
+    if (order.customerEmail) {
+      ribbonEmail.innerHTML = `A receipt has been sent to <strong>${order.customerEmail}</strong>`;
+    }
+
+    // Headline + sub copy varies by physical vs digital-only.
+    const titleEl = document.getElementById("title")!;
+    const subEl = document.getElementById("sub")!;
+    if (hasPhysical) {
+      titleEl.textContent = `${possessive} Purrtrait is on its way 🎨`;
+      subEl.textContent = "Your high-res files have been saved to your device, and we've handed the printed pieces to our print partner. We'll email tracking the moment they ship.";
+    } else {
+      titleEl.textContent = `${possessive} files are ready 🎉`;
+      subEl.textContent = "Your high-resolution downloads are saving to your device — we've also emailed you copies. Yours to keep, forever.";
+    }
+
+    successEl.hidden = false;
+
+    // ── Carousel: one slide per unique purchased image. Multi-line
+    //    orders that bought the same source as both digital + print get
+    //    deduped so the user doesn't see the same portrait twice.
+    type Slide = {
+      url: string;
+      printUrl: string;
+      petName: string | undefined;
+      style: string | undefined;
+      formats: string[]; // human-readable format labels for the caption
+    };
+    const slidesByUrl = new Map<string, Slide>();
+    for (const line of lines) {
+      const key = line.printFileUrl ?? line.displayUrl;
+      if (!key) continue;
+      const linePet = (line.petName as string | undefined)?.trim() ?? orderPetName;
+      const fmt = formatProduct(line.product);
+      if (!slidesByUrl.has(key)) {
+        slidesByUrl.set(key, {
+          url: line.displayUrl ?? line.printFileUrl,
+          printUrl: line.printFileUrl,
+          petName: linePet,
+          style: line.style,
+          formats: fmt ? [fmt] : [],
+        });
+      } else if (fmt) {
+        const existing = slidesByUrl.get(key)!;
+        if (!existing.formats.includes(fmt)) existing.formats.push(fmt);
       }
+    }
+    const slides = Array.from(slidesByUrl.values());
 
-      // Every paid order now bundles the high-res digital file, so the
-      // download messaging applies whether or not a Digital SKU is in the
-      // cart. Branches differ only on whether printed pieces are also coming.
-      if (hasPhysical) {
-        title.textContent = `${possessive} Purrtrait order is confirmed! 🎨`;
-        sub.textContent = "Your high-res files are saving to your device; printed pieces are heading to our print partner now.";
-      } else {
-        title.textContent = `${possessive} Purrtraits are ready! 🎉`;
-        sub.textContent = "Your high-resolution downloads are saving to your device — we've also emailed you copies.";
+    const carouselEl = document.getElementById("carousel")!;
+    const carouselNav = document.getElementById("carousel-nav")!;
+    const dotsEl = document.getElementById("carousel-dots")!;
+    const captionName = document.getElementById("caption-name")!;
+    const captionMeta = document.getElementById("caption-meta")!;
+    const captionDownload = document.getElementById("caption-download") as HTMLButtonElement;
+    const captionDownloadLabel = document.getElementById("caption-download-label")!;
+
+    slides.forEach((s, i) => {
+      const slide = document.createElement("div");
+      slide.className = "carousel-slide";
+      slide.dataset.index = String(i);
+      slide.innerHTML = `
+        <div class="img-loading-wrap carousel-slide__wrap is-loading">
+          <img class="carousel-slide__img" src="${s.url}" alt="" data-loadable />
+        </div>
+      `;
+      carouselEl.appendChild(slide);
+
+      if (slides.length > 1) {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "carousel-dot";
+        dot.setAttribute("aria-label", `Slide ${i + 1}`);
+        dot.dataset.index = String(i);
+        dot.addEventListener("click", () => goToSlide(i));
+        dotsEl.appendChild(dot);
       }
+    });
+    attachImageLoading(carouselEl);
 
-      // Render line items. Every paid line gets a download button — physical
-      // orders include the digital file for free, so the experience is the
-      // same as a digital-only purchase.
-      linesEl.hidden = false;
-      linesEl.innerHTML = "";
-      lines.forEach((line: any) => {
-        const styleText = STYLE_LABEL[line.style ?? ""] ?? "Custom";
-        const formatText = FORMAT_LABEL[line.product?.format ?? ""] ?? "";
-        const linePetName = (line.petName as string | undefined)?.trim() ?? petName;
-        const heading = linePetName
-          ? `${linePetName} · ${styleText} · ${formatText}`
-          : `${styleText} · ${formatText}`;
-        // Thumb uses small display URL when available; download is always the
-        // print-quality file so the buyer gets the high-res asset.
-        const thumbSrc = line.displayUrl ?? line.printFileUrl;
-        const filename = makeDownloadFilename(linePetName, line.style);
-        const card = document.createElement("div");
-        card.className = "success-line";
-        card.innerHTML = `
-          ${thumbSrc ? `<div class="img-loading-wrap success-line__thumb is-loading"><img class="success-line__img" src="${thumbSrc}" alt="" data-loadable /></div>` : ""}
-          <div class="success-line__body">
-            <div class="success-line__title">${heading}</div>
-            <div class="success-line__meta muted">Qty ${line.quantity}</div>
-            ${line.printFileUrl
-              ? `<button type="button" class="btn btn--primary success-line__download" data-url="${line.printFileUrl}" data-filename="${filename}" data-style="${line.style ?? ""}" data-format="${line.product?.format ?? ""}">⬇ Download</button>`
-              : ""}
+    let currentSlide = 0;
+    function setActive(i: number) {
+      currentSlide = i;
+      const s = slides[i];
+      if (!s) return;
+      const styleText = STYLE_LABEL[s.style ?? ""] ?? "Custom";
+      captionName.textContent = s.petName ?? "Your portrait";
+      captionMeta.textContent = [styleText, ...s.formats].filter(Boolean).join(" · ");
+      // Caption download button mirrors the active slide's print URL.
+      captionDownload.dataset.url = s.printUrl ?? "";
+      captionDownload.dataset.filename = makeDownloadFilename(s.petName, s.style);
+      captionDownload.dataset.style = s.style ?? "";
+      captionDownloadLabel.textContent = "Download high-res";
+      captionDownload.hidden = !s.printUrl;
+      // Update dot states.
+      dotsEl.querySelectorAll<HTMLButtonElement>(".carousel-dot").forEach((d, di) => {
+        d.classList.toggle("is-active", di === i);
+      });
+    }
+    function goToSlide(i: number) {
+      const slideEl = carouselEl.children[i] as HTMLElement | undefined;
+      if (slideEl) slideEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      setActive(i);
+    }
+    if (slides.length > 1) {
+      carouselNav.hidden = false;
+      document.getElementById("carousel-prev")!.addEventListener("click", () => {
+        goToSlide((currentSlide - 1 + slides.length) % slides.length);
+      });
+      document.getElementById("carousel-next")!.addEventListener("click", () => {
+        goToSlide((currentSlide + 1) % slides.length);
+      });
+      // Keep caption + dots in sync with manual swipe / scroll.
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && e.intersectionRatio > 0.6) {
+            const idx = Number((e.target as HTMLElement).dataset.index);
+            if (!Number.isNaN(idx) && idx !== currentSlide) setActive(idx);
+          }
+        }
+      }, { root: carouselEl, threshold: [0.6, 0.9] });
+      Array.from(carouselEl.children).forEach((c) => io.observe(c));
+    }
+    setActive(0);
+
+    captionDownload.addEventListener("click", async () => {
+      const url = captionDownload.dataset.url;
+      if (!url) return;
+      track("download_clicked", {
+        format: "high-res-jpg",
+        style: captionDownload.dataset.style ?? "",
+      });
+      try {
+        await downloadAsFile(url, captionDownload.dataset.filename ?? "portrait.jpg");
+      } catch {
+        window.open(url, "_blank");
+      }
+    });
+
+    // ── Status tracker (physical orders only). Maps order.status to
+    //    stepper state per the agreed mapping in PR review.
+    if (hasPhysical) {
+      const trackerEl = document.getElementById("tracker")!;
+      const stepperEl = document.getElementById("stepper")!;
+      const etaEl = document.getElementById("tracker-eta")!;
+      trackerEl.hidden = false;
+      etaEl.textContent = `Estimated arrival · ${formatEta(order._creationTime)}`;
+
+      const status = order.status as string;
+      const stageStates: Array<"done" | "active" | "upcoming"> =
+        status === "fulfilled"
+          ? ["done", "done", "done"]
+          : status === "fulfilling"
+            ? ["done", "done", "active"]
+            : ["done", "active", "upcoming"]; // paid (or anything else after pending)
+
+      const stages = [
+        { label: "Digital files ready", sub: "Saved to your device & emailed", icon: "download" },
+        { label: "At our print partner", sub: "Printed & quality-checked · 3–5 days", icon: "box" },
+        { label: "Shipped to you", sub: "Worldwide tracking by email", icon: "truck" },
+      ];
+      // Stages and inter-stage connectors are rendered as alternating
+      // siblings — same structure as the design's Stage/Connector pair.
+      // Layout switches between vertical (mobile) and horizontal (desktop)
+      // via CSS only.
+      const checkSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      const iconFor = (icon: string) => icon === "download"
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+        : icon === "box"
+          ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 7l8 4 8-4M12 11v10" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`
+          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3V7zm11 3h4l3 3v3h-7v-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.8" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="1.8" stroke="currentColor" stroke-width="1.6"/></svg>`;
+
+      stepperEl.innerHTML = stages.flatMap((s, i) => {
+        const state = stageStates[i];
+        const stageHtml = `
+          <div class="stage stage--${state}">
+            <div class="stage__dot">${state === "done" ? checkSvg : iconFor(s.icon)}</div>
+            <div class="stage__text">
+              <div class="stage__label">
+                <span>${s.label}</span>
+                ${state === "active" ? `<span class="stage__pill">Now</span>` : ""}
+              </div>
+              <div class="stage__sub">${s.sub}</div>
+            </div>
           </div>
         `;
-        linesEl.appendChild(card);
+        if (i === stages.length - 1) return [stageHtml];
+        const connectorState = stageStates[i] === "done" ? "done" : "upcoming";
+        return [stageHtml, `<div class="connector connector--${connectorState}"></div>`];
+      }).join("");
+    }
+
+    // ── Downloads list (digital-only orders). One row per unique
+    //    purchased image. Caption download covers the active carousel
+    //    slide; this list lets the user grab any of the others without
+    //    swiping.
+    if (!hasPhysical) {
+      const downloadsEl = document.getElementById("downloads")!;
+      const fileListEl = document.getElementById("file-list")!;
+      downloadsEl.hidden = false;
+
+      slides.forEach((s, i) => {
+        const styleText = STYLE_LABEL[s.style ?? ""] ?? "Custom";
+        const label = s.petName ? `${s.petName} · ${styleText}` : styleText;
+        const row = document.createElement("div");
+        row.className = "file-row" + (i === 0 ? " file-row--primary" : "");
+        row.innerHTML = `
+          <div class="file-row__icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/>
+              <circle cx="9" cy="10" r="1.6" stroke="currentColor" stroke-width="1.6"/>
+              <path d="M3 17l5-5 4 4 4-3 5 5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="file-row__body">
+            <div class="file-row__label">${label}</div>
+            <div class="file-row__sub">High-res JPG · print quality</div>
+          </div>
+          <button type="button" class="file-row__btn" data-url="${s.printUrl ?? ""}" data-filename="${makeDownloadFilename(s.petName, s.style)}" data-style="${s.style ?? ""}" aria-label="Download ${label}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        `;
+        fileListEl.appendChild(row);
       });
 
-      attachImageLoading(linesEl);
-
-      // Manual download: fetch as blob and trigger save. The `<a download>`
-      // attribute is ignored cross-origin, so we go through a blob URL to
-      // force a save dialog regardless of where the file is hosted.
-      linesEl.querySelectorAll<HTMLButtonElement>(".success-line__download").forEach((btn) => {
+      fileListEl.querySelectorAll<HTMLButtonElement>(".file-row__btn").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const url = btn.dataset.url;
-          const filename = btn.dataset.filename ?? "portrait.jpg";
           if (!url) return;
           track("download_clicked", {
-            format: btn.dataset.format ?? "",
+            format: "high-res-jpg",
             style: btn.dataset.style ?? "",
           });
           try {
-            await downloadAsFile(url, filename);
+            await downloadAsFile(url, btn.dataset.filename ?? "portrait.jpg");
           } catch {
-            // Fallback: open in a new tab so the user still gets at the file.
             window.open(url, "_blank");
           }
         });
       });
 
-      // Auto-download every unique high-res file once per Stripe session.
-      // Guarded by sessionStorage so a refresh / back-button doesn't trigger
-      // the downloads again.
-      const downloadFlagKey = `purrtraits.autoDownloaded.${stripeSessionId}`;
-      if (!sessionStorage.getItem(downloadFlagKey)) {
-        sessionStorage.setItem(downloadFlagKey, "1");
-        const seenUrls = new Set<string>();
-        const downloads: Array<{ url: string; filename: string }> = [];
-        for (const line of lines as any[]) {
-          if (!line.printFileUrl || seenUrls.has(line.printFileUrl)) continue;
-          seenUrls.add(line.printFileUrl);
-          const linePetName = (line.petName as string | undefined)?.trim() ?? petName;
-          downloads.push({
-            url: line.printFileUrl,
-            filename: makeDownloadFilename(linePetName, line.style),
-          });
-        }
-        // Sequential to avoid Chrome's "site wants to download multiple files"
-        // prompt firing in a way that blocks subsequent saves.
-        (async () => {
-          for (const d of downloads) {
-            try {
-              await downloadAsFile(d.url, d.filename);
-            } catch {
-              // Non-fatal: the manual button + email link both still work.
-            }
+      // Print upsell — links to gallery so the user can revisit and
+      // order a print. Inserted before the existing CTA pair.
+      const actionsEl = document.getElementById("actions")!;
+      const upsell = document.createElement("a");
+      upsell.href = "/gallery";
+      upsell.className = "print-upsell";
+      const symbol = currencySymbol(order.currency ?? "usd");
+      upsell.innerHTML = `
+        <div class="print-upsell__icon" aria-hidden="true">🖼️</div>
+        <div class="print-upsell__body">
+          <div class="print-upsell__title">Want ${orderPetName ?? "this"} on your wall?</div>
+          <div class="print-upsell__sub muted">Order a museum-quality print from ${symbol}19 — same files, ready to hang.</div>
+        </div>
+        <div class="print-upsell__arrow" aria-hidden="true">→</div>
+      `;
+      actionsEl.insertBefore(upsell, actionsEl.firstChild);
+    }
+
+    // ── Order meta. ID + per-line list + receipt email.
+    const metaIdEl = document.getElementById("meta-id")!;
+    const metaRowsEl = document.getElementById("meta-rows")!;
+    const metaEmailEl = document.getElementById("meta-email")!;
+    metaIdEl.textContent = `#${order._id.slice(-8).toUpperCase()}`;
+    metaEmailEl.textContent = order.customerEmail ?? "Receipt sent to your email";
+    metaRowsEl.innerHTML = lines.map((line: any) => {
+      const styleText = STYLE_LABEL[line.style ?? ""] ?? "Custom";
+      const fmt = formatProduct(line.product);
+      const linePet = (line.petName as string | undefined)?.trim() ?? orderPetName ?? "Your portrait";
+      const right = [styleText, fmt].filter(Boolean).join(" · ");
+      const qty = line.quantity > 1 ? ` × ${line.quantity}` : "";
+      return `
+        <div class="meta-row">
+          <span class="meta-row__label">${linePet}${qty}</span>
+          <span class="meta-row__value">${right}</span>
+        </div>
+      `;
+    }).join("");
+
+    // ── Auto-download every unique high-res file once per Stripe session.
+    //    Guarded by sessionStorage so a refresh / back-button doesn't
+    //    trigger the downloads again.
+    const downloadFlagKey = `purrtraits.autoDownloaded.${stripeSessionId}`;
+    if (!sessionStorage.getItem(downloadFlagKey)) {
+      sessionStorage.setItem(downloadFlagKey, "1");
+      const seenUrls = new Set<string>();
+      const downloads: Array<{ url: string; filename: string }> = [];
+      for (const s of slides) {
+        if (!s.printUrl || seenUrls.has(s.printUrl)) continue;
+        seenUrls.add(s.printUrl);
+        downloads.push({
+          url: s.printUrl,
+          filename: makeDownloadFilename(s.petName, s.style),
+        });
+      }
+      // Sequential to avoid Chrome's "site wants to download multiple files"
+      // prompt firing in a way that blocks subsequent saves.
+      (async () => {
+        for (const d of downloads) {
+          try {
+            await downloadAsFile(d.url, d.filename);
+          } catch {
+            // Non-fatal: the manual buttons + email link both still work.
           }
-        })();
-      }
-
-      // purchase fires once per Stripe session. Guard with sessionStorage so
-      // a refresh, back-button, or duplicate render doesn't double-count
-      // revenue. Key includes the stripe session id to keep distinct purchases
-      // independent within the same browser session.
-      const purchaseFlagKey = `purrtraits.purchaseFired.${stripeSessionId}`;
-      try {
-        if (!sessionStorage.getItem(purchaseFlagKey)) {
-          sessionStorage.setItem(purchaseFlagKey, "1");
-          // Stripe's amount_total is the grand total in cents — see
-          // convex/orders.ts markPaid. Shipping isn't stored separately
-          // on the order, so derive it the same way the cart does:
-          // a flat $30 when any physical line is present (convex/cart.ts).
-          const amountTotalCents = Number(order.amountTotal ?? 0);
-          const shippingCents = hasPhysical ? 3000 : 0;
-          trackEcommerce("purchase", {
-            transaction_id: stripeSessionId,
-            value: amountTotalCents / 100,
-            shipping: shippingCents / 100,
-            currency: (order.currency ?? "usd").toUpperCase(),
-            items: lines.map(lineToEcommerceItem),
-          });
         }
-      } catch {
-        // Non-fatal — analytics must never break the success page.
+      })();
+    }
+
+    // ── purchase analytics — fires once per Stripe session.
+    const purchaseFlagKey = `purrtraits.purchaseFired.${stripeSessionId}`;
+    try {
+      if (!sessionStorage.getItem(purchaseFlagKey)) {
+        sessionStorage.setItem(purchaseFlagKey, "1");
+        const amountTotalCents = Number(order.amountTotal ?? 0);
+        const shippingCents = hasPhysical ? 3000 : 0;
+        trackEcommerce("purchase", {
+          transaction_id: stripeSessionId,
+          value: amountTotalCents / 100,
+          shipping: shippingCents / 100,
+          currency: (order.currency ?? "usd").toUpperCase(),
+          items: lines.map(lineToEcommerceItem),
+        });
       }
-
-      details.hidden = false;
-      const steps = hasPhysical
-        ? [
-            "Digital files saved to your device (and emailed to you)",
-            "Order queued at our print partner — printed and quality-checked (3–5 days)",
-            "Shipped worldwide — tracking sent by email",
-          ]
-        : [
-            "Digital files saved to your device (and emailed to you)",
-            "Save anywhere you'd like — JPEG, ready to print",
-            "Print at home or order a frame separately",
-          ];
-      stepsList.innerHTML = steps
-        .map((s, i) => `<li><span class="num">${i + 1}</span><span>${s}</span></li>`)
-        .join("");
-
-      const orderRef = order._id.slice(-8).toUpperCase();
-      const lineCount = lines.reduce((n, l) => n + l.quantity, 0);
-      meta.textContent = `${lineCount} item${lineCount === 1 ? "" : "s"} · Order #${orderRef}`;
+    } catch {
+      // Non-fatal — analytics must never break the success page.
     }
   }
 </script>
 
 <style>
-  .success {
-    max-width: 720px; margin: 0 auto; text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  /* ─── Design tokens (success-page scoped) ────────────────────────
+     The redesign uses a slightly different palette than the rest of
+     the site (warmer cream, deeper border, softer pink). Scoped to
+     this page so global tokens stay untouched. */
+  .success-page {
+    --s-cream: #FAF6F0;
+    --s-sand: #F2EBE0;
+    --s-border: #DED3C4;
+    --s-pink: #D98BA8;
+    --s-pink-bg: #F7E8EE;
+    --s-pink-btn: #E8A0B9;
+    --s-dark: #1E1410;
+    --s-mid: #6B5B52;
+    --s-light: #9C8878;
+    --s-success: #7AAB6E;
   }
-  .success__check {
-    width: 80px; height: 80px; border-radius: 50%; background: var(--c-pink);
-    color: white; font-size: 38px; display: flex; align-items: center; justify-content: center;
-  }
-  .success__upscaling {
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
-    margin: 4px 0 8px;
-  }
-  .success__upscaling-paw {
-    width: 96px; height: 96px;
-    border-radius: 50%;
-  }
-  .success__upscaling-text { margin: 0; }
 
-  .success__lines {
+  /* ─── Slim ribbon ────────────────────────────────────────────── */
+  .success-ribbon {
+    background: #E8F0E2;
+    border-bottom: 1px solid #DED3C4;
+  }
+  .success-ribbon__inner {
+    max-width: 1200px; margin: 0 auto;
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  @media (min-width: 768px) {
+    .success-ribbon__inner { padding: 10px 40px; }
+  }
+  .success-ribbon__check {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #7AAB6E;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .success-ribbon__text {
+    font-size: 13px; color: #1E1410; font-weight: 500;
+  }
+  .success-ribbon__email {
+    margin-left: auto; font-size: 12px;
+    display: none;
+  }
+  .success-ribbon__email:not(:empty) { display: inline; }
+  @media (max-width: 640px) {
+    .success-ribbon__email { display: none; }
+  }
+
+  /* ─── Loading + pending states ───────────────────────────────── */
+  .success-loading, .success-pending {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 12px; text-align: center; padding: 60px 0;
+  }
+  .success-loading__paw {
+    width: 120px; height: 120px; border-radius: 50%;
+  }
+  .success-loading__title {
+    font-family: var(--font-display); font-size: 32px;
+    color: var(--s-dark, #1E1410); margin-top: 8px;
+  }
+  .success-pending__title {
+    font-family: var(--font-display); font-size: 36px;
+    color: var(--s-dark, #1E1410);
+  }
+
+  /* ─── Hero layout ────────────────────────────────────────────── */
+  .success__hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  @media (min-width: 980px) {
+    .success__hero {
+      grid-template-columns: 440px 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+  }
+
+  /* ─── Portrait + carousel ────────────────────────────────────── */
+  .success__portrait {
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .success__carousel {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    border-radius: 8px;
+  }
+  .success__carousel::-webkit-scrollbar { display: none; }
+  .carousel-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+  }
+  .carousel-slide__wrap {
     width: 100%;
-    display: flex; flex-direction: column; gap: 12px;
+    aspect-ratio: 3 / 4;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+    background: var(--s-sand, #F2EBE0);
   }
-  .success-line {
-    display: flex; gap: 14px; align-items: center;
-    background: var(--c-white); border: 1.5px solid var(--c-stroke-light);
-    border-radius: var(--r-md); padding: 14px;
-    text-align: left;
+  .carousel-slide__img {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
   }
-  .success-line__thumb {
-    width: 96px; height: 96px; flex-shrink: 0;
-    border-radius: var(--r-sm); overflow: hidden;
-    border: 1px solid var(--c-stroke-light);
+  .success__carousel-nav {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
   }
-  .success-line__img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
+  .carousel-arrow {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #fff; border: 1.5px solid var(--s-border, #DED3C4);
+    color: var(--s-mid, #6B5B52);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background .15s ease, color .15s ease;
   }
-  .success-line__body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .success-line__title { font-weight: 600; color: var(--c-dark); font-size: 15px; }
-  .success-line__meta { font-size: 13px; }
-  .success-line__download { padding: 8px 16px; font-size: 14px; align-self: flex-start; border-radius: var(--r-sm); }
+  .carousel-arrow:hover { background: var(--s-pink-bg, #F7E8EE); color: var(--s-pink, #D98BA8); }
+  .carousel-dots {
+    display: flex; gap: 8px;
+  }
+  .carousel-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--s-border, #DED3C4); border: none; padding: 0; cursor: pointer;
+    transition: background .15s ease, transform .15s ease;
+  }
+  .carousel-dot.is-active {
+    background: var(--s-pink, #D98BA8);
+    transform: scale(1.25);
+  }
 
-  .success__details { width: 100%; text-align: left; padding: 16px; }
-  .success__details-title { font-size: 20px; margin-bottom: 12px; text-align: center; }
-  .steps-list { list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 0; }
-  .steps-list li { display: flex; gap: 12px; align-items: flex-start; color: var(--c-text); }
-  .success__actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .num {
-    flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
-    background: var(--c-pink); color: white; display: inline-flex;
-    align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700;
+  .success__caption {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 12px; padding: 0 4px;
+  }
+  .success__caption-name {
+    font-family: var(--font-display); font-size: 28px; font-weight: 700;
+    color: var(--s-dark, #1E1410); line-height: 1;
+  }
+  @media (min-width: 980px) { .success__caption-name { font-size: 32px; } }
+  .success__caption-meta { font-size: 13px; margin-top: 4px; }
+
+  /* ─── Buttons (success-page pill style) ──────────────────────── */
+  .btn-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 12px 22px; border-radius: 100px;
+    font-family: var(--font-body); font-size: 14px; font-weight: 600;
+    cursor: pointer; border: none; text-decoration: none;
+    transition: transform .08s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .btn-pill:hover { transform: translateY(-1px); }
+  .btn-pill--primary {
+    background: var(--s-pink-btn, #E8A0B9); color: #fff;
+    box-shadow: 0 6px 18px rgba(217,139,168,0.35);
+  }
+  .btn-pill--primary:hover { background: var(--s-pink, #D98BA8); }
+  .btn-pill--ghost {
+    background: #fff; color: var(--s-dark, #1E1410);
+    border: 1.5px solid var(--s-border, #DED3C4);
+  }
+  .btn-pill--ghost:hover { background: var(--s-sand, #F2EBE0); }
+  .btn-pill--block { width: 100%; }
+
+  /* ─── Body column ────────────────────────────────────────────── */
+  .success__body {
+    display: flex; flex-direction: column; gap: 24px; min-width: 0;
+  }
+  .success__title {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(34px, 6vw, 54px); line-height: 1.0;
+    color: var(--s-dark, #1E1410);
+  }
+  .success__sub {
+    font-size: 15px; line-height: 1.5; margin-top: 10px;
+    color: var(--s-mid, #6B5B52);
+    max-width: 560px;
+  }
+
+  /* ─── Cards ──────────────────────────────────────────────────── */
+  .card-soft {
+    background: #fff;
+    border: 1px solid var(--s-border, #DED3C4);
+    border-radius: 18px;
+    padding: 22px 22px 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+  }
+  .card-soft__head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin-bottom: 18px;
+  }
+  .card-soft__title {
+    font-family: var(--font-body); font-size: 15px; font-weight: 600;
+    color: var(--s-dark, #1E1410);
+  }
+  .card-soft__meta { font-size: 12px; color: var(--s-light, #9C8878); }
+
+  /* ─── Stepper ─────────────────────────────────────────────────
+     Mobile: vertical column. Each stage is a 2-col grid (icon, text).
+       Connectors are vertical 2px lines that sit between the icons —
+       they live in the icon column via CSS grid placement.
+     Desktop (720px+): horizontal row. Stages and connectors flex in
+       sequence; connectors take the remaining space and become a 2px
+       horizontal line aligned with the icon row. */
+  .stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  @media (min-width: 720px) {
+    .stepper {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 0;
+    }
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (min-width: 720px) {
+    .stage {
+      grid-template-columns: 1fr;
+      grid-template-rows: 38px auto;
+      gap: 10px;
+      justify-items: center;
+      text-align: center;
+      flex: 0 0 auto;
+      min-width: 140px;
+    }
+  }
+  .stage__dot {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; background: #fff;
+    border: 2px solid var(--s-border, #DED3C4);
+    color: var(--s-light, #9C8878);
+  }
+  .stage--done .stage__dot {
+    background: var(--s-success, #7AAB6E);
+    border-color: var(--s-success, #7AAB6E);
+    color: #fff;
+  }
+  .stage--active .stage__dot {
+    background: var(--s-pink-bg, #F7E8EE);
+    border-color: var(--s-pink, #D98BA8);
+    color: var(--s-pink, #D98BA8);
+    box-shadow: 0 0 0 4px var(--s-pink-bg, #F7E8EE);
+  }
+  .stage__text {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .stage__label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13.5px; font-weight: 600;
+    color: var(--s-dark, #1E1410);
+  }
+  @media (min-width: 720px) { .stage__label { justify-content: center; } }
+  .stage--upcoming .stage__label { color: var(--s-mid, #6B5B52); }
+  .stage__pill {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--s-pink, #D98BA8);
+    background: var(--s-pink-bg, #F7E8EE);
+    padding: 2px 7px; border-radius: 100px;
+  }
+  .stage__sub {
+    font-size: 12px; color: var(--s-mid, #6B5B52); line-height: 1.4;
+  }
+  .stage--upcoming .stage__sub { color: var(--s-light, #9C8878); }
+
+  /* Connector line between adjacent stages. Mobile: vertical 2px in
+     the left icon column, with bottom margin so the next stage's text
+     gets some breathing room. Desktop: horizontal 2px aligned with
+     the icon row, stretching across the gap between stages. */
+  .connector {
+    width: 2px;
+    height: 24px;
+    background: var(--s-border, #DED3C4);
+    margin-left: 18px;
+  }
+  .connector--done { background: var(--s-success, #7AAB6E); }
+  @media (min-width: 720px) {
+    .connector {
+      flex: 1 1 auto;
+      align-self: flex-start;
+      width: auto;
+      height: 2px;
+      margin-left: 0;
+      margin-top: 18px;
+      min-width: 24px;
+    }
+  }
+
+  /* ─── File list (digital-only) ───────────────────────────────── */
+  .file-list { display: flex; flex-direction: column; gap: 8px; }
+  .file-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #fff;
+    border: 1px solid var(--s-border, #DED3C4); border-radius: 12px;
+  }
+  .file-row--primary {
+    background: var(--s-pink-bg, #F7E8EE);
+    border-color: var(--s-pink, #D98BA8);
+  }
+  .file-row__icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--s-sand, #F2EBE0);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: var(--s-mid, #6B5B52);
+  }
+  .file-row--primary .file-row__icon {
+    background: #fff; color: var(--s-pink, #D98BA8);
+  }
+  .file-row__body { flex: 1; min-width: 0; }
+  .file-row__label {
+    font-size: 13.5px; font-weight: 600;
+    color: var(--s-dark, #1E1410);
+  }
+  .file-row__sub {
+    font-size: 11.5px; color: var(--s-mid, #6B5B52); margin-top: 1px;
+  }
+  .file-row__btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #fff; border: 1.5px solid var(--s-border, #DED3C4);
+    color: var(--s-mid, #6B5B52);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .file-row--primary .file-row__btn {
+    background: var(--s-pink, #D98BA8); border-color: var(--s-pink, #D98BA8); color: #fff;
+  }
+  .file-row__btn:hover { background: var(--s-pink-bg, #F7E8EE); color: var(--s-pink, #D98BA8); }
+  .file-row--primary .file-row__btn:hover { background: var(--s-pink-btn, #E8A0B9); color: #fff; }
+  .file-note {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 14px; padding: 10px 12px;
+    background: var(--s-cream, #FAF6F0); border-radius: 10px;
+    font-size: 12px;
+  }
+
+  /* ─── Footer row (meta + actions) ────────────────────────────── */
+  .success__footer {
+    display: grid; grid-template-columns: 1fr; gap: 20px;
+  }
+  @media (min-width: 720px) {
+    .success__footer { grid-template-columns: 1fr 1fr; }
+  }
+  .success__meta { padding: 20px 22px; }
+  .meta-head {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .meta-eyebrow {
+    font-size: 11px; font-weight: 600; color: var(--s-light, #9C8878);
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .meta-id {
+    padding: 4px 10px; background: var(--s-sand, #F2EBE0);
+    border-radius: 100px; font-size: 12px; font-weight: 600;
+    color: var(--s-dark, #1E1410); font-variant-numeric: tabular-nums;
+  }
+  .meta-divider {
+    height: 1px; background: var(--s-border, #DED3C4); margin: 12px 0;
+  }
+  .meta-rows {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .meta-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    font-size: 13px;
+  }
+  .meta-row__label { color: var(--s-mid, #6B5B52); }
+  .meta-row__value { color: var(--s-dark, #1E1410); font-weight: 500; text-align: right; }
+  .meta-receipt {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--s-border, #DED3C4);
+    font-size: 12px; color: var(--s-mid, #6B5B52);
+  }
+
+  .success__actions {
+    display: flex; flex-direction: column; gap: 10px;
+    align-self: stretch;
+  }
+
+  /* ─── Print upsell ───────────────────────────────────────────── */
+  .print-upsell {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--s-sand, #F2EBE0);
+    border: 1px dashed var(--s-border, #DED3C4);
+    border-radius: 18px; padding: 16px 18px;
+    text-decoration: none; color: inherit;
+    margin-bottom: 4px;
+    transition: background .15s ease;
+  }
+  .print-upsell:hover { background: var(--s-pink-bg, #F7E8EE); }
+  .print-upsell__icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: var(--s-pink-bg, #F7E8EE);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+  }
+  .print-upsell__body { flex: 1; min-width: 0; }
+  .print-upsell__title {
+    font-size: 13.5px; font-weight: 600;
+    color: var(--s-dark, #1E1410);
+  }
+  .print-upsell__sub {
+    font-size: 12px; margin-top: 2px; line-height: 1.4;
+  }
+  .print-upsell__arrow {
+    color: var(--s-pink, #D98BA8); font-size: 18px; flex-shrink: 0;
   }
 </style>
