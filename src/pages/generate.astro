@@ -1,6 +1,20 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import AdUnit from "../components/AdUnit.astro";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
+// Build-time scan of public/samples/styles/ so the client can resolve example
+// images by (activity, mood, style) regardless of any trailing suffix on the
+// actual filename. Mirrors the approach used in style-pick.astro.
+let sampleFiles: string[] = [];
+try {
+  sampleFiles = readdirSync(join(process.cwd(), "public", "samples", "styles"))
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort();
+} catch {
+  // Folder doesn't exist — ship without examples; cards fall back to no image.
+}
 ---
 
 <Layout title="Generating your portraits · Purrtraits">
@@ -45,6 +59,13 @@ import AdUnit from "../components/AdUnit.astro";
           <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
           <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
         </div>
+
+        <script
+          type="application/json"
+          id="sample-manifest"
+          is:inline
+          set:html={JSON.stringify(sampleFiles)}
+        />
 
         <!-- Mobile mid-content MPU — sits below the skeleton tiles, in the
              user's eyeline during the ~30s wait. -->
@@ -127,7 +148,55 @@ import AdUnit from "../components/AdUnit.astro";
 
       const chosen = session.selectedStyles as Style[];
 
-      // Render shimmer cards labelled with the styles the user actually picked.
+      const petName = session.quizAnswers?.name?.trim();
+      const petLabel = petName || "your pet";
+
+      // Build-time manifest of every file in public/samples/styles/. Same
+      // prefix-match approach as style-pick.astro — files can carry a
+      // trailing session-id suffix and still resolve.
+      const manifestEl = document.getElementById("sample-manifest");
+      const sampleFiles: string[] = manifestEl
+        ? JSON.parse(manifestEl.textContent || "[]")
+        : [];
+
+      const quizActivity = session.quizAnswers!.activity ?? "";
+      const quizMood = session.quizAnswers!.mood ?? "";
+
+      function escapeHtml(s: string) {
+        return s.replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        }[c]!));
+      }
+
+      function findSample(activity: string, mood: string, style: string): string | null {
+        const prefix = `${activity}_${mood}_${style}`;
+        const match = sampleFiles.find((f) => {
+          const base = f.replace(/\.[^.]+$/, "");
+          return base === prefix || base.startsWith(prefix + "_");
+        });
+        return match ? `/samples/styles/${match}` : null;
+      }
+
+      function sampleImg(style: Style, label: string): string {
+        const personalised = findSample(quizActivity, quizMood, style);
+        const fallback =
+          quizActivity === "adventuring" && quizMood === "playful"
+            ? null
+            : findSample("adventuring", "playful", style);
+        const src = personalised ?? fallback;
+        if (!src) return "";
+        return `
+          <div class="gen__example">
+            <img class="gen__example-img"
+                 src="${src}"
+                 alt="${escapeHtml(label)} style example on another pet"
+                 loading="lazy">
+            <span class="gen__example-badge">Sample · not ${escapeHtml(petLabel)}</span>
+          </div>`;
+      }
+
+      // Render shimmer cards labelled with the styles the user actually picked,
+      // with a sample image of the style underneath the label.
       const grid = document.getElementById("gen-grid")!;
       grid.innerHTML = chosen
         .map(
@@ -135,11 +204,11 @@ import AdUnit from "../components/AdUnit.astro";
             <div class="gen__card">
               <div class="shimmer gen__shimmer"></div>
               <p class="display gen__label">${STYLE_LABELS[s] ?? s}</p>
+              ${sampleImg(s, STYLE_LABELS[s] ?? s)}
             </div>`,
         )
         .join("");
 
-      const petName = session.quizAnswers?.name?.trim();
       if (petName) {
         document.title = `Painting ${petName} · Purrtraits`;
         const titleEl = document.getElementById("title")!;
@@ -226,6 +295,32 @@ import AdUnit from "../components/AdUnit.astro";
   .gen__card { border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-md); overflow: hidden; }
   .gen__shimmer { width: 100%; aspect-ratio: 4/5; }
   .gen__label { padding: 10px 12px; background: var(--c-white); text-align: left; font-size: 16px; }
+
+  /* Example image of the chosen style, shown below the label so users get a
+     concrete preview of the look while their portrait is generating. */
+  .gen__example {
+    position: relative;
+    background: var(--c-white);
+    border-top: 1px solid var(--c-stroke-light);
+  }
+  .gen__example-img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+  }
+  .gen__example-badge {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(30, 20, 16, 0.62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--c-white);
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    font-size: 10px; font-weight: 500; line-height: 1.3;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    pointer-events: none;
+  }
 
   .gen__error {
     margin-top: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center;
