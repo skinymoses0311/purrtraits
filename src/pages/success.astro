@@ -9,6 +9,11 @@ import Layout from "../layouts/Layout.astro";
       <h1 id="title">Your Purrtrait is on its way!</h1>
       <p class="muted" id="sub">We're confirming your order…</p>
 
+      <div class="success__upscaling" id="upscaling" hidden>
+        <div class="success__upscaling-paw img-loading-wrap is-loading"></div>
+        <p class="muted success__upscaling-text">Upscaling your high-resolution image…</p>
+      </div>
+
       <div class="success__lines" id="lines" hidden></div>
 
       <div class="success__details" id="details" hidden>
@@ -87,6 +92,7 @@ import Layout from "../layouts/Layout.astro";
   const details = document.getElementById("details")!;
   const stepsList = document.getElementById("steps-list")!;
   const meta = document.getElementById("meta")!;
+  const upscalingEl = document.getElementById("upscaling")!;
 
   const STYLE_LABEL: Record<string, string> = {
     oil: "Oil Painting",
@@ -104,14 +110,35 @@ import Layout from "../layouts/Layout.astro";
     title.textContent = "Hmm, no order found.";
     sub.textContent = "Looks like you came here directly. Try starting a new portrait below.";
   } else {
+    // Two-phase wait: first for Stripe to settle (status leaves "pending"),
+    // then for fal.upscaleAndFulfil to swap each line's printFileUrl with the
+    // 4× upscaled version (signalled by printFileHiResUpscaledAt). The
+    // auto-download below depends on those URLs being upscaled — without
+    // this wait it would race the upscale and grab the ~1024px preview.
+    //
+    // 100 × 600ms = 60s ceiling. If the upscale never lands (action errored
+    // before patching the order), we proceed anyway with whatever
+    // printFileUrl is set to — falling back to the low-res preview is
+    // better than blocking the page indefinitely.
     let attempts = 0;
     let result: any = null;
-    while (attempts < 12) {
+    let upscalingShown = false;
+    while (attempts < 100) {
       result = await client.query(api.orders.getByStripeSession, { stripeSessionId });
-      if (result?.order && result.order.status !== "pending") break;
+      if (result?.order && result.order.status !== "pending") {
+        if (result.order.printFileHiResUpscaledAt) break;
+        if (!upscalingShown) {
+          title.textContent = "Payment confirmed!";
+          sub.textContent = "Upscaling your high-resolution image…";
+          upscalingEl.hidden = false;
+          upscalingShown = true;
+        }
+      }
       attempts++;
       await new Promise((r) => setTimeout(r, 600));
     }
+
+    upscalingEl.hidden = true;
 
     if (!result?.order || result.order.status === "pending") {
       title.textContent = "We're still confirming your order.";
@@ -293,6 +320,16 @@ import Layout from "../layouts/Layout.astro";
     width: 80px; height: 80px; border-radius: 50%; background: var(--c-pink);
     color: white; font-size: 38px; display: flex; align-items: center; justify-content: center;
   }
+  .success__upscaling {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    margin: 4px 0 8px;
+  }
+  .success__upscaling-paw {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+  }
+  .success__upscaling-text { margin: 0; }
+
   .success__lines {
     width: 100%;
     display: flex; flex-direction: column; gap: 12px;
