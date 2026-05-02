@@ -21,6 +21,10 @@ export default defineSchema({
     // Generation budget — see fal.ts. Initialized to 3 by createOrUpdateUser
     // in convex/auth.ts; reset to 3 on order completion in payments.ts.
     regensRemaining: v.optional(v.number()),
+    // Stamped the moment the welcome email send succeeds. Guards against
+    // duplicate sends if Convex Auth retries createOrUpdateUser. Same
+    // belt-and-braces pattern as confirmationEmailSentAt on orders.
+    welcomeEmailSentAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),

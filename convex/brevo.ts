@@ -16,7 +16,10 @@ const TEMPLATES = {
   inTransit: 3,
   delivered: 4,
   cancellation: 5,
+  welcome: 6,
 } as const;
+
+const HOMEPAGE_URL = "https://purrtraits.shop";
 
 type Stage = "confirmation" | "inProduction" | "inTransit" | "delivered" | "canceled";
 
@@ -202,6 +205,32 @@ export const sendStatusEmail = internalAction({
       id: orderId,
       stage,
     });
+  },
+});
+
+// Welcome: fired once per new user from auth.ts createOrUpdateUser. Idempotent
+// on `welcomeEmailSentAt` so a retried sign-up flow can't double-send.
+export const sendWelcome = internalAction({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }): Promise<void> => {
+    const user = await ctx.runQuery(internal.users.getInternal, { id: userId });
+    if (!user) return;
+    if (user.welcomeEmailSentAt) return;
+    if (!user.email) {
+      console.warn(`User ${userId} has no email — skipping welcome`);
+      return;
+    }
+
+    await sendTemplate({
+      templateId: TEMPLATES.welcome,
+      to: { email: user.email, name: user.name },
+      params: {
+        firstName: firstNameOf(user.name) || "there",
+        homepageUrl: HOMEPAGE_URL,
+      },
+    });
+
+    await ctx.runMutation(internal.users.markWelcomeEmailSent, { id: userId });
   },
 });
 

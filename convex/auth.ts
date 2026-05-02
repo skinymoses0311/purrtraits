@@ -1,6 +1,7 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
+import { internal } from "./_generated/api";
 
 // Password provider with no email verification step (deliberate — we want a
 // frictionless sign-up at the end of the quiz). Google OAuth uses the Auth.js
@@ -25,12 +26,18 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         name?: string;
         image?: string;
       };
-      return await ctx.db.insert("users", {
+      const userId = await ctx.db.insert("users", {
         email: profile.email,
         name: profile.name,
         image: profile.image,
         regensRemaining: 3,
       });
+      // Welcome email: scheduled (not awaited) so a Brevo outage can't block
+      // sign-up. The action is idempotent on welcomeEmailSentAt.
+      if (profile.email) {
+        await ctx.scheduler.runAfter(0, internal.brevo.sendWelcome, { userId });
+      }
+      return userId;
     },
   },
 });
