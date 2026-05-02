@@ -185,28 +185,31 @@ try {
             : findSample("adventuring", "playful", style);
         const src = personalised ?? fallback;
         if (!src) return "";
-        return `
-          <div class="gen__example">
-            <img class="gen__example-img"
-                 src="${src}"
-                 alt="${escapeHtml(label)} style example on another pet"
-                 loading="lazy">
-            <span class="gen__example-badge">Sample · not ${escapeHtml(petLabel)}</span>
-          </div>`;
+        return `<img class="gen__example-img"
+                     src="${src}"
+                     alt="${escapeHtml(label)} style example on another pet"
+                     loading="lazy">`;
       }
 
       // Render shimmer cards labelled with the styles the user actually picked,
       // with a sample image of the style underneath the label.
       const grid = document.getElementById("gen-grid")!;
       grid.innerHTML = chosen
-        .map(
-          (s) => `
+        .map((s) => {
+          const label = STYLE_LABELS[s] ?? s;
+          const img = sampleImg(s, label);
+          return `
             <div class="gen__card">
               <div class="shimmer gen__shimmer"></div>
-              <p class="display gen__label">${STYLE_LABELS[s] ?? s}</p>
-              ${sampleImg(s, STYLE_LABELS[s] ?? s)}
-            </div>`,
-        )
+              <p class="display gen__label">${escapeHtml(label)}</p>
+              ${img
+                ? `<div class="gen__example">
+                     ${img}
+                     <p class="gen__example-caption">Sample · not ${escapeHtml(petLabel)}</p>
+                   </div>`
+                : ""}
+            </div>`;
+        })
         .join("");
 
       if (petName) {
@@ -287,39 +290,49 @@ try {
   .dot--on { background: var(--c-pink); }
 
   .gen__grid {
-    display: grid; gap: 16px;
+    display: grid; gap: 24px;
     grid-template-columns: 1fr;
     width: 100%;
   }
   @media (min-width: 600px) { .gen__grid { grid-template-columns: repeat(3, 1fr); } }
-  .gen__card { border: 1.5px solid var(--c-stroke-light); border-radius: var(--r-md); overflow: hidden; }
-  .gen__shimmer { width: 100%; aspect-ratio: 4/5; }
-  .gen__label { padding: 10px 12px; background: var(--c-white); text-align: left; font-size: 16px; }
 
-  /* Example image of the chosen style, shown below the label so users get a
-     concrete preview of the look while their portrait is generating. */
-  .gen__example {
-    position: relative;
-    background: var(--c-white);
-    border-top: 1px solid var(--c-stroke-light);
+  /* Cards inside .gen__grid are rendered via innerHTML at runtime, so their
+     styles must be global — Astro's scope class only attaches to elements
+     present at compile time. Mirrors the same pattern as style-pick.astro. */
+  :global(.gen__card) {
+    display: flex; flex-direction: column; gap: 10px;
+    text-align: left;
   }
-  .gen__example-img {
-    width: 100%;
-    aspect-ratio: 1 / 1;
+  :global(.gen__shimmer) {
+    width: 100%; aspect-ratio: 4/5;
+    border-radius: var(--r-md);
+    border: 1.5px solid var(--c-stroke-light);
+  }
+  :global(.gen__label) {
+    font-size: 22px;
+    text-align: center;
+    color: var(--c-dark);
+    margin: 0;
+  }
+  :global(.gen__example) {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-top: 4px;
+  }
+  :global(.gen__example-img) {
+    width: 100%; aspect-ratio: 4/5;
     object-fit: cover;
+    background: var(--c-fill);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
     display: block;
   }
-  .gen__example-badge {
-    position: absolute; top: 8px; right: 8px;
-    background: rgba(30, 20, 16, 0.62);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    color: var(--c-white);
-    padding: 3px 8px;
-    border-radius: var(--r-pill);
-    font-size: 10px; font-weight: 500; line-height: 1.3;
-    text-transform: uppercase; letter-spacing: 0.4px;
-    pointer-events: none;
+  :global(.gen__example-caption) {
+    font-size: 11px;
+    color: var(--c-light);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
   }
 
   .gen__error {
