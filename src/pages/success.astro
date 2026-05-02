@@ -607,7 +607,25 @@ import Layout from "../layouts/Layout.astro";
   }
 </script>
 
-<style>
+<style is:global>
+  /* Astro scopes <style> blocks by default, but most of this page's
+     elements (file rows, stepper stages, carousel slides, meta rows,
+     upsell card) are injected by client JS and so don't carry the
+     data-astro-cid attribute the scoped selectors require. is:global
+     lets the same class names match both server-rendered and
+     JS-injected nodes. Class names are all sufficiently specific
+     (success-*, carousel-*, stage, connector, file-row, meta-row,
+     print-upsell) to avoid colliding with global styles. */
+
+  /* The `hidden` attribute defaults to display:none via the UA
+     stylesheet, but author rules like `.success-loading { display:
+     flex }` win on specificity and keep the element visible. Force
+     hidden to actually hide for elements on this page. */
+  .success-page [hidden],
+  .success-loading[hidden],
+  .success-pending[hidden],
+  .success-ribbon[hidden] { display: none !important; }
+
   /* ─── Design tokens (success-page scoped) ────────────────────────
      The redesign uses a slightly different palette than the rest of
      the site (warmer cream, deeper border, softer pink). Scoped to
