@@ -13,6 +13,7 @@ import type * as brevo from "../brevo.js";
 import type * as cart from "../cart.js";
 import type * as fal from "../fal.js";
 import type * as files from "../files.js";
+import type * as galleryExport from "../galleryExport.js";
 import type * as gelato from "../gelato.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   cart: typeof cart;
   fal: typeof fal;
   files: typeof files;
+  galleryExport: typeof galleryExport;
   gelato: typeof gelato;
   http: typeof http;
   messages: typeof messages;

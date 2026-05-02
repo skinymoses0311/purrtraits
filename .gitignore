@@ -31,3 +31,6 @@ pnpm-debug.log*
 skills-lock.json
 
 .vercel
+
+# one-off admin export of customer-generated portraits (see scripts/download-gallery.mjs)
+gallery-export/

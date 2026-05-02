@@ -1,5 +1,19 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
+// Build-time scan of public/samples/styles/ so the client can resolve example
+// images by (activity, mood, style) regardless of any trailing suffix on the
+// actual filename (e.g. "..._jh799q76ast12y4vhczhd984p185j271").
+let sampleFiles: string[] = [];
+try {
+  sampleFiles = readdirSync(join(process.cwd(), "public", "samples", "styles"))
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort();
+} catch {
+  // Folder doesn't exist yet — ship without examples; tiles fall back to text.
+}
 ---
 
 <Layout title="Pick your styles · Purrtraits">
@@ -11,6 +25,9 @@ import Layout from "../layouts/Layout.astro";
       <p class="muted" id="pick-sub">
         We'll paint your pet in <strong>three</strong> styles. Our top picks are
         already selected — swap any of them by tapping below.
+        <span class="pick__sample-hint">
+          Style previews show a different pet — your portrait will use your own photos.
+        </span>
       </p>
     </header>
 
@@ -36,6 +53,13 @@ import Layout from "../layouts/Layout.astro";
         Generate my portraits →
       </button>
     </div>
+
+    <script
+      type="application/json"
+      id="sample-manifest"
+      is:inline
+      set:html={JSON.stringify(sampleFiles)}
+    />
   </main>
 </Layout>
 
@@ -105,16 +129,60 @@ import Layout from "../layouts/Layout.astro";
         }[c]!));
       }
 
+      // Build-time manifest of every file in public/samples/styles/. The
+      // picker matches by `${activity}_${mood}_${style}` prefix, so files
+      // can carry any trailing session-id suffix (e.g.
+      // "adventuring_playful_oil_jh799q76….jpg") and still resolve.
+      const manifestEl = document.getElementById("sample-manifest");
+      const sampleFiles: string[] = manifestEl
+        ? JSON.parse(manifestEl.textContent || "[]")
+        : [];
+
+      const quizActivity = session.quizAnswers!.activity;
+      const quizMood = session.quizAnswers!.mood;
+
+      function findSample(activity: string, mood: string, style: string): string | null {
+        const prefix = `${activity}_${mood}_${style}`;
+        const match = sampleFiles.find((f) => {
+          const base = f.replace(/\.[^.]+$/, "");
+          return base === prefix || base.startsWith(prefix + "_");
+        });
+        return match ? `/samples/styles/${match}` : null;
+      }
+
+      function sampleHtml(style: Style, label: string) {
+        // Try the user's (activity, mood); fall back to adventuring_playful
+        // (the only pair currently generated for every style). If neither
+        // file exists, omit the image and the tile renders text-only.
+        const personalised = findSample(quizActivity, quizMood, style);
+        const fallback =
+          quizActivity === "adventuring" && quizMood === "playful"
+            ? null
+            : findSample("adventuring", "playful", style);
+        const src = personalised ?? fallback;
+        if (!src) return "";
+        return `
+          <span class="pick__sample-wrap">
+            <img class="pick__sample-img" src="${src}"
+                 alt="${escapeHtml(label)} style example on another pet"
+                 loading="lazy">
+            <span class="pick__sample-badge">Sample · not your pet</span>
+          </span>`;
+      }
+
       function renderTopPicks() {
         const top = ranked.slice(0, 3);
         topGrid.innerHTML = top
           .map(
             (s, i) => `
               <div class="pick__top-card" data-style="${s}">
-                <span class="pick__top-rank">${i + 1}</span>
-                <div>
-                  <p class="display pick__top-title">${escapeHtml(STYLE_LABELS[s])}</p>
-                  <p class="muted pick__top-blurb">${escapeHtml(STYLE_BLURBS[s])}</p>
+                ${sampleHtml(s, STYLE_LABELS[s])}
+                <div class="pick__top-card-body">
+                  <span class="pick__top-rank">${i + 1}</span>
+                  <div>
+                    <p class="display pick__top-title">${escapeHtml(STYLE_LABELS[s])}</p>
+                    <p class="muted pick__top-blurb">${escapeHtml(STYLE_BLURBS[s])}</p>
+                  </div>
                 </div>
               </div>`,
           )
@@ -129,6 +197,7 @@ import Layout from "../layouts/Layout.astro";
               <button class="selectable pick__tile ${isSel ? "selectable--active" : ""}"
                       data-style="${s}" type="button"
                       aria-pressed="${isSel}">
+                ${sampleHtml(s, STYLE_LABELS[s])}
                 <span class="pick__tile-check" aria-hidden="true">✓</span>
                 <span class="display pick__tile-title">${escapeHtml(STYLE_LABELS[s])}</span>
                 <span class="muted pick__tile-blurb">${escapeHtml(STYLE_BLURBS[s])}</span>
@@ -222,11 +291,15 @@ import Layout from "../layouts/Layout.astro";
     .pick__top-grid { grid-template-columns: repeat(3, 1fr); }
   }
   .pick__top-card {
-    display: flex; align-items: center; gap: 14px;
+    display: flex; flex-direction: column; gap: 12px;
     background: var(--c-pink-light);
     border: 2px solid var(--c-pink);
     border-radius: var(--r-md);
-    padding: 14px 16px;
+    padding: 12px;
+  }
+  .pick__top-card-body {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 4px 4px;
   }
   .pick__top-rank {
     flex-shrink: 0;
@@ -298,6 +371,44 @@ import Layout from "../layouts/Layout.astro";
   .pick__tile-blurb { font-size: 12.5px; line-height: 1.3; }
 
   .pick__hint { margin-top: 16px; text-align: center; font-size: 14px; }
+
+  .pick__sample-hint {
+    display: block;
+    margin-top: 8px;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  .pick__sample-wrap {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: var(--r-sm);
+    background: var(--c-stroke-light);
+  }
+  .pick__sample-img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .pick__sample-badge {
+    position: absolute;
+    bottom: 6px; left: 6px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+  .pick__tile .pick__sample-wrap {
+    margin-bottom: 10px;
+  }
 
   .pick__footer {
     margin-top: 32px;
