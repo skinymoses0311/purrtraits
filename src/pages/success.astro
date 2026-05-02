@@ -30,6 +30,35 @@ import Layout from "../layouts/Layout.astro";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
 
+  // Build a friendly download filename from the pet name + style. Falls back
+  // to "portrait" when the legacy single-product order shape doesn't carry a
+  // pet name. Stripped to a-z0-9-_ to keep Windows/macOS file managers happy.
+  function makeDownloadFilename(petName: string | undefined, style: string | undefined) {
+    const slug = (s: string) =>
+      s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const parts = [petName ? slug(petName) : "portrait", style ? slug(style) : ""].filter(Boolean);
+    return `${parts.join("-")}.jpg`;
+  }
+
+  // Cross-origin downloads need the blob+anchor trick: <a download> is
+  // ignored when the href is a different origin (Convex storage URLs are),
+  // so the browser navigates instead of saving. Fetch as blob, hand it a
+  // local blob URL, click a synthetic anchor.
+  async function downloadAsFile(url: string, filename: string): Promise<void> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download fetch failed: ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoke after a tick so the browser has had time to start the save.
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  }
+
   // Map an order line into the GA4 ecommerce item shape. Mirrors the
   // helper in cart.astro so purchase events use the same item_id keys.
   function lineToEcommerceItem(it: any) {
@@ -103,7 +132,6 @@ import Layout from "../layouts/Layout.astro";
           : [];
 
       const hasPhysical = lines.some((l) => l.product?.format && l.product.format !== "digital");
-      const hasDigital = lines.some((l) => l.product?.format === "digital");
       const petName = (order.petName as string | undefined)?.trim()
         || lines.find((l) => l.petName)?.petName?.trim();
       const possessive = petName ? `${petName}'s` : "Your";
@@ -112,22 +140,23 @@ import Layout from "../layouts/Layout.astro";
         document.title = `${possessive} Purrtrait · Purrtraits`;
       }
 
-      if (hasPhysical && hasDigital) {
+      // Every paid order now bundles the high-res digital file, so the
+      // download messaging applies whether or not a Digital SKU is in the
+      // cart. Branches differ only on whether printed pieces are also coming.
+      if (hasPhysical) {
         title.textContent = `${possessive} Purrtrait order is confirmed! 🎨`;
-        sub.textContent = "Digital downloads are below; printed pieces are heading to our print partner now.";
-      } else if (hasPhysical) {
-        title.textContent = `${possessive} Purrtraits are being printed! 🎨`;
-        sub.textContent = "We've sent your order to our print partner. You'll get tracking by email when it ships.";
+        sub.textContent = "Your high-res files are saving to your device; printed pieces are heading to our print partner now.";
       } else {
         title.textContent = `${possessive} Purrtraits are ready! 🎉`;
-        sub.textContent = "Your high-resolution downloads are right below — we've also emailed you copies.";
+        sub.textContent = "Your high-resolution downloads are saving to your device — we've also emailed you copies.";
       }
 
-      // Render line items
+      // Render line items. Every paid line gets a download button — physical
+      // orders include the digital file for free, so the experience is the
+      // same as a digital-only purchase.
       linesEl.hidden = false;
       linesEl.innerHTML = "";
       lines.forEach((line: any) => {
-        const isDigital = line.product?.format === "digital";
         const styleText = STYLE_LABEL[line.style ?? ""] ?? "Custom";
         const formatText = FORMAT_LABEL[line.product?.format ?? ""] ?? "";
         const linePetName = (line.petName as string | undefined)?.trim() ?? petName;
@@ -137,6 +166,7 @@ import Layout from "../layouts/Layout.astro";
         // Thumb uses small display URL when available; download is always the
         // print-quality file so the buyer gets the high-res asset.
         const thumbSrc = line.displayUrl ?? line.printFileUrl;
+        const filename = makeDownloadFilename(linePetName, line.style);
         const card = document.createElement("div");
         card.className = "success-line";
         card.innerHTML = `
@@ -144,8 +174,8 @@ import Layout from "../layouts/Layout.astro";
           <div class="success-line__body">
             <div class="success-line__title">${heading}</div>
             <div class="success-line__meta muted">Qty ${line.quantity}</div>
-            ${isDigital && line.printFileUrl
-              ? `<a class="btn btn--primary success-line__download" href="${line.printFileUrl}" download data-style="${line.style ?? ""}">⬇ Download</a>`
+            ${line.printFileUrl
+              ? `<button type="button" class="btn btn--primary success-line__download" data-url="${line.printFileUrl}" data-filename="${filename}" data-style="${line.style ?? ""}" data-format="${line.product?.format ?? ""}">⬇ Download</button>`
               : ""}
           </div>
         `;
@@ -154,17 +184,56 @@ import Layout from "../layouts/Layout.astro";
 
       attachImageLoading(linesEl);
 
-      // download_clicked: digital deliverables only. Wire up after render so
-      // the dynamically-injected anchors are bound. The native download still
-      // fires — we just shadow it with a tracking call.
-      linesEl.querySelectorAll<HTMLAnchorElement>(".success-line__download").forEach((a) => {
-        a.addEventListener("click", () => {
+      // Manual download: fetch as blob and trigger save. The `<a download>`
+      // attribute is ignored cross-origin, so we go through a blob URL to
+      // force a save dialog regardless of where the file is hosted.
+      linesEl.querySelectorAll<HTMLButtonElement>(".success-line__download").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const url = btn.dataset.url;
+          const filename = btn.dataset.filename ?? "portrait.jpg";
+          if (!url) return;
           track("download_clicked", {
-            format: "digital",
-            style: a.dataset.style ?? "",
+            format: btn.dataset.format ?? "",
+            style: btn.dataset.style ?? "",
           });
+          try {
+            await downloadAsFile(url, filename);
+          } catch {
+            // Fallback: open in a new tab so the user still gets at the file.
+            window.open(url, "_blank");
+          }
         });
       });
+
+      // Auto-download every unique high-res file once per Stripe session.
+      // Guarded by sessionStorage so a refresh / back-button doesn't trigger
+      // the downloads again.
+      const downloadFlagKey = `purrtraits.autoDownloaded.${stripeSessionId}`;
+      if (!sessionStorage.getItem(downloadFlagKey)) {
+        sessionStorage.setItem(downloadFlagKey, "1");
+        const seenUrls = new Set<string>();
+        const downloads: Array<{ url: string; filename: string }> = [];
+        for (const line of lines as any[]) {
+          if (!line.printFileUrl || seenUrls.has(line.printFileUrl)) continue;
+          seenUrls.add(line.printFileUrl);
+          const linePetName = (line.petName as string | undefined)?.trim() ?? petName;
+          downloads.push({
+            url: line.printFileUrl,
+            filename: makeDownloadFilename(linePetName, line.style),
+          });
+        }
+        // Sequential to avoid Chrome's "site wants to download multiple files"
+        // prompt firing in a way that blocks subsequent saves.
+        (async () => {
+          for (const d of downloads) {
+            try {
+              await downloadAsFile(d.url, d.filename);
+            } catch {
+              // Non-fatal: the manual button + email link both still work.
+            }
+          }
+        })();
+      }
 
       // purchase fires once per Stripe session. Guard with sessionStorage so
       // a refresh, back-button, or duplicate render doesn't double-count
@@ -195,13 +264,13 @@ import Layout from "../layouts/Layout.astro";
       details.hidden = false;
       const steps = hasPhysical
         ? [
-            "Order confirmed and queued at our print partner",
-            hasDigital ? "Digital files available immediately above" : "Printed and quality-checked (3–5 days)",
+            "Digital files saved to your device (and emailed to you)",
+            "Order queued at our print partner — printed and quality-checked (3–5 days)",
             "Shipped worldwide — tracking sent by email",
           ]
         : [
-            "Download links sent to your email",
-            "Save the high-res file (JPEG + PDF)",
+            "Digital files saved to your device (and emailed to you)",
+            "Save anywhere you'd like — JPEG, ready to print",
             "Print at home or order a frame separately",
           ];
       stepsList.innerHTML = steps

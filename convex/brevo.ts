@@ -66,8 +66,11 @@ async function sendTemplate(args: {
 }
 
 // Confirmation: fired right after Stripe webhook marks the order paid.
-// Includes a downloadUrl per digital line (high-res printFileUrl) and a
-// single top-level downloadUrl for the common case of a single digital line.
+// Every paid line gets the high-res printFileUrl as a download — physical
+// orders include the digital file for free, so the email surfaces it the
+// same way it always has for digital-only orders. Param names are kept as
+// `digitalDownloads` / `hasDigital` so the existing Brevo template still
+// resolves them; the array now just contains entries for physical lines too.
 export const sendOrderConfirmation = internalAction({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }): Promise<void> => {
@@ -89,15 +92,19 @@ export const sendOrderConfirmation = internalAction({
       style: line.style,
       quantity: line.quantity,
       displayUrl: line.displayUrl ?? line.printFileUrl,
-      // For digital lines, also expose the high-res print file as a download.
-      downloadUrl:
-        line.product?.format === "digital" ? line.printFileUrl : undefined,
+      downloadUrl: line.printFileUrl,
       lineTotal: formatMoney(line.unitPriceCents * line.quantity, order.currency),
     }));
 
-    const digitalDownloads = lineItemParams
-      .filter((l) => l.downloadUrl)
-      .map((l) => ({ name: l.name, url: l.downloadUrl as string }));
+    // Dedupe by printFileUrl: a "Poster + Digital of the same artwork" cart
+    // would otherwise produce two identical download links in the email.
+    const seen = new Set<string>();
+    const digitalDownloads: Array<{ name: string; url: string }> = [];
+    for (const l of lineItemParams) {
+      if (!l.downloadUrl || seen.has(l.downloadUrl)) continue;
+      seen.add(l.downloadUrl);
+      digitalDownloads.push({ name: l.name, url: l.downloadUrl });
+    }
 
     await sendTemplate({
       templateId: TEMPLATES.confirmation,
