@@ -354,6 +354,11 @@ export const useFromUserGallery = mutation({
 export const clearCurrentFlow = mutation({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => {
+    const session = await ctx.db.get(id);
+    if (!session) return;
+    for (const storageId of session.petPhotoStorageIds ?? []) {
+      try { await ctx.storage.delete(storageId); } catch { /* ignore */ }
+    }
     await ctx.db.patch(id, {
       petPhotoStorageIds: [],
       petPhotoUrls: [],
@@ -365,5 +370,20 @@ export const clearCurrentFlow = mutation({
       generationStatus: "idle",
       generationError: undefined,
     });
+  },
+});
+
+// Deletes the user-uploaded pet photos for a session. Called from the fal
+// action once the user has exhausted their regen budget — at that point the
+// originals can't be used again, so freeing the storage saves bytes.
+export const deletePetPhotos = internalMutation({
+  args: { id: v.id("sessions") },
+  handler: async (ctx, { id }) => {
+    const session = await ctx.db.get(id);
+    if (!session) return;
+    for (const storageId of session.petPhotoStorageIds ?? []) {
+      try { await ctx.storage.delete(storageId); } catch { /* ignore */ }
+    }
+    await ctx.db.patch(id, { petPhotoStorageIds: [], petPhotoUrls: [] });
   },
 });

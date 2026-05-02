@@ -266,7 +266,7 @@ export const generatePortraits = action({
     // serializable way to enforce a 3-per-user budget — checking and
     // decrementing in the same mutation prevents a double-tap from
     // generating two sets when the user only has one regen left.
-    await ctx.runMutation(internal.sessions.consumeRegen, { userId });
+    const remainingAfter = await ctx.runMutation(internal.sessions.consumeRegen, { userId });
 
     await ctx.runMutation(internal.sessions.setGenerationStatus, {
       id: sessionId,
@@ -295,6 +295,11 @@ export const generatePortraits = action({
           petName: session?.quizAnswers?.name,
         })),
       });
+      // Once the user has no regens left, the source photos can't be used
+      // again — free the Convex storage they're occupying.
+      if (remainingAfter === 0) {
+        await ctx.runMutation(internal.sessions.deletePetPhotos, { id: sessionId });
+      }
       return { count: generations.length };
     } catch (err) {
       // Refund the regen we charged — the user got nothing.
@@ -328,7 +333,7 @@ export const regenerate = action({
     });
     // Consume up-front; refund on failure. Throws OUT_OF_REGENS if the user
     // has no budget left.
-    await ctx.runMutation(internal.sessions.consumeRegen, { userId });
+    const remainingAfter = await ctx.runMutation(internal.sessions.consumeRegen, { userId });
 
     await ctx.runMutation(internal.sessions.setGenerationStatus, {
       id: sessionId,
@@ -360,6 +365,11 @@ export const regenerate = action({
           petName: session?.quizAnswers?.name,
         })),
       });
+      // Once the user has no regens left, the source photos can't be used
+      // again — free the Convex storage they're occupying.
+      if (remainingAfter === 0) {
+        await ctx.runMutation(internal.sessions.deletePetPhotos, { id: sessionId });
+      }
       return { count: generations.length };
     } catch (err) {
       await ctx.runMutation(internal.sessions.refundRegen, { userId });
