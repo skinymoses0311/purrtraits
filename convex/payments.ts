@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import Stripe from "stripe";
 import type { Id } from "./_generated/dataModel";
+import { formatProductDescription } from "./productCopy";
 
 const ALLOWED_SHIPPING_COUNTRIES: Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] = [
   "AC","AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AT","AU","AW","AX","AZ",
@@ -57,9 +58,11 @@ export const createCheckoutSession = action({
           unit_amount: item.product.priceCents,
           product_data: {
             name: item.product.name,
-            ...(item.product.description
-              ? { description: item.product.description }
-              : {}),
+            description: formatProductDescription(
+              item.product,
+              item.petName,
+              cart.breed,
+            ),
           },
         },
       }),

@@ -27,7 +27,6 @@ import ProductPreview from "../components/ProductPreview.astro";
         <div class="pdp__variant" id="size-area">
           <p class="display pdp__section-label">Choose size</p>
           <div class="pdp__chips" id="sizes"></div>
-          <p class="muted pdp__copy" id="size-copy"></p>
         </div>
 
         <div class="pdp__variant" id="frame-area" hidden>
@@ -36,6 +35,11 @@ import ProductPreview from "../components/ProductPreview.astro";
             <button class="chip" data-frame="natural-wood">Natural wood</button>
             <button class="chip" data-frame="dark-wood">Dark wood</button>
           </div>
+        </div>
+
+        <div class="pdp__about" id="about-area">
+          <p class="display pdp__section-label">About this print</p>
+          <p class="pdp__about-copy" id="about-copy"></p>
         </div>
 
         <div class="pdp__price-row">
@@ -56,6 +60,7 @@ import ProductPreview from "../components/ProductPreview.astro";
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { STYLE_LABELS } from "../../convex/styleScoring.ts";
+  import { formatProductDescription } from "../../convex/productCopy.ts";
   import { track, trackEcommerce } from "../lib/analytics.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
@@ -119,15 +124,16 @@ import ProductPreview from "../components/ProductPreview.astro";
       const styleLbl = document.getElementById("style-label")!;
       const formats = document.getElementById("formats")!;
       const sizes = document.getElementById("sizes")!;
-      const sizeCopy = document.getElementById("size-copy")!;
       const sizeArea = document.getElementById("size-area")!;
       const frameArea = document.getElementById("frame-area")!;
       const frames = document.getElementById("frames")!;
+      const aboutCopy = document.getElementById("about-copy")!;
       const price = document.getElementById("price")!;
       const buy = document.getElementById("buy") as HTMLButtonElement;
       const benefit2 = document.getElementById("benefit-2")!;
 
       const petName = session.quizAnswers?.name?.trim();
+      const breed = session.quizAnswers?.breed?.trim();
 
       attachImageLoading();
       hero.src = portrait.imageUrl;
@@ -209,9 +215,12 @@ import ProductPreview from "../components/ProductPreview.astro";
           }
         }
 
-        // Size copy
+        // Personalised description for the currently-selected variant.
+        // Uses the same helper as Stripe checkout so both surfaces match.
         const product = findProduct();
-        sizeCopy.textContent = product?.description ?? "";
+        aboutCopy.textContent = product
+          ? formatProductDescription(product, petName, breed)
+          : "";
 
         // Benefits chip
         benefit2.textContent =
@@ -357,7 +366,11 @@ import ProductPreview from "../components/ProductPreview.astro";
   .pdp__detail h1 { font-size: clamp(2rem, 4vw, 2.4rem); }
   .pdp__section-label { font-size: 18px; font-weight: 600; }
   .pdp__chips { display: flex; gap: 10px; flex-wrap: wrap; }
-  .pdp__copy { font-size: 14px; }
+
+  .pdp__about { display: flex; flex-direction: column; gap: 8px; }
+  .pdp__about-copy {
+    font-size: 15px; line-height: 1.55; color: var(--c-dark);
+  }
 
   .pdp__price-row {
     display: flex; justify-content: space-between; align-items: center; gap: 16px;

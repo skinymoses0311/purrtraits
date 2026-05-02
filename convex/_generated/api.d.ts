@@ -20,6 +20,7 @@ import type * as messages from "../messages.js";
 import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
 import type * as probe from "../probe.js";
+import type * as productCopy from "../productCopy.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   payments: typeof payments;
   probe: typeof probe;
+  productCopy: typeof productCopy;
   products: typeof products;
   seed: typeof seed;
   sessions: typeof sessions;

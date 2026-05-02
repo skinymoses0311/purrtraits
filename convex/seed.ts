@@ -77,9 +77,11 @@ export const seedV1Catalog = action({
     let inserted = 0;
 
     // Digital — single SKU, no Gelato UID, no shipping required.
+    // Description is rendered per-session from convex/productCopy.ts so it
+    // can interpolate the customer's pet name and breed; we deliberately
+    // don't store a static description here.
     await ctx.runMutation(internal.products.insertInternal, {
       name: "Digital Portrait",
-      description: "High-resolution download · all sizes from A5 to A2",
       format: "digital",
       size: "small", // placeholder; digital has no real size
       priceCents: 999,
@@ -96,7 +98,6 @@ export const seedV1Catalog = action({
       });
       await ctx.runMutation(internal.products.insertInternal, {
         name: `Poster — ${SIZE_LABEL[size]}`,
-        description: `${dim} • 200gsm uncoated matte`,
         format: "poster",
         size,
         gelatoProductUid: posterUid,
@@ -116,7 +117,6 @@ export const seedV1Catalog = action({
         });
         await ctx.runMutation(internal.products.insertInternal, {
           name: `Framed Poster (${label}) — ${SIZE_LABEL[size]}`,
-          description: `${dim} • ${label.toLowerCase()} frame • 80lb coated silk`,
           format: "framed",
           size,
           frame,
@@ -136,7 +136,6 @@ export const seedV1Catalog = action({
       });
       await ctx.runMutation(internal.products.insertInternal, {
         name: `Canvas — ${SIZE_LABEL[size]}`,
-        description: `${dim} • slim 2cm wood frame`,
         format: "canvas",
         size,
         gelatoProductUid: canvasUid,

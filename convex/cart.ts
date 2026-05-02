@@ -191,6 +191,9 @@ export const getInternalForCheckout = internalQuery({
         quantity: line.quantity,
         product,
       })),
+      // Breed is session-scoped (not per-line) so it lives at the top level.
+      // Used by formatProductDescription when rendering Stripe line items.
+      breed: session.quizAnswers?.breed,
       physicalCount,
       currency,
     };
