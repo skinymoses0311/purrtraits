@@ -47,7 +47,10 @@ a { color: inherit; text-decoration: none; }
 
 img { max-width: 100%; display: block; }
 
-.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+/* width:100% is required because Layout's body and main are display:flex,
+   so auto margins on a flex item's cross-axis collapse it to content width.
+   Without this, .container shrinks/grows as page content changes. */
+.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 20px; }
 @media (min-width: 768px) { .container { padding: 0 40px; } }
 
 /* Buttons --------------------------------------------------------- */
