@@ -68,6 +68,16 @@ import AdUnit from "../components/AdUnit.astro";
             </label>
           </div>
 
+          <!-- Generations counter — shown only for signed-in users with at
+               least one generation left. Anonymous users see nothing here;
+               the 0-left case is handled by the upload__exhausted card above. -->
+          <div class="upload__regens" id="upload-regens" hidden>
+            <span class="upload__regens-pill">
+              <span aria-hidden="true">🎨</span>
+              <span><strong id="upload-regens-count">3</strong> free portraits to create</span>
+            </span>
+          </div>
+
           <div class="upload__progress" id="progress" hidden>
             <div class="upload__progress-row">
               <span class="display" id="progress-title">Uploading…</span>
@@ -156,6 +166,7 @@ import AdUnit from "../components/AdUnit.astro";
   // so the "you've used 3 free portraits" card stands alone.
   const adsTop = document.getElementById("upload-ads-top");
   let gated = false;
+  let signedInRegens: number | null = null;
   if (isSignedIn()) {
     const authed = makeAuthedClient();
     const remaining = await authed.query(api.sessions.getMyRegensRemaining, {});
@@ -163,10 +174,24 @@ import AdUnit from "../components/AdUnit.astro";
       gated = true;
       exhaustedEl.hidden = false;
       if (adsTop) adsTop.hidden = true;
+    } else {
+      signedInRegens = remaining ?? null;
     }
   }
   if (!gated) {
     mainEl.hidden = false;
+    if (signedInRegens != null && signedInRegens > 0) {
+      const regensEl = document.getElementById("upload-regens")!;
+      const regensCountEl = document.getElementById("upload-regens-count")!;
+      regensCountEl.textContent = String(signedInRegens);
+      const labelEl = regensCountEl.nextSibling;
+      if (labelEl) {
+        labelEl.textContent = signedInRegens === 1
+          ? " free portrait to create"
+          : " free portraits to create";
+      }
+      regensEl.hidden = false;
+    }
     initUploadFlow();
   }
 
@@ -529,6 +554,29 @@ import AdUnit from "../components/AdUnit.astro";
   .dropzone__icon { font-size: 48px; line-height: 1; }
   .dropzone__title { font-size: 26px; }
   .dropzone__hint { font-size: 15px; }
+
+  /* Generations counter pill — sits between the dropzone and the progress
+     strip so the user sees their budget the moment they land on the page.
+     Hidden for anonymous users; the 0-left case is handled by the
+     upload__exhausted card. */
+  .upload__regens {
+    display: flex; justify-content: center;
+    margin-top: 16px;
+  }
+  .upload__regens[hidden] { display: none; }
+  .upload__regens-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    background: var(--c-pink-light);
+    border: 1.5px solid var(--c-pink);
+    border-radius: var(--r-pill);
+    font-size: 15px; font-weight: 600;
+    color: var(--c-dark);
+  }
+  .upload__regens-pill strong {
+    color: var(--c-pink);
+    font-size: 17px;
+  }
 
   /* Progress card — visible only while uploads are in flight. */
   .upload__progress {
