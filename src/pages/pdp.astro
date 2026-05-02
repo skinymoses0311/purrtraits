@@ -38,8 +38,24 @@ import ProductPreview from "../components/ProductPreview.astro";
         </div>
 
         <div class="pdp__about" id="about-area">
-          <p class="display pdp__section-label">About this print</p>
-          <p class="pdp__about-copy" id="about-copy"></p>
+          <div class="info-tabs" id="info-tabs">
+            <button class="info-tab info-tab--active" data-info-tab="details">Details</button>
+            <button class="info-tab" data-info-tab="shipping" id="info-tab-shipping">Shipping</button>
+          </div>
+          <div class="info-panel" id="info-panel-details">
+            <p class="pdp__about-copy" id="about-copy"></p>
+          </div>
+          <div class="info-panel" id="info-panel-shipping" hidden>
+            <table class="shipping-table">
+              <tbody>
+                <tr><td>UK</td><td>2–5 business days</td></tr>
+                <tr><td>US</td><td>2–4 business days</td></tr>
+                <tr><td>Canada</td><td>3–6 business days</td></tr>
+                <tr><td>Australia</td><td>4–7 business days</td></tr>
+              </tbody>
+            </table>
+            <p class="muted shipping-note">Printed and shipped by our local production partners.</p>
+          </div>
         </div>
 
         <div class="pdp__price-row">
@@ -128,6 +144,24 @@ import ProductPreview from "../components/ProductPreview.astro";
       const frameArea = document.getElementById("frame-area")!;
       const frames = document.getElementById("frames")!;
       const aboutCopy = document.getElementById("about-copy")!;
+      const infoTabShipping = document.getElementById("info-tab-shipping") as HTMLButtonElement;
+      const infoPanelDetails = document.getElementById("info-panel-details")!;
+      const infoPanelShipping = document.getElementById("info-panel-shipping")!;
+      const infoTabs = document.querySelectorAll<HTMLButtonElement>(".info-tab");
+      let activeInfoTab: "details" | "shipping" = "details";
+      function setInfoTab(name: "details" | "shipping") {
+        activeInfoTab = name;
+        infoTabs.forEach((t) =>
+          t.classList.toggle("info-tab--active", t.dataset.infoTab === name),
+        );
+        infoPanelDetails.hidden = name !== "details";
+        infoPanelShipping.hidden = name !== "shipping";
+      }
+      infoTabs.forEach((t) =>
+        t.addEventListener("click", () =>
+          setInfoTab((t.dataset.infoTab as "details" | "shipping") ?? "details"),
+        ),
+      );
       const price = document.getElementById("price")!;
       const buy = document.getElementById("buy") as HTMLButtonElement;
       const benefit2 = document.getElementById("benefit-2")!;
@@ -214,6 +248,11 @@ import ProductPreview from "../components/ProductPreview.astro";
             });
           }
         }
+
+        // Shipping tab only applies to physical formats.
+        const isDigital = format === "digital";
+        infoTabShipping.hidden = isDigital;
+        if (isDigital && activeInfoTab === "shipping") setInfoTab("details");
 
         // Personalised description for the currently-selected variant.
         // Uses the same helper as Stripe checkout so both surfaces match.
@@ -367,10 +406,32 @@ import ProductPreview from "../components/ProductPreview.astro";
   .pdp__section-label { font-size: 18px; font-weight: 600; }
   .pdp__chips { display: flex; gap: 10px; flex-wrap: wrap; }
 
-  .pdp__about { display: flex; flex-direction: column; gap: 8px; }
+  .pdp__about { display: flex; flex-direction: column; gap: 12px; }
   .pdp__about-copy {
     font-size: 15px; line-height: 1.55; color: var(--c-dark);
   }
+
+  .info-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1.5px solid var(--c-stroke-light);
+  }
+  .info-tab {
+    padding: 10px 18px; background: transparent; border: none; cursor: pointer;
+    font-family: var(--font-display); font-size: 15px; color: var(--c-text);
+    border-bottom: 2px solid transparent; margin-bottom: -1.5px;
+  }
+  .info-tab:hover { color: var(--c-dark); }
+  .info-tab--active { color: var(--c-dark); border-bottom-color: var(--c-pink); font-weight: 700; }
+
+  .shipping-table {
+    width: 100%; border-collapse: collapse; font-size: 15px;
+  }
+  .shipping-table td {
+    padding: 8px 0; border-bottom: 1px solid var(--c-stroke-light); color: var(--c-dark);
+  }
+  .shipping-table tr:last-child td { border-bottom: none; }
+  .shipping-table td:last-child { text-align: right; color: var(--c-text); }
+  .shipping-note { font-size: 13px; margin-top: 10px; }
 
   .pdp__price-row {
     display: flex; justify-content: space-between; align-items: center; gap: 16px;
