@@ -296,7 +296,14 @@ try {
   }
 </script>
 
-<style>
+<!--
+  Style block is intentionally global. The card markup is rendered
+  client-side via innerHTML in the script below, so JS-injected nodes
+  never receive Astro's scoping attribute and scoped selectors silently
+  fail. All class names here are namespaced (`pick__*`, `pcard__*`) to
+  keep the global surface tight.
+-->
+<style is:global>
   .pick { padding-top: 12px; padding-bottom: 0; }
 
   /* ── Breadcrumb ───────────────────────────────────────── */
