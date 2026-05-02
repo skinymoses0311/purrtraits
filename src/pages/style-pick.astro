@@ -17,41 +17,40 @@ try {
 ---
 
 <Layout title="Pick your styles · Purrtraits">
-  <main class="page container">
-    <a href="/quiz" class="back-link muted">← Back</a>
+  <main class="page container pick">
+    <nav class="pick__crumbs" aria-label="Quiz progress">
+      <a href="/quiz" class="pick__back">← Back</a>
+      <span class="pick__crumbs-dot" aria-hidden="true"></span>
+      <span class="pick__crumbs-step">Step 3 of 4</span>
+    </nav>
 
     <header class="pick__header">
-      <h1 id="pick-title">We think these styles suit your pet best</h1>
-      <p class="muted" id="pick-sub">
-        We'll paint your pet in <strong>three</strong> styles. Our top picks are
-        already selected — swap any of them by tapping below.
-        <span class="pick__sample-hint">
-          Style previews show a different pet — your portrait will use your own photos.
-        </span>
+      <h1 id="pick-title" class="pick__title">
+        We've picked three styles we think suit your pet
+      </h1>
+      <p class="pick__sub" id="pick-sub">
+        Your <strong>3 recommended styles</strong> are highlighted below — tap any to swap it for another.
+        The previews show <strong>a different pet as a sample</strong>;
+        your portraits will be painted from <span class="pick__pet">your pet</span>'s photos.
       </p>
     </header>
 
-    <section class="pick__top" aria-labelledby="suggested-h">
-      <h2 id="suggested-h" class="pick__section-title">Our top picks</h2>
-      <div class="pick__top-grid" id="top-grid"></div>
-    </section>
+    <div class="pick__rec" role="note">
+      <span class="pick__rec-chip">
+        ✦ Recommended for <span class="pick__pet">your pet</span>
+      </span>
+      <span class="pick__rec-text">
+        The first three cards are pre-selected — swap any by tapping a different style.
+      </span>
+    </div>
 
-    <section class="pick__all" aria-labelledby="all-h">
-      <div class="pick__all-head">
-        <h2 id="all-h" class="pick__section-title">All styles</h2>
-        <span class="muted pick__counter" id="counter">3 of 3 selected</span>
-      </div>
-      <div class="pick__all-grid" id="all-grid"></div>
-    </section>
-
-    <p class="pick__hint muted" id="hint" hidden>
-      You've picked 3 — tap a selected style to swap it for another.
-    </p>
+    <div class="pick__grid" id="grid" role="group" aria-label="Art styles"></div>
 
     <div class="pick__footer">
-      <button id="go" class="btn btn--primary btn--lg">
+      <button id="go" class="btn btn--primary btn--lg" disabled>
         Generate my portraits →
       </button>
+      <p class="pick__counter" id="counter">0/3 styles selected — pick three to continue</p>
     </div>
 
     <script
@@ -87,11 +86,25 @@ try {
       window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
     } else {
       const petName = (session.quizAnswers.name ?? "").trim();
+      const petLabel = petName || "your pet";
+      const petPossessive = petName ? `${petName}'s` : "your pet's";
       if (petName) {
         document.title = `Pick ${petName}'s styles · Purrtraits`;
-        const titleEl = document.getElementById("pick-title")!;
-        titleEl.textContent = `We think these styles suit ${petName} best`;
       }
+      // Substitute pet name into all the places the markup left "your pet" /
+      // possessive placeholders.
+      document.querySelectorAll<HTMLElement>(".pick__pet").forEach((el) => {
+        el.textContent = petLabel;
+      });
+      const titleEl = document.getElementById("pick-title")!;
+      titleEl.textContent = `We've picked three styles we think suit ${petLabel}`;
+      const subEl = document.getElementById("pick-sub")!;
+      // Rebuild subtitle with possessive applied to the photos line.
+      subEl.innerHTML =
+        `Your <strong>3 recommended styles</strong> are highlighted below — ` +
+        `tap any to swap it for another. The previews show ` +
+        `<strong>a different pet as a sample</strong>; your portraits will be ` +
+        `painted from ${escapeHtml(petPossessive)} photos.`;
 
       // Prefer the server-side ranking saved on the session; fall back to a
       // fresh client-side score so an older session still gets a sensible
@@ -108,6 +121,10 @@ try {
 
       // Selection order matters: if a 4th gets picked we evict the oldest.
       const selected: Style[] = ranked.slice(0, 3);
+      // Remember the original pre-selected set so we can keep the "Our pick"
+      // wording on cards the user kept, and switch to "Selected" on cards
+      // they swapped in.
+      const originalPicks = new Set<string>(selected);
 
       // styles_suggested fires once with the server-side ranking so we can
       // measure how often the user keeps the suggested top 3 vs swaps them.
@@ -117,10 +134,8 @@ try {
         top_style_3: ranked[2],
       });
 
-      const topGrid = document.getElementById("top-grid")!;
-      const allGrid = document.getElementById("all-grid")!;
+      const grid = document.getElementById("grid")!;
       const counter = document.getElementById("counter")!;
-      const hint = document.getElementById("hint")!;
       const go = document.getElementById("go") as HTMLButtonElement;
 
       function escapeHtml(s: string) {
@@ -150,10 +165,10 @@ try {
         return match ? `/samples/styles/${match}` : null;
       }
 
-      function sampleHtml(style: Style, label: string) {
+      function sampleImg(style: Style, label: string): string {
         // Try the user's (activity, mood); fall back to adventuring_playful
         // (the only pair currently generated for every style). If neither
-        // file exists, omit the image and the tile renders text-only.
+        // file exists, omit the image and the card shows the placeholder bg.
         const personalised = findSample(quizActivity, quizMood, style);
         const fallback =
           quizActivity === "adventuring" && quizMood === "playful"
@@ -161,67 +176,79 @@ try {
             : findSample("adventuring", "playful", style);
         const src = personalised ?? fallback;
         if (!src) return "";
+        return `<img class="pcard__media-img" src="${src}"
+                     alt="${escapeHtml(label)} style example on another pet"
+                     loading="lazy">`;
+      }
+
+      function cardHtml(s: Style): string {
+        const isSel = selected.includes(s);
+        const selIdx = isSel ? selected.indexOf(s) + 1 : 0;
+        const wasOriginal = originalPicks.has(s);
+        const pickLabel = wasOriginal ? "Our pick" : "Selected";
+        const label = STYLE_LABELS[s];
+        const blurb = STYLE_BLURBS[s];
+        const sampleBadge = `<span class="pcard__sample-badge">Sample · not ${escapeHtml(petLabel)}</span>`;
+        const topLeft = isSel
+          ? `<span class="pcard__pick">
+               <span class="pcard__pick-num">${selIdx}</span>
+               <span class="pcard__pick-label">${pickLabel}</span>
+             </span>`
+          : `<span class="pcard__empty" aria-hidden="true"></span>`;
+        const tag = isSel
+          ? `<span class="pcard__tag">${pickLabel}</span>`
+          : "";
         return `
-          <span class="pick__sample-wrap">
-            <img class="pick__sample-img" src="${src}"
-                 alt="${escapeHtml(label)} style example on another pet"
-                 loading="lazy">
-            <span class="pick__sample-badge">Sample · not your pet</span>
-          </span>`;
+          <button class="pcard${isSel ? " pcard--selected" : ""}"
+                  data-style="${s}"
+                  type="button"
+                  aria-pressed="${isSel}">
+            <span class="pcard__media">
+              ${sampleImg(s, label)}
+              ${topLeft}
+              ${sampleBadge}
+            </span>
+            <span class="pcard__body">
+              <span class="pcard__title-row">
+                <span class="pcard__title">${escapeHtml(label)}</span>
+                ${tag}
+              </span>
+              <span class="pcard__desc">${escapeHtml(blurb)}</span>
+            </span>
+          </button>`;
       }
 
-      function renderTopPicks() {
-        const top = ranked.slice(0, 3);
-        topGrid.innerHTML = top
-          .map(
-            (s, i) => `
-              <div class="pick__top-card" data-style="${s}">
-                ${sampleHtml(s, STYLE_LABELS[s])}
-                <div class="pick__top-card-body">
-                  <span class="pick__top-rank">${i + 1}</span>
-                  <div>
-                    <p class="display pick__top-title">${escapeHtml(STYLE_LABELS[s])}</p>
-                    <p class="muted pick__top-blurb">${escapeHtml(STYLE_BLURBS[s])}</p>
-                  </div>
-                </div>
-              </div>`,
-          )
-          .join("");
+      function gridOrder(): Style[] {
+        // Selected cards (in selection order) first, then everything else
+        // in the original ranked order. Keeps the picks anchored to slots
+        // 1/2/3 so the visual reading matches the "Our pick" badges.
+        const picks = selected.slice();
+        const rest = ranked.filter((s) => !picks.includes(s));
+        return [...picks, ...rest];
       }
 
-      function renderAll() {
-        allGrid.innerHTML = ranked
-          .map((s) => {
-            const isSel = selected.includes(s);
-            return `
-              <button class="selectable pick__tile ${isSel ? "selectable--active" : ""}"
-                      data-style="${s}" type="button"
-                      aria-pressed="${isSel}">
-                ${sampleHtml(s, STYLE_LABELS[s])}
-                <span class="pick__tile-check" aria-hidden="true">✓</span>
-                <span class="display pick__tile-title">${escapeHtml(STYLE_LABELS[s])}</span>
-                <span class="muted pick__tile-blurb">${escapeHtml(STYLE_BLURBS[s])}</span>
-              </button>`;
-          })
-          .join("");
-
-        allGrid.querySelectorAll<HTMLButtonElement>(".pick__tile").forEach((btn) => {
+      function renderGrid() {
+        grid.innerHTML = gridOrder().map(cardHtml).join("");
+        grid.querySelectorAll<HTMLButtonElement>(".pcard").forEach((btn) => {
           btn.addEventListener("click", () => toggle(btn.dataset.style as Style));
         });
       }
 
       function updateCounter() {
-        counter.textContent = `${selected.length} of 3 selected`;
-        hint.hidden = selected.length < 3;
-        go.disabled = selected.length !== 3;
+        const n = selected.length;
+        let suffix: string;
+        if (n === 3) suffix = "ready to go";
+        else if (n === 0) suffix = "pick three to continue";
+        else suffix = `pick ${3 - n} more`;
+        counter.textContent = `${n}/3 styles selected — ${suffix}`;
+        go.disabled = n !== 3;
       }
 
       function toggle(style: Style) {
         const idx = selected.indexOf(style);
         const wasSelected = idx >= 0;
         if (wasSelected) {
-          // Tapping a selected tile deselects it — but only if we're at the
-          // cap. Below the cap we let the user freely toggle.
+          // Tapping a selected card deselects it.
           selected.splice(idx, 1);
         } else {
           if (selected.length >= 3) {
@@ -234,12 +261,11 @@ try {
           style,
           action: wasSelected ? "deselected" : "selected",
         });
-        renderAll();
+        renderGrid();
         updateCounter();
       }
 
-      renderTopPicks();
-      renderAll();
+      renderGrid();
       updateCounter();
 
       go.addEventListener("click", async () => {
@@ -271,147 +297,228 @@ try {
 </script>
 
 <style>
-  .back-link { display: inline-block; margin-bottom: 16px; }
+  .pick { padding-top: 12px; padding-bottom: 0; }
 
-  .pick__header { max-width: 720px; margin: 0 auto 32px; text-align: center; }
-  .pick__header h1 { margin-bottom: 8px; }
-
-  .pick__section-title {
-    font-family: var(--font-display);
-    font-size: 26px;
+  /* ── Breadcrumb ───────────────────────────────────────── */
+  .pick__crumbs {
+    display: flex; align-items: center; gap: 10px;
     margin-bottom: 14px;
   }
+  .pick__back {
+    font-size: 13px; font-weight: 500;
+    color: var(--c-pink);
+  }
+  .pick__back:hover { text-decoration: underline; }
+  .pick__crumbs-dot {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--c-light);
+  }
+  .pick__crumbs-step {
+    font-size: 11.5px; color: var(--c-light);
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
 
-  .pick__top { margin-bottom: 36px; }
-  .pick__top-grid {
-    display: grid; gap: 12px;
-    grid-template-columns: 1fr;
+  /* ── Header ───────────────────────────────────────────── */
+  .pick__header { margin-bottom: 14px; max-width: 760px; }
+  .pick__title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 4.5vw, 36px);
+    font-weight: 700; line-height: 1.05;
+    color: var(--c-dark);
+    margin-bottom: 6px;
   }
-  @media (min-width: 700px) {
-    .pick__top-grid { grid-template-columns: repeat(3, 1fr); }
+  .pick__sub {
+    font-size: 13.5px; line-height: 1.5;
+    color: var(--c-text);
   }
-  .pick__top-card {
-    display: flex; flex-direction: column; gap: 12px;
-    background: var(--c-pink-light);
-    border: 2px solid var(--c-pink);
-    border-radius: var(--r-md);
-    padding: 12px;
+  .pick__sub strong { color: var(--c-dark); font-weight: 600; }
+  @media (max-width: 699px) {
+    .pick__sub { font-size: 12.5px; }
   }
-  .pick__top-card-body {
-    display: flex; align-items: center; gap: 14px;
-    padding: 0 4px 4px;
+
+  /* ── Recommended callout ──────────────────────────────── */
+  .pick__rec {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
   }
-  .pick__top-rank {
+  .pick__rec-chip {
     flex-shrink: 0;
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: var(--c-pink);
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: 22px;
-    font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
+    padding: 4px 10px; border-radius: var(--r-pill);
+    background: var(--c-pink-light);
+    border: 1px solid var(--c-pink);
+    font-size: 11px; font-weight: 700;
+    color: var(--c-pink);
+    text-transform: uppercase; letter-spacing: 0.6px;
   }
-  .pick__top-title { font-size: 22px; line-height: 1.1; }
-  .pick__top-blurb { font-size: 13px; margin-top: 2px; }
+  .pick__rec-text {
+    font-size: 12.5px; color: var(--c-text); line-height: 1.3;
+  }
+  /* On mobile the design treats the callout as a pink-tinted info box */
+  @media (max-width: 699px) {
+    .pick__rec {
+      padding: 8px 12px; border-radius: var(--r-md);
+      background: var(--c-pink-light);
+      border: 1px solid var(--c-pink);
+      gap: 8px;
+    }
+    .pick__rec-chip {
+      padding: 2px 8px;
+      background: var(--c-pink);
+      color: var(--c-white);
+      border-color: var(--c-pink);
+      font-size: 9.5px; letter-spacing: 0.6px;
+    }
+    .pick__rec-text { font-size: 11.5px; }
+  }
 
-  .pick__all-head {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px; flex-wrap: wrap;
-    margin-bottom: 14px;
-  }
-  .pick__counter {
-    font-family: var(--font-display);
-    font-size: 16px;
-  }
-
-  .pick__all-grid {
-    display: grid; gap: 12px;
+  /* ── Grid ────────────────────────────────────────────── */
+  .pick__grid {
+    display: grid; gap: 14px;
     grid-template-columns: 1fr 1fr;
+    margin-bottom: 24px;
   }
-  @media (min-width: 700px) {
-    .pick__all-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (min-width: 1000px) {
-    .pick__all-grid { grid-template-columns: repeat(5, 1fr); }
-  }
+  @media (min-width: 700px) { .pick__grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1000px) { .pick__grid { grid-template-columns: repeat(5, 1fr); } }
 
-  .pick__tile {
+  /* ── Card ────────────────────────────────────────────── */
+  .pcard {
     position: relative;
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 16px 14px;
+    display: flex; flex-direction: column;
+    width: 100%;
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: 14px;
+    overflow: hidden;
     text-align: left;
     font-family: inherit;
-    background: var(--c-white);
-    border: 2.5px solid var(--c-stroke-light);
-    border-radius: var(--r-md);
     cursor: pointer;
-    transition: border-color .15s ease, transform .08s ease, background .15s ease;
+    box-shadow: 0 1px 2px rgba(30, 20, 16, 0.04);
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
   }
-  .pick__tile:hover { transform: translateY(-1px); border-color: var(--c-stroke); }
-  .pick__tile.selectable--active {
-    border-color: var(--c-pink);
-    background: var(--c-pink-light);
+  .pcard:hover { transform: translateY(-1px); border-color: var(--c-stroke); }
+  .pcard--selected {
+    border: 2.5px solid var(--c-pink);
+    box-shadow: 0 6px 18px rgba(217, 139, 168, 0.28);
+    transform: translateY(-2px);
   }
-
-  .pick__tile-check {
-    position: absolute; top: 10px; right: 12px;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    background: var(--c-pink);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    display: none;
-    align-items: center; justify-content: center;
-  }
-  .pick__tile.selectable--active .pick__tile-check { display: flex; }
-
-  .pick__tile-title { font-size: 20px; line-height: 1.1; }
-  .pick__tile-blurb { font-size: 12.5px; line-height: 1.3; }
-
-  .pick__hint { margin-top: 16px; text-align: center; font-size: 14px; }
-
-  .pick__sample-hint {
-    display: block;
-    margin-top: 8px;
-    font-size: 13px;
-    font-style: italic;
+  .pcard--selected:hover { transform: translateY(-3px); border-color: var(--c-pink); }
+  .pcard:focus-visible {
+    outline: 3px solid var(--c-pink);
+    outline-offset: 2px;
   }
 
-  .pick__sample-wrap {
+  .pcard__media {
     position: relative;
     display: block;
     width: 100%;
     aspect-ratio: 1 / 1;
+    background: var(--c-fill);
     overflow: hidden;
-    border-radius: var(--r-sm);
-    background: var(--c-stroke-light);
   }
-  .pick__sample-img {
+  .pcard__media-img {
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
   }
-  .pick__sample-badge {
-    position: absolute;
-    bottom: 6px; left: 6px;
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-radius: 999px;
-    pointer-events: none;
-  }
-  .pick__tile .pick__sample-wrap {
-    margin-bottom: 10px;
+
+  /* Empty circle (top-left) on unselected cards */
+  .pcard__empty {
+    position: absolute; top: 10px; left: 10px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1.5px solid var(--c-stroke-light);
   }
 
-  .pick__footer {
-    margin-top: 32px;
-    display: flex; justify-content: center;
+  /* "Our pick / Selected" pink pill (top-left) on selected cards */
+  .pcard__pick {
+    position: absolute; top: 10px; left: 10px;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px 4px 4px;
+    border-radius: var(--r-pill);
+    background: var(--c-pink);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   }
+  .pcard__pick-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--c-white); color: var(--c-pink);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; line-height: 1;
+  }
+  .pcard__pick-label {
+    font-size: 10px; font-weight: 700; color: var(--c-white);
+    text-transform: uppercase; letter-spacing: 0.8px; line-height: 1;
+  }
+
+  /* "Sample · not <pet>" pill (top-right) */
+  .pcard__sample-badge {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(30, 20, 16, 0.62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--c-white);
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    font-size: 10px; font-weight: 500; line-height: 1.3;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    pointer-events: none;
+  }
+
+  .pcard__body {
+    display: block;
+    padding: 10px 14px 12px;
+  }
+  .pcard__title-row {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 6px;
+  }
+  .pcard__title {
+    font-family: var(--font-display);
+    font-size: 20px; font-weight: 700; line-height: 1.05;
+    color: var(--c-dark);
+  }
+  .pcard__tag {
+    font-size: 10px; font-weight: 700;
+    color: var(--c-pink);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .pcard__desc {
+    display: block;
+    font-size: 11.5px; color: var(--c-text); line-height: 1.35;
+    margin-top: 2px;
+  }
+
+  /* Compact mobile cards: smaller badge, hide blurb + selected tag */
+  @media (max-width: 699px) {
+    .pcard__sample-badge { font-size: 9px; padding: 3px 7px; }
+    .pcard__body { padding: 8px 10px 10px; }
+    .pcard__title { font-size: 18px; }
+    .pcard__desc { display: none; }
+    .pcard__tag { display: none; }
+  }
+
+  /* ── Footer CTA strip ─────────────────────────────────── */
+  .pick__footer {
+    margin: 16px -20px 0;
+    padding: 16px 20px 26px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    border-top: 1px solid var(--c-stroke-light);
+    background: var(--c-fill);
+  }
+  @media (min-width: 768px) {
+    .pick__footer {
+      margin-left: -40px;
+      margin-right: -40px;
+      padding-left: 40px;
+      padding-right: 40px;
+    }
+  }
+  .pick__counter {
+    font-size: 12px; color: var(--c-light);
+    text-align: center;
+  }
+  .pick__pet { white-space: nowrap; }
 </style>
