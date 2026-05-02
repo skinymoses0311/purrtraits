@@ -1,0 +1,138 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Shipping & Delivery — Purrtraits">
+  <section class="legal page">
+    <div class="container legal__inner">
+      <header class="legal__header">
+        <p class="legal__eyebrow">SHIPPING</p>
+        <h1 class="legal__title display">Shipping &amp; Delivery</h1>
+        <p class="muted legal__updated">Printed locally. Delivered fast.</p>
+      </header>
+
+      <article class="legal__body">
+        <p>
+          Every Purrtraits print is produced on demand by our print partner
+          <a href="https://www.gelato.com" target="_blank" rel="noopener">Gelato</a>,
+          which runs a network of local production facilities around the
+          world. Your order is routed to the facility closest to your
+          delivery address — so most prints are made and posted within
+          your own country, cutting shipping time and carbon footprint.
+        </p>
+
+        <h2 class="legal__h2">Estimated delivery times</h2>
+        <p>
+          Times below cover the full window from order to doorstep,
+          including a 1–2 business day production step.
+        </p>
+        <table class="shipping-table">
+          <thead>
+            <tr><th>Country</th><th>Typical delivery</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>UK</td><td>2–5 business days</td></tr>
+            <tr><td>US</td><td>2–4 business days</td></tr>
+            <tr><td>Canada</td><td>3–6 business days</td></tr>
+            <tr><td>Australia</td><td>4–7 business days</td></tr>
+            <tr><td>Other countries</td><td>4–7 business days</td></tr>
+          </tbody>
+        </table>
+        <p class="muted shipping__note">
+          These are typical ranges, not guarantees. Remote regions and
+          peak periods (e.g. December) can add a few days.
+        </p>
+
+        <h2 class="legal__h2">Digital downloads</h2>
+        <p>
+          Digital portraits don't ship — you'll get an instant high-res
+          download as soon as your payment clears, and a copy of the link
+          by email.
+        </p>
+
+        <h2 class="legal__h2">Tracking your order</h2>
+        <p>
+          Once your print leaves the production facility you'll receive
+          a shipping confirmation email with a tracking link. You can
+          also see the status of every order in your
+          <a href="/gallery">gallery</a>.
+        </p>
+
+        <h2 class="legal__h2">Lost, damaged, or late deliveries</h2>
+        <p>
+          If your order arrives damaged or hasn't shown up within 10
+          business days of the estimated window, email
+          <a href="mailto:hello@purrtraits.shop">hello@purrtraits.shop</a>
+          with your order number and we'll arrange a replacement or
+          refund — no quibbles.
+        </p>
+      </article>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .legal__inner { max-width: 760px; }
+  .legal__header { text-align: center; margin-bottom: 36px; }
+  .legal__eyebrow {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--c-pink);
+    margin-bottom: 6px;
+  }
+  .legal__title { margin-bottom: 8px; }
+  .legal__updated { font-size: 14px; }
+
+  .legal__body {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-lg);
+    padding: 28px 22px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--c-dark);
+  }
+  .legal__body p { margin-bottom: 14px; }
+  .legal__body a { color: var(--c-pink); text-decoration: underline; text-underline-offset: 2px; }
+  .legal__body a:hover { color: #c98399; }
+
+  .legal__h2 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--c-dark);
+    margin: 28px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid var(--c-pink-light);
+  }
+
+  .shipping-table {
+    width: 100%; border-collapse: collapse; font-size: 15px;
+    margin: 6px 0 6px;
+  }
+  .shipping-table th {
+    text-align: left;
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--c-text);
+    font-weight: 600;
+    padding: 10px 0;
+    border-bottom: 1.5px solid var(--c-stroke-light);
+  }
+  .shipping-table th:last-child { text-align: right; }
+  .shipping-table td {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--c-stroke-light);
+    color: var(--c-dark);
+  }
+  .shipping-table tr:last-child td { border-bottom: none; }
+  .shipping-table td:last-child { text-align: right; color: var(--c-text); }
+
+  .shipping__note { font-size: 13px; margin-top: 4px; }
+
+  @media (min-width: 768px) {
+    .legal__body { padding: 44px 48px; font-size: 16px; }
+    .legal__h2 { font-size: 30px; }
+    .shipping-table, .shipping-table th, .shipping-table td { font-size: 16px; }
+  }
+</style>
