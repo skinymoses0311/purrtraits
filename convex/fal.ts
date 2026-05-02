@@ -1,5 +1,6 @@
 "use node";
 
+import sharp from "sharp";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -96,6 +97,7 @@ async function callNanoBanana(
       image_urls: imageUrls,
       num_images: 1,
       output_format: "jpeg",
+      aspect_ratio: "3:4",
     }),
   });
   if (!res.ok) {
@@ -160,6 +162,74 @@ async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
   }
 }
 
+// Belt-and-braces aspect enforcement. We pass aspect_ratio: "3:4" to fal,
+// but the model can still drift on occasion — when it does, the off-aspect
+// image leaks all the way to the print product where Gelato will reject it
+// or crop unpredictably. Center-cropping to exactly 3:4 server-side
+// guarantees every persisted image matches the product geometry.
+//
+// Tolerance allows ±1% slop (e.g. 1024×1365 vs the exact 1024×1365.33),
+// so we don't burn a re-encode on rounding noise.
+const TARGET_ASPECT = 3 / 4; // width / height
+const ASPECT_TOLERANCE = 0.01;
+
+async function enforce3by4AndStore(ctx: any, url: string): Promise<string> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`enforce3by4AndStore: fetch failed ${res.status} for ${url}`);
+      return url;
+    }
+    const inputBytes = Buffer.from(await res.arrayBuffer());
+
+    let outBytes: Buffer = inputBytes;
+    let contentType = res.headers.get("content-type") ?? "image/jpeg";
+    try {
+      const img = sharp(inputBytes);
+      const meta = await img.metadata();
+      const w = meta.width;
+      const h = meta.height;
+      if (w && h) {
+        const actual = w / h;
+        if (Math.abs(actual - TARGET_ASPECT) > TARGET_ASPECT * ASPECT_TOLERANCE) {
+          // Off-aspect: center-crop to exactly 3:4.
+          let cropW: number, cropH: number;
+          if (actual > TARGET_ASPECT) {
+            // Too wide — keep height, narrow width.
+            cropH = h;
+            cropW = Math.round(h * TARGET_ASPECT);
+          } else {
+            // Too tall — keep width, shorten height.
+            cropW = w;
+            cropH = Math.round(w / TARGET_ASPECT);
+          }
+          const left = Math.floor((w - cropW) / 2);
+          const top = Math.floor((h - cropH) / 2);
+          outBytes = await img
+            .extract({ left, top, width: cropW, height: cropH })
+            .jpeg({ quality: 92 })
+            .toBuffer();
+          contentType = "image/jpeg";
+          console.warn(
+            `enforce3by4AndStore: cropped ${w}x${h} (${actual.toFixed(3)}) → ${cropW}x${cropH}`,
+          );
+        }
+      }
+    } catch (err) {
+      // sharp parsing failure — store the original rather than blanking the result.
+      console.warn("enforce3by4AndStore: sharp failed, storing raw:", err);
+    }
+
+    const blob = new Blob([new Uint8Array(outBytes)], { type: contentType });
+    const storageId = await ctx.storage.store(blob);
+    const persisted = await ctx.storage.getUrl(storageId);
+    return persisted ?? url;
+  } catch (err) {
+    console.warn("enforce3by4AndStore failed:", err);
+    return url;
+  }
+}
+
 // Single-step pipeline: Nano Banana for the artistic transformation. We
 // persist the ~1024px result to Convex storage and use it as both the
 // display URL and the (placeholder) print URL. The 4× upscale is deferred
@@ -171,7 +241,7 @@ async function generateOnePortrait(
   imageUrls: string[],
 ): Promise<{ imageUrl: string; printFileUrl: string }> {
   const lowRes = await callNanoBanana(prompt, imageUrls);
-  const display = await persistToConvexStorage(ctx, lowRes);
+  const display = await enforce3by4AndStore(ctx, lowRes);
   return { imageUrl: display, printFileUrl: display };
 }
 

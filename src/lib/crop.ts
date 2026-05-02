@@ -1,10 +1,10 @@
 // Browser-side image cropper.
 //
-// Why we need this: Nano Banana's edit endpoint doesn't expose an aspect
-// ratio parameter. The model heavily inherits aspect from its reference
-// images, so the most reliable way to get 3:4 portrait outputs is to feed
-// it 3:4 portrait inputs. We center-crop the user's upload before sending
-// it to Convex storage.
+// Why we need this: Nano Banana inherits aspect from its reference images,
+// so feeding it 3:4 inputs is the strongest signal we can give the model.
+// We also pass aspect_ratio: "3:4" to the edit endpoint and validate the
+// output server-side (see convex/fal.ts), but matching the input aspect
+// to the desired output is still the cheapest reliability win.
 
 const TARGET_ASPECT = 3 / 4; // width / height for portrait
 const MAX_LONG_EDGE = 1536;  // cap input size so uploads + AI calls stay snappy
