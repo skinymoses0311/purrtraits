@@ -1,8 +1,28 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import AdUnit from "../components/AdUnit.astro";
 ---
 
 <Layout title="Upload your pet's photos · Purrtraits">
+  <!-- Top banner ads. Wrapped in #upload-ads so we can hide both at once
+       when the regen-exhausted card replaces the upload UI. -->
+  <div id="upload-ads-top" class="ad-band ad-band--top">
+    <AdUnit
+      viewport="desktop"
+      slot="9076713151"
+      width={728}
+      height={90}
+      label="purrtraits_upload_hero_top_leaderboard_728x90"
+    />
+    <AdUnit
+      viewport="mobile"
+      slot="1910556075"
+      width={320}
+      height={50}
+      label="purrtraits_upload_top_banner_mobile_320x50"
+    />
+  </div>
+
   <main class="page container">
     <a href="/" class="back-link muted">← Back</a>
 
@@ -74,6 +94,19 @@ import Layout from "../layouts/Layout.astro";
           <p class="upload__cta-hint muted" id="cta-hint">
             Upload at least one photo to continue.
           </p>
+
+          <!-- Mobile mid-content MPU — sits between the upload column and
+               the Tips card (which stacks under it on mobile). Hidden on
+               desktop, where the MPU lives inside the tips sidebar. -->
+          <div id="upload-ads-mid" class="ad-band ad-band--mid">
+            <AdUnit
+              viewport="mobile"
+              slot="5268406646"
+              width={300}
+              height={250}
+              label="purrtraits_upload_midcontent_mpu_mobile_300x250"
+            />
+          </div>
         </div>
 
         <aside class="upload__tips">
@@ -85,6 +118,18 @@ import Layout from "../layouts/Layout.astro";
             <li><span class="tick" aria-hidden="true">✓</span> Single pet, not a group shot</li>
             <li><span class="tick" aria-hidden="true">✓</span> 2–3 different angles work great</li>
           </ul>
+
+          <!-- Desktop sidebar MPU — sits under the Tips list. Mobile
+               equivalent lives between the upload + tips columns above. -->
+          <div id="upload-ads-side" class="ad-band ad-band--side">
+            <AdUnit
+              viewport="desktop"
+              slot="3312327143"
+              width={300}
+              height={250}
+              label="purrtraits_upload_sidebar_mpu_300x250"
+            />
+          </div>
         </aside>
       </div>
     </div>
@@ -107,6 +152,9 @@ import Layout from "../layouts/Layout.astro";
   // users still pass through; they get fresh budget at first sign-up.
   const exhaustedEl = document.getElementById("upload-exhausted")!;
   const mainEl = document.getElementById("upload-main")!;
+  // Ad bands surrounding the upload UI — suppressed in the exhausted state
+  // so the "you've used 3 free portraits" card stands alone.
+  const adsTop = document.getElementById("upload-ads-top");
   let gated = false;
   if (isSignedIn()) {
     const authed = makeAuthedClient();
@@ -114,6 +162,7 @@ import Layout from "../layouts/Layout.astro";
     if ((remaining ?? 0) <= 0) {
       gated = true;
       exhaustedEl.hidden = false;
+      if (adsTop) adsTop.hidden = true;
     }
   }
   if (!gated) {
@@ -596,4 +645,11 @@ import Layout from "../layouts/Layout.astro";
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700;
   }
+
+  /* Ad gutters — bands center the slot; the AdUnit itself reserves the
+     pixel-exact box so the surrounding layout doesn't shift. */
+  .ad-band { display: flex; justify-content: center; }
+  .ad-band--top  { padding: 16px 16px 0; }
+  .ad-band--mid  { padding: 24px 0 8px; }
+  .ad-band--side { padding: 24px 0 0; }
 </style>

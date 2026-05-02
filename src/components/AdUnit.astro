@@ -1,0 +1,99 @@
+---
+/**
+ * Reusable AdSense slot wrapper.
+ *
+ * Reserves the exact pixel box up-front (width × height on the wrapper) so
+ * the slot doesn't shift the page once AdSense paints — protects CLS. The
+ * AdSense loader script itself is included once in Layout.astro <head>;
+ * this component only renders the <ins> and queues the per-slot push.
+ *
+ * `viewport` controls visibility:
+ *   - "desktop": hidden below 1024px (matches breakpoints chosen for the build)
+ *   - "mobile":  hidden at 1024px and above
+ *
+ * The matchMedia gate around adsbygoogle.push prevents requesting fill on
+ * the device class we're not showing — AdSense won't bill un-rendered
+ * impressions, but skipping the push keeps the queue clean.
+ */
+interface Props {
+  slot: string;            // AdSense data-ad-slot
+  width: number;           // px
+  height: number;          // px
+  viewport: "desktop" | "mobile";
+  label?: string;          // optional comment label, e.g. "purrtraits_home_hero_top_leaderboard_728x90"
+  className?: string;      // additional class on the outer wrapper
+  sticky?: "top" | "bottom" | "rail"; // optional positioning hint, styled by parent
+}
+const {
+  slot,
+  width,
+  height,
+  viewport,
+  label,
+  className = "",
+  sticky,
+} = Astro.props as Props;
+
+const adClient = "ca-pub-5797288699504998";
+const wrapperClass = [
+  "ad-unit",
+  `ad-unit--${viewport}`,
+  sticky ? `ad-unit--sticky-${sticky}` : "",
+  className,
+].filter(Boolean).join(" ");
+
+// Each <ins> needs a unique id so the inline push script can target it
+// safely (multiple AdUnits on the same page would otherwise step on each
+// other if AdSense re-runs).
+const insId = `ad-${slot}-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<div class={wrapperClass} style={`width:${width}px;height:${height}px;`} data-ad-viewport={viewport}>
+  {label && <!-- ad: {label} -->}
+  <ins
+    id={insId}
+    class="adsbygoogle"
+    style={`display:inline-block;width:${width}px;height:${height}px`}
+    data-ad-client={adClient}
+    data-ad-slot={slot}
+  ></ins>
+</div>
+
+<script is:inline define:vars={{ insId, viewport }}>
+  // Only push the slot for the device class it targets. Match the same
+  // 1024px cutover the CSS uses so the gate stays in lockstep.
+  (function () {
+    var mq = viewport === "desktop"
+      ? window.matchMedia("(min-width: 1024px)")
+      : window.matchMedia("(max-width: 1023.98px)");
+    if (!mq.matches) return;
+    var el = document.getElementById(insId);
+    if (!el) return;
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      // AdSense occasionally throws on hot-reload / double-pushes; swallow.
+    }
+  })();
+</script>
+
+<style is:global>
+  /* Reserve the box even before AdSense paints so we don't shift content. */
+  .ad-unit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+  .ad-unit > ins.adsbygoogle { display: inline-block; }
+
+  /* Viewport gating — single 1024px cutover. Hidden slots also have their
+     push() suppressed by the inline script above. */
+  .ad-unit--desktop { display: none; }
+  .ad-unit--mobile  { display: flex; }
+  @media (min-width: 1024px) {
+    .ad-unit--desktop { display: flex; }
+    .ad-unit--mobile  { display: none; }
+  }
+</style>

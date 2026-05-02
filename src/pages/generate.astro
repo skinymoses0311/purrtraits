@@ -1,31 +1,96 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import AdUnit from "../components/AdUnit.astro";
 ---
 
 <Layout title="Generating your portraits · Purrtraits">
+  <!-- Desktop sticky anchor leaderboard. Lives outside <main> so it can
+       stick to the top of the viewport above the page chrome on scroll. -->
+  <div class="gen-anchor">
+    <AdUnit
+      viewport="desktop"
+      slot="7436328426"
+      width={728}
+      height={90}
+      label="purrtraits_generate_viewport_anchor_leaderboard_728x90"
+      sticky="top"
+    />
+  </div>
+
   <main class="page container">
-    <div class="gen">
-      <div class="protected-wrap gen__pet-wrap is-loading">
-        <img id="pet-preview" class="gen__pet protected-img is-loading-img" alt="" />
-      </div>
-      <h1 id="title">Painting your portraits…</h1>
-      <p class="muted" id="subtitle">Our AI is brushing 3 unique styles. About 30 seconds.</p>
-      <div class="gen__dots" id="dots"></div>
+    <div class="gen-shell">
+      <!-- Desktop left skyscraper — sticky with the loader. Hidden under
+           1200px so it doesn't crush the loader column. -->
+      <aside class="gen-rail gen-rail--left">
+        <AdUnit
+          viewport="desktop"
+          slot="7194672341"
+          width={160}
+          height={600}
+          label="purrtraits_generate_railleft_skyscraper_160x600"
+          sticky="rail"
+        />
+      </aside>
 
-      <div class="gen__grid" id="gen-grid">
-        <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
-        <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
-        <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
+      <div class="gen">
+        <div class="protected-wrap gen__pet-wrap is-loading">
+          <img id="pet-preview" class="gen__pet protected-img is-loading-img" alt="" />
+        </div>
+        <h1 id="title">Painting your portraits…</h1>
+        <p class="muted" id="subtitle">Our AI is brushing 3 unique styles. About 30 seconds.</p>
+        <div class="gen__dots" id="dots"></div>
+
+        <div class="gen__grid" id="gen-grid">
+          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
+          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
+          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
+        </div>
+
+        <!-- Mobile mid-content MPU — sits below the skeleton tiles, in the
+             user's eyeline during the ~30s wait. -->
+        <div class="ad-band ad-band--mid">
+          <AdUnit
+            viewport="mobile"
+            slot="7649967912"
+            width={300}
+            height={250}
+            label="purrtraits_generate_midcontent_mpu_mobile_300x250"
+          />
+        </div>
+
+        <div id="error" class="gen__error" hidden>
+          <p class="display">Something went wrong</p>
+          <p class="muted" id="error-msg"></p>
+          <button class="btn" onclick="window.location.reload()">Try again</button>
+          <a href="/upload" class="btn">Use different photos</a>
+        </div>
       </div>
 
-      <div id="error" class="gen__error" hidden>
-        <p class="display">Something went wrong</p>
-        <p class="muted" id="error-msg"></p>
-        <button class="btn" onclick="window.location.reload()">Try again</button>
-        <a href="/upload" class="btn">Use different photos</a>
-      </div>
+      <aside class="gen-rail gen-rail--right">
+        <AdUnit
+          viewport="desktop"
+          slot="7762708042"
+          width={160}
+          height={600}
+          label="purrtraits_generate_railright_skyscraper_160x600"
+          sticky="rail"
+        />
+      </aside>
     </div>
   </main>
+
+  <!-- Mobile sticky bottom anchor banner. Pinned to the bottom of the
+       viewport during the wait. -->
+  <div class="gen-anchor-bottom">
+    <AdUnit
+      viewport="mobile"
+      slot="9448248242"
+      width={320}
+      height={50}
+      label="purrtraits_generate_viewport_anchor_banner_mobile_320x50"
+      sticky="bottom"
+    />
+  </div>
 </Layout>
 
 <script>
@@ -169,4 +234,47 @@ import Layout from "../layouts/Layout.astro";
   /* Make sure [hidden] beats the display:flex rule above. Without this the
      error box always shows during the loading state. */
   .gen__error[hidden] { display: none; }
+
+  /* Sticky desktop anchor at the top of the viewport. The cream background
+     + soft border match the page chrome so the slot reads as part of the
+     site frame rather than floating content. Hidden on mobile via AdUnit. */
+  .gen-anchor {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--c-cream);
+    border-bottom: 1px solid var(--c-stroke-light);
+  }
+  .gen-anchor :global(.ad-unit) { padding: 8px 0; }
+
+  /* 3-column flex shell: left rail · loader · right rail. Rails are only
+     visible at >=1200px (loader stays alone below that). */
+  .gen-shell {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+  }
+  .gen-rail {
+    display: none; /* hidden by default; revealed at >=1200px below */
+    flex-shrink: 0;
+  }
+  .gen-rail :global(.ad-unit) {
+    position: sticky;
+    top: 112px; /* clears the sticky anchor + a small gutter */
+  }
+  @media (min-width: 1200px) {
+    .gen-rail { display: block; }
+  }
+
+  /* Mobile sticky anchor banner pinned to the bottom of the viewport.
+     Hidden on desktop via AdUnit. */
+  .gen-anchor-bottom {
+    position: sticky; bottom: 0; z-index: 30;
+    background: var(--c-cream);
+    border-top: 1px solid var(--c-stroke-light);
+  }
+  .gen-anchor-bottom :global(.ad-unit) { padding: 6px 0; }
+
+  .ad-band { display: flex; justify-content: center; }
+  .ad-band--mid { padding: 24px 0 8px; }
 </style>

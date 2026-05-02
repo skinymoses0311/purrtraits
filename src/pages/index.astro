@@ -1,8 +1,20 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import AdUnit from "../components/AdUnit.astro";
 ---
 
 <Layout>
+  <!-- Mobile top banner — sits directly under the nav, above the hero. -->
+  <div class="ad-band ad-band--top">
+    <AdUnit
+      viewport="mobile"
+      slot="5052784229"
+      width={320}
+      height={50}
+      label="purrtraits_home_top_banner_mobile_320x50"
+    />
+  </div>
+
   <section class="hero">
     <div class="container hero__inner">
       <h1 class="hero__title">Turn your pet into<br />museum-worthy art</h1>
@@ -11,6 +23,17 @@ import Layout from "../layouts/Layout.astro";
       <p class="hero__note muted">No account needed · Results in under 60 seconds</p>
     </div>
   </section>
+
+  <!-- Desktop hero leaderboard — between hero CTA and "How it works". -->
+  <div class="ad-band">
+    <AdUnit
+      viewport="desktop"
+      slot="5686149558"
+      width={728}
+      height={90}
+      label="purrtraits_home_hero_top_leaderboard_728x90"
+    />
+  </div>
 
   <section class="how" id="how">
     <div class="container">
@@ -26,6 +49,26 @@ import Layout from "../layouts/Layout.astro";
       </div>
     </div>
   </section>
+
+  <!-- Mid-content MPU — between How-it-works and Sample portraits. Same
+       slot lives in this place on both viewports; we just toggle which
+       AdUnit is shown via the breakpoint. -->
+  <div class="ad-band ad-band--mid">
+    <AdUnit
+      viewport="desktop"
+      slot="3552000295"
+      width={300}
+      height={250}
+      label="purrtraits_home_midcontent_mpu_300x250"
+    />
+    <AdUnit
+      viewport="mobile"
+      slot="3223637740"
+      width={300}
+      height={250}
+      label="purrtraits_home_midcontent_mpu_mobile_300x250"
+    />
+  </div>
 
   <section class="gallery" id="samples">
     <div class="container">
@@ -92,4 +135,11 @@ import Layout from "../layouts/Layout.astro";
     padding: 18px 0; margin-top: 48px; text-align: center;
   }
   .social-proof__text { font-size: 18px; }
+
+  /* Reserve vertical space around ad bands so they breathe and don't
+     visually crash into the surrounding sections. The AdUnit itself
+     reserves its own width/height — these bands handle the gutter. */
+  .ad-band { display: flex; justify-content: center; padding: 16px 16px 0; }
+  .ad-band--top { padding: 12px 16px 0; }
+  .ad-band--mid { padding: 24px 16px; }
 </style>
