@@ -16,7 +16,6 @@ import type * as files from "../files.js";
 import type * as galleryExport from "../galleryExport.js";
 import type * as gelato from "../gelato.js";
 import type * as http from "../http.js";
-import type * as messages from "../messages.js";
 import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
 import type * as probe from "../probe.js";
@@ -43,7 +42,6 @@ declare const fullApi: ApiFromModules<{
   galleryExport: typeof galleryExport;
   gelato: typeof gelato;
   http: typeof http;
-  messages: typeof messages;
   orders: typeof orders;
   payments: typeof payments;
   probe: typeof probe;

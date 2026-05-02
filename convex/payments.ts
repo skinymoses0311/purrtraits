@@ -7,7 +7,15 @@ import Stripe from "stripe";
 import type { Id } from "./_generated/dataModel";
 import { formatProductDescription } from "./productCopy";
 
-const ALLOWED_SHIPPING_COUNTRIES: Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] = [
+// Indexed-access type lookup: Stripe SDK 22.x re-exports SessionCreateParams
+// as a type alias in Checkout/index.d.ts, which strips the companion
+// namespace, so `…SessionCreateParams.ShippingAddressCollection.AllowedCountry`
+// no longer resolves. Walking the type via property indices preserves it.
+type AllowedCountry = NonNullable<
+  Stripe.Checkout.SessionCreateParams["shipping_address_collection"]
+>["allowed_countries"][number];
+
+const ALLOWED_SHIPPING_COUNTRIES: AllowedCountry[] = [
   "AC","AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AT","AU","AW","AX","AZ",
   "BA","BB","BD","BE","BF","BG","BH","BI","BJ","BL","BM","BN","BO","BQ","BR","BS","BT","BV","BW","BY","BZ",
   "CA","CD","CF","CG","CH","CI","CK","CL","CM","CN","CO","CR","CV","CW","CY","CZ",
@@ -44,13 +52,14 @@ export const createCheckoutSession = action({
     if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-09-30.clover",
+      apiVersion: "2026-04-22.dahlia",
     });
 
     const hasPhysical = cart.physicalCount > 0;
     const currency = cart.currency;
 
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = cart.items.map(
+    type LineItem = NonNullable<Stripe.Checkout.SessionCreateParams["line_items"]>[number];
+    const lineItems: LineItem[] = cart.items.map(
       (item) => ({
         quantity: item.quantity,
         price_data: {
@@ -133,7 +142,7 @@ export const handleStripeWebhook = internalAction({
   },
   handler: async (ctx, { payload, signature }): Promise<{ received: boolean }> => {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-09-30.clover",
+      apiVersion: "2026-04-22.dahlia",
     });
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET not configured");
