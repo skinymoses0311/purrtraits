@@ -142,12 +142,15 @@ export const saveQuiz = mutation({
     id: v.id("sessions"),
     answers: v.object({
       name: v.optional(v.string()),
+      // breed is the joined display string for crossbreeds; breeds is the
+      // structured array. Both omitted when the user ticks "I'm not sure".
       breed: v.optional(v.string()),
+      breeds: v.optional(v.array(v.string())),
       age: v.optional(v.string()),
       lifestyle: v.optional(v.string()),
       activity: v.string(),
       mood: v.string(),
-      room: v.string(),
+      favouriteFeature: v.string(),
     }),
   },
   handler: async (ctx, { id, answers }) => {
@@ -289,14 +292,18 @@ export const useFromGallery = mutation({
     const items = session.galleryItems ?? [];
     const item = items[index];
     if (!item) throw new Error("Gallery item not found");
+    // Legacy gallery items may be missing breed (and occasionally petName).
+    // Fall back to the session's own quizAnswers so the resulting generation
+    // entry is fully personalised — the PDP shouldn't have to rely on a
+    // runtime fallback chain.
     await ctx.db.patch(id, {
       generations: [
         {
           style: item.style,
           imageUrl: item.imageUrl,
           printFileUrl: item.printFileUrl,
-          petName: item.petName,
-          breed: item.breed,
+          petName: item.petName ?? session.quizAnswers?.name,
+          breed: item.breed ?? session.quizAnswers?.breed,
         },
       ],
       selectedStyle: item.style,
@@ -340,14 +347,18 @@ export const useFromUserGallery = mutation({
       throw new Error("Not your session");
     }
 
+    // Legacy gallery items may be missing breed (and occasionally petName).
+    // Fall back to the source session's quizAnswers so the resulting
+    // generation entry is fully personalised — the PDP shouldn't have to
+    // rely on a runtime fallback chain.
     await ctx.db.patch(targetSessionId, {
       generations: [
         {
           style: item.style,
           imageUrl: item.imageUrl,
           printFileUrl: item.printFileUrl,
-          petName: item.petName,
-          breed: item.breed,
+          petName: item.petName ?? source.quizAnswers?.name,
+          breed: item.breed ?? source.quizAnswers?.breed,
         },
       ],
       selectedStyle: item.style,

@@ -89,16 +89,56 @@ export const backfillGalleryPetIdentityPage = internalMutation({
   handler: async (ctx, { cursor }) => {
     const page = await ctx.db
       .query("sessions")
-      .paginate({ cursor, numItems: 100 });
+      .paginate({ cursor, numItems: 50 });
+
+    // Per-user "best known" pet identity, drawn from any of the user's
+    // sessions' quizAnswers OR any gallery item that already has the field.
+    // This catches items on sessions whose quizAnswers got wiped — the same
+    // strategy the generations/cart backfill uses.
+    const userIds = new Set<string>();
+    for (const s of page.page) if (s.userId) userIds.add(s.userId);
+    const userFallback = new Map<
+      string,
+      { petName?: string; breed?: string }
+    >();
+    const indexUser = (
+      userId: string | undefined,
+      petName: string | undefined,
+      breed: string | undefined,
+    ) => {
+      if (!userId) return;
+      const existing = userFallback.get(userId);
+      if (existing && existing.petName && existing.breed) return;
+      userFallback.set(userId, {
+        petName: existing?.petName ?? (petName?.trim() || undefined),
+        breed: existing?.breed ?? (breed?.trim() || undefined),
+      });
+    };
+    for (const userId of userIds) {
+      const userSessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_userId", (q) => q.eq("userId", userId as any))
+        .collect();
+      for (const s of userSessions) {
+        indexUser(userId, s.quizAnswers?.name, s.quizAnswers?.breed);
+        for (const it of s.galleryItems ?? []) {
+          indexUser(userId, it.petName, it.breed);
+        }
+      }
+    }
 
     let sessionsPatched = 0;
     let itemsPatched = 0;
     for (const session of page.page) {
       const items = session.galleryItems;
-      const answers = session.quizAnswers;
-      if (!items || items.length === 0 || !answers) continue;
-      const fallbackName = answers.name?.trim();
-      const fallbackBreed = answers.breed?.trim();
+      if (!items || items.length === 0) continue;
+      const sessionName = session.quizAnswers?.name?.trim() || undefined;
+      const sessionBreed = session.quizAnswers?.breed?.trim() || undefined;
+      const userBest = session.userId
+        ? userFallback.get(session.userId)
+        : undefined;
+      const fallbackName = sessionName ?? userBest?.petName;
+      const fallbackBreed = sessionBreed ?? userBest?.breed;
       if (!fallbackName && !fallbackBreed) continue;
 
       let changed = false;
@@ -318,6 +358,63 @@ export const backfillGenerationAndCartIdentityPage = internalMutation({
       sessionsPatched,
       generationsPatched,
       cartLinesPatched,
+    };
+  },
+});
+
+// Quiz v2 cleanup: removes the `room` field from every session's quizAnswers.
+// Run once after deploying the v2 quiz; once it completes the `room` validator
+// can be deleted from convex/schema.ts in a follow-up. Idempotent — sessions
+// without `room` are skipped.
+export const stripRoomFromQuizAnswers = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    let cursor: string | null = null;
+    let totalScanned = 0;
+    let totalPatched = 0;
+    while (true) {
+      const result: {
+        cursor: string | null;
+        isDone: boolean;
+        sessionsScanned: number;
+        sessionsPatched: number;
+      } = await ctx.runMutation(
+        internal.migrations.stripRoomFromQuizAnswersPage,
+        { cursor },
+      );
+      totalScanned += result.sessionsScanned;
+      totalPatched += result.sessionsPatched;
+      if (result.isDone) break;
+      cursor = result.cursor;
+    }
+    return { sessionsScanned: totalScanned, sessionsPatched: totalPatched };
+  },
+});
+
+export const stripRoomFromQuizAnswersPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db
+      .query("sessions")
+      .paginate({ cursor, numItems: 100 });
+
+    let sessionsPatched = 0;
+    for (const session of page.page) {
+      const answers = session.quizAnswers as
+        | (Record<string, unknown> & { room?: string })
+        | undefined;
+      if (!answers || answers.room === undefined) continue;
+      const { room: _room, ...rest } = answers;
+      await ctx.db.patch(session._id, {
+        quizAnswers: rest as typeof session.quizAnswers,
+      });
+      sessionsPatched += 1;
+    }
+    return {
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+      sessionsScanned: page.page.length,
+      sessionsPatched,
     };
   },
 });
