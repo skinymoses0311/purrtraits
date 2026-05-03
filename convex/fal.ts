@@ -363,6 +363,7 @@ export const generatePortraits = action({
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
+          breed: session?.quizAnswers?.breed,
         })),
       });
       // Once the user has no regens left, the source photos can't be used
@@ -433,6 +434,7 @@ export const regenerate = action({
           activity: session?.quizAnswers?.activity,
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
+          breed: session?.quizAnswers?.breed,
         })),
       });
       // Once the user has no regens left, the source photos can't be used

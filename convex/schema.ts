@@ -99,6 +99,7 @@ export default defineSchema({
           activity: v.optional(v.string()),
           mood: v.optional(v.string()),
           petName: v.optional(v.string()),
+          breed: v.optional(v.string()),
           createdAt: v.number(),
         }),
       ),
