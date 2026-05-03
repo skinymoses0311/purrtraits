@@ -54,11 +54,7 @@ try {
         <p class="muted" id="subtitle">Our AI is brushing 3 unique styles. About 30 seconds.</p>
         <div class="gen__dots" id="dots"></div>
 
-        <div class="gen__grid" id="gen-grid">
-          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
-          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
-          <div class="gen__card"><div class="shimmer gen__shimmer"></div></div>
-        </div>
+        <div class="gen__grid" id="gen-grid"></div>
 
         <script
           type="application/json"
@@ -198,16 +194,18 @@ try {
         .map((s) => {
           const label = STYLE_LABELS[s] ?? s;
           const img = sampleImg(s, label);
+          // If we have no sample for this style, fall back to the loading
+          // shimmer so the slot doesn't collapse to empty.
+          const visual = img
+            ? `<div class="gen__example">
+                 ${img}
+                 <p class="gen__example-caption">Sample · not ${escapeHtml(petLabel)}</p>
+               </div>`
+            : `<div class="shimmer gen__shimmer"></div>`;
           return `
             <div class="gen__card">
-              <div class="shimmer gen__shimmer"></div>
               <p class="display gen__label">${escapeHtml(label)}</p>
-              ${img
-                ? `<div class="gen__example">
-                     ${img}
-                     <p class="gen__example-caption">Sample · not ${escapeHtml(petLabel)}</p>
-                   </div>`
-                : ""}
+              ${visual}
             </div>`;
         })
         .join("");
