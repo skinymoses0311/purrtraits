@@ -2,7 +2,11 @@
 import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout title="Style quiz · Purrtraits">
+<Layout
+  title="Style quiz · Purrtraits"
+  description="Find the right portrait style for your pet."
+  noindex
+>
   <main class="page container">
     <a href="/upload" class="back-link muted">← Back</a>
 
@@ -41,9 +45,42 @@ import Layout from "../layouts/Layout.astro";
     track("quiz_start");
 
     const TOTAL_STEPS = 7;
+    const MAX_CROSSBREEDS = 4;
+    const MIN_CROSSBREEDS = 2;
 
-    type AnswerKey = "name" | "breed" | "age" | "lifestyle" | "activity" | "mood" | "room";
-    const answers: Partial<Record<AnswerKey, string>> = {};
+    type AnswerKey =
+      | "name"
+      | "breed"
+      | "age"
+      | "lifestyle"
+      | "activity"
+      | "mood"
+      | "favouriteFeature";
+
+    type Answers = {
+      name?: string;
+      // Display string used by PDP/cart/Stripe. For crossbreeds it's the
+      // joined form ("Labrador Retriever / Poodle"); for single-breed it's
+      // the matched name. Undefined when the user ticks "I'm not sure".
+      breed?: string;
+      // Structured form, only set in crossbreed mode (length 2..4). Used by
+      // the prompt builder to choose the right phrasing.
+      breeds?: string[];
+      age?: string;
+      lifestyle?: string;
+      activity?: string;
+      mood?: string;
+      favouriteFeature?: string;
+    };
+
+    // UI-only state — not persisted with the answers.
+    type BreedUiState = {
+      isCrossbreed: boolean;
+      isUnknown: boolean;
+    };
+
+    const answers: Answers = {};
+    const breedUi: BreedUiState = { isCrossbreed: false, isUnknown: false };
 
     const fill = document.getElementById("progress-fill") as HTMLDivElement;
     const label = document.getElementById("progress-label")!;
@@ -126,14 +163,15 @@ import Layout from "../layouts/Layout.astro";
         },
         {
           kind: "choices",
-          key: "room",
-          title: `Where will ${name}'s portrait hang?`,
-          sub: "Helps us frame it for the room.",
+          key: "favouriteFeature",
+          title: `What do you love most about how ${name} looks?`,
+          sub: "We'll lean the portrait into this.",
           options: [
-            { v: "living", e: "🛋️", t: "Living room", b: "Statement piece" },
-            { v: "bedroom", e: "🛏️", t: "Bedroom", b: "Cosy + personal" },
-            { v: "office", e: "💼", t: "Office", b: "Cheer up the desk" },
-            { v: "kitchen", e: "🍳", t: "Kitchen", b: "Why not?" },
+            { v: "eyes", e: "👀", t: "Their eyes", b: "Soulful, expressive" },
+            { v: "smile", e: "😁", t: "Their smile / mouth", b: "That happy face" },
+            { v: "fur", e: "🧶", t: "Their fur / coat", b: "Markings and texture" },
+            { v: "ears", e: "👂", t: "Their ears", b: "The defining frame" },
+            { v: "whole-vibe", e: "✨", t: "Their whole vibe", b: "All of it, honestly" },
           ],
         },
       ];
@@ -162,30 +200,66 @@ import Layout from "../layouts/Layout.astro";
       });
     }
 
+    // breed step is more involved: it carries two checkboxes (crossbreed +
+    // "I'm not sure") below the autocomplete, and the multi-select chips
+    // appear in crossbreed mode.
     function renderBreed(s: Extract<Step, { kind: "breed" }>) {
-      const value = answers.breed ?? "";
+      const singleValue = !breedUi.isCrossbreed && !breedUi.isUnknown
+        ? answers.breed ?? ""
+        : "";
       stepEl.innerHTML = `
         <h1>${s.title}</h1>
         <p class="muted quiz__sub">${s.sub}</p>
         <div class="quiz__breed-wrap">
           <input id="breed-input" class="input quiz__breed-input" type="text"
-                 placeholder="Start typing a breed…" autocomplete="off" value="${escapeHtml(value)}" />
+                 placeholder="Start typing a breed…" autocomplete="off"
+                 value="${escapeHtml(singleValue)}" />
           <ul id="breed-list" class="quiz__breed-list" hidden></ul>
         </div>
+        <div id="breed-chips" class="quiz__breed-chips" hidden></div>
+        <p id="breed-hint" class="quiz__breed-hint muted" hidden></p>
+        <div class="quiz__breed-toggles">
+          <label class="checkbox">
+            <input id="breed-cross" type="checkbox" />
+            <span>My dog is a crossbreed</span>
+          </label>
+          <label class="checkbox">
+            <input id="breed-unknown" type="checkbox" />
+            <span>I'm not sure</span>
+          </label>
+        </div>
       `;
+
       const input = document.getElementById("breed-input") as HTMLInputElement;
       const list = document.getElementById("breed-list") as HTMLUListElement;
+      const chips = document.getElementById("breed-chips") as HTMLDivElement;
+      const hint = document.getElementById("breed-hint") as HTMLParagraphElement;
+      const crossCb = document.getElementById("breed-cross") as HTMLInputElement;
+      const unknownCb = document.getElementById("breed-unknown") as HTMLInputElement;
 
-      function setMatches(query: string) {
+      crossCb.checked = breedUi.isCrossbreed;
+      unknownCb.checked = breedUi.isUnknown;
+
+      function showMatches(query: string) {
         const q = query.trim().toLowerCase();
         if (!q) {
           list.hidden = true;
           list.innerHTML = "";
           return;
         }
-        const starts = DOG_BREEDS.filter((b) => b.toLowerCase().startsWith(q));
+        // In crossbreed mode, hide breeds the user has already picked so the
+        // dropdown stays useful.
+        const taken = new Set(
+          breedUi.isCrossbreed ? answers.breeds ?? [] : [],
+        );
+        const starts = DOG_BREEDS.filter(
+          (b) => !taken.has(b) && b.toLowerCase().startsWith(q),
+        );
         const contains = DOG_BREEDS.filter(
-          (b) => !b.toLowerCase().startsWith(q) && b.toLowerCase().includes(q),
+          (b) =>
+            !taken.has(b) &&
+            !b.toLowerCase().startsWith(q) &&
+            b.toLowerCase().includes(q),
         );
         const matches = [...starts, ...contains].slice(0, 8);
         if (matches.length === 0) {
@@ -199,51 +273,216 @@ import Layout from "../layouts/Layout.astro";
         list.hidden = false;
       }
 
-      function pick(breed: string) {
-        answers.breed = breed;
-        input.value = breed;
-        list.hidden = true;
-        next.disabled = false;
-      }
-
-      function syncFromInput() {
+      function syncSingle() {
+        // In single mode the typed text must exactly match a known breed.
         const v = input.value.trim();
-        // Only count as a valid answer when the typed text exactly matches a known breed.
-        const match = DOG_BREEDS.find((b) => b.toLowerCase() === v.toLowerCase());
+        const match = DOG_BREEDS.find(
+          (b) => b.toLowerCase() === v.toLowerCase(),
+        );
         if (match) {
           answers.breed = match;
-          next.disabled = false;
+          delete answers.breeds;
         } else {
           delete answers.breed;
-          next.disabled = true;
+          delete answers.breeds;
+        }
+        recomputeNext();
+      }
+
+      function renderChips() {
+        const list = answers.breeds ?? [];
+        if (!breedUi.isCrossbreed || list.length === 0) {
+          chips.hidden = true;
+          chips.innerHTML = "";
+          return;
+        }
+        chips.hidden = false;
+        chips.innerHTML = list
+          .map(
+            (b, i) => `
+              <span class="chip-tag">
+                <span>${escapeHtml(b)}</span>
+                <button type="button" class="chip-tag__x" data-i="${i}" aria-label="Remove ${escapeHtml(b)}">×</button>
+              </span>`,
+          )
+          .join("");
+      }
+
+      function renderHint() {
+        if (breedUi.isUnknown) {
+          hint.hidden = true;
+          return;
+        }
+        if (breedUi.isCrossbreed) {
+          const n = answers.breeds?.length ?? 0;
+          if (n < MIN_CROSSBREEDS) {
+            hint.textContent = `Pick ${MIN_CROSSBREEDS - n} more breed${MIN_CROSSBREEDS - n === 1 ? "" : "s"} to continue.`;
+            hint.hidden = false;
+          } else if (n >= MAX_CROSSBREEDS) {
+            hint.textContent = `That's the max — ${MAX_CROSSBREEDS} breeds.`;
+            hint.hidden = false;
+          } else {
+            hint.hidden = true;
+          }
+          return;
+        }
+        hint.hidden = true;
+      }
+
+      function recomputeNext() {
+        if (breedUi.isUnknown) {
+          next.disabled = false;
+          return;
+        }
+        if (breedUi.isCrossbreed) {
+          const n = answers.breeds?.length ?? 0;
+          next.disabled = n < MIN_CROSSBREEDS || n > MAX_CROSSBREEDS;
+          return;
+        }
+        next.disabled = !answers.breed;
+      }
+
+      function updateBreedDisplayFromBreeds() {
+        // Keep the display string in lockstep with the breeds array. The
+        // joined form is what propagates to PDP/cart/Stripe copy.
+        if (answers.breeds && answers.breeds.length >= MIN_CROSSBREEDS) {
+          answers.breed = answers.breeds.join(" / ");
+        } else if (breedUi.isCrossbreed) {
+          // Fewer than the minimum — clear the display string too so we
+          // don't ship a half-finished value if the user backs out.
+          delete answers.breed;
         }
       }
 
+      function applyDisabledState() {
+        const disabled = breedUi.isUnknown;
+        input.disabled = disabled;
+        chips.classList.toggle("is-disabled", disabled);
+        // Visually grey the wrap.
+        (input.closest(".quiz__breed-wrap") as HTMLElement | null)
+          ?.classList.toggle("is-disabled", disabled);
+      }
+
+      // ---- Event wiring ----------------------------------------------------
+
       input.addEventListener("input", () => {
-        setMatches(input.value);
-        syncFromInput();
+        if (breedUi.isUnknown) return;
+        showMatches(input.value);
+        if (!breedUi.isCrossbreed) syncSingle();
       });
-      input.addEventListener("focus", () => setMatches(input.value));
+      input.addEventListener("focus", () => {
+        if (breedUi.isUnknown) return;
+        showMatches(input.value);
+      });
       input.addEventListener("blur", () => {
         // Delay so a click on the list registers before we hide it.
         setTimeout(() => (list.hidden = true), 120);
       });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !next.disabled) next.click();
-      });
-      list.addEventListener("mousedown", (e) => {
-        const target = (e.target as HTMLElement).closest<HTMLLIElement>(".quiz__breed-opt");
-        if (target?.dataset.v) {
-          e.preventDefault();
-          pick(target.dataset.v);
+        if (e.key === "Enter") {
+          // In crossbreed mode Enter shouldn't submit the form — only the
+          // explicit Next button does. In single mode it's a fast-forward.
+          if (breedUi.isCrossbreed) {
+            e.preventDefault();
+            return;
+          }
+          if (!next.disabled) next.click();
         }
       });
 
-      syncFromInput();
-      input.focus();
+      list.addEventListener("mousedown", (e) => {
+        const target = (e.target as HTMLElement).closest<HTMLLIElement>(".quiz__breed-opt");
+        if (!target?.dataset.v) return;
+        e.preventDefault();
+        const picked = target.dataset.v;
+        if (breedUi.isCrossbreed) {
+          const current = answers.breeds ?? [];
+          if (current.includes(picked) || current.length >= MAX_CROSSBREEDS) return;
+          answers.breeds = [...current, picked];
+          updateBreedDisplayFromBreeds();
+          input.value = "";
+          list.hidden = true;
+          renderChips();
+          renderHint();
+          recomputeNext();
+          input.focus();
+        } else {
+          answers.breed = picked;
+          input.value = picked;
+          list.hidden = true;
+          recomputeNext();
+        }
+      });
+
+      chips.addEventListener("click", (e) => {
+        const target = (e.target as HTMLElement).closest<HTMLButtonElement>(
+          ".chip-tag__x",
+        );
+        if (!target) return;
+        const i = Number(target.dataset.i);
+        if (Number.isNaN(i)) return;
+        const current = answers.breeds ?? [];
+        const next = current.filter((_, idx) => idx !== i);
+        if (next.length === 0) delete answers.breeds;
+        else answers.breeds = next;
+        updateBreedDisplayFromBreeds();
+        renderChips();
+        renderHint();
+        recomputeNext();
+      });
+
+      crossCb.addEventListener("change", () => {
+        breedUi.isCrossbreed = crossCb.checked;
+        if (breedUi.isCrossbreed) {
+          // Switching on: seed the breeds array if there's a single breed
+          // typed already, then clear the input ready for the next pick.
+          if (answers.breed && !answers.breeds) {
+            answers.breeds = [answers.breed];
+          }
+          input.value = "";
+          delete answers.breed;
+          updateBreedDisplayFromBreeds();
+        } else {
+          // Switching off: clear the multi-select state and any partial
+          // single-breed text. The user will type / pick fresh.
+          delete answers.breeds;
+          delete answers.breed;
+          input.value = "";
+        }
+        list.hidden = true;
+        renderChips();
+        renderHint();
+        recomputeNext();
+      });
+
+      unknownCb.addEventListener("change", () => {
+        breedUi.isUnknown = unknownCb.checked;
+        if (breedUi.isUnknown) {
+          // Clear all breed state — nothing flows to the prompt or copy.
+          delete answers.breed;
+          delete answers.breeds;
+          input.value = "";
+          list.hidden = true;
+        }
+        applyDisabledState();
+        renderChips();
+        renderHint();
+        recomputeNext();
+      });
+
+      // Initial paint
+      applyDisabledState();
+      renderChips();
+      renderHint();
+      // If we returned to this step with an existing single-breed answer,
+      // make sure the next button reflects that.
+      if (!breedUi.isCrossbreed && !breedUi.isUnknown) syncSingle();
+      else recomputeNext();
+      if (!breedUi.isUnknown) input.focus();
     }
 
     function renderChoices(s: Extract<Step, { kind: "choices" }>) {
+      const key = s.key;
       stepEl.innerHTML = `
         <h1>${s.title}</h1>
         <p class="muted quiz__sub">${s.sub}</p>
@@ -251,7 +490,7 @@ import Layout from "../layouts/Layout.astro";
           ${s.options
             .map(
               (o) => `
-                <button class="option ${answers[s.key] === o.v ? "option--active" : ""}" data-v="${escapeHtml(o.v)}">
+                <button class="option ${answers[key as keyof Answers] === o.v ? "option--active" : ""}" data-v="${escapeHtml(o.v)}">
                   <span class="option__emoji">${o.e}</span>
                   <div>
                     <p class="display option__title">${o.t}</p>
@@ -264,14 +503,14 @@ import Layout from "../layouts/Layout.astro";
       `;
       stepEl.querySelectorAll<HTMLButtonElement>(".option").forEach((btn) => {
         btn.addEventListener("click", () => {
-          answers[s.key] = btn.dataset.v!;
+          (answers as Record<string, string>)[key] = btn.dataset.v!;
           stepEl.querySelectorAll(".option").forEach((el) =>
             el.classList.toggle("option--active", el === btn),
           );
           next.disabled = false;
         });
       });
-      next.disabled = !answers[s.key];
+      next.disabled = !answers[key as keyof Answers];
     }
 
     function showStep(n: number) {
@@ -293,18 +532,64 @@ import Layout from "../layouts/Layout.astro";
       }[c]!));
     }
 
+    // Resolves the analytics shape for the breed step. Existing reports key
+    // on `answer` as a string, so we keep that field and add the structured
+    // params alongside.
+    function breedAnalytics(): {
+      answer: string;
+      breed_mode: "single" | "crossbreed" | "unknown";
+      breed_count: number;
+    } {
+      if (breedUi.isUnknown) {
+        return { answer: "unknown", breed_mode: "unknown", breed_count: 0 };
+      }
+      if (breedUi.isCrossbreed) {
+        const list = answers.breeds ?? [];
+        return {
+          answer: list.join(" / "),
+          breed_mode: "crossbreed",
+          breed_count: list.length,
+        };
+      }
+      return {
+        answer: answers.breed ?? "",
+        breed_mode: "single",
+        breed_count: answers.breed ? 1 : 0,
+      };
+    }
+
     next.addEventListener("click", async () => {
       // Capture the step we're leaving so the event reflects the answer
       // the user just locked in (not the step we're about to render).
       const completedStep = step;
       const completedKey = buildSteps()[completedStep - 1].key;
-      const completedAnswer = answers[completedKey];
-      if (completedAnswer) {
+
+      if (completedKey === "breed") {
+        const a = breedAnalytics();
         track("quiz_step_complete", {
           step_number: completedStep,
-          step_name: completedKey,
-          answer: completedAnswer,
+          step_name: "breed",
+          ...a,
         });
+      } else if (completedKey === "favouriteFeature") {
+        const value = answers.favouriteFeature;
+        if (value) {
+          track("quiz_step_complete", {
+            step_number: completedStep,
+            step_name: "favouriteFeature",
+            answer: value,
+            favourite_feature: value,
+          });
+        }
+      } else {
+        const completedAnswer = (answers as Record<string, unknown>)[completedKey];
+        if (completedAnswer !== undefined) {
+          track("quiz_step_complete", {
+            step_number: completedStep,
+            step_name: completedKey,
+            answer: completedAnswer,
+          });
+        }
       }
 
       if (step < TOTAL_STEPS) {
@@ -314,22 +599,29 @@ import Layout from "../layouts/Layout.astro";
       // Submit
       next.disabled = true;
       next.textContent = "Saving...";
+
+      const breedSummary = breedAnalytics();
       track("quiz_complete", {
         activity: answers.activity,
         mood: answers.mood,
         lifestyle: answers.lifestyle,
-        room: answers.room,
+        favourite_feature: answers.favouriteFeature,
+        breed: answers.breed,
+        breed_mode: breedSummary.breed_mode,
+        breed_count: breedSummary.breed_count,
       });
+
       await client.mutation(api.sessions.saveQuiz, {
         id: sessionId as any,
         answers: {
           name: answers.name,
           breed: answers.breed,
+          breeds: answers.breeds,
           age: answers.age,
           lifestyle: answers.lifestyle,
           activity: answers.activity!,
           mood: answers.mood!,
-          room: answers.room!,
+          favouriteFeature: answers.favouriteFeature!,
         },
       });
       window.location.href = "/style-pick";
@@ -369,7 +661,9 @@ import Layout from "../layouts/Layout.astro";
   .quiz__name-input { max-width: 420px; font-size: 17px; }
 
   .quiz__breed-wrap { position: relative; max-width: 420px; }
+  .quiz__breed-wrap.is-disabled { opacity: 0.5; }
   .quiz__breed-input { font-size: 17px; }
+  .quiz__breed-input:disabled { background: var(--c-stroke-light); cursor: not-allowed; }
   .quiz__breed-list {
     position: absolute; left: 0; right: 0; top: calc(100% + 4px);
     list-style: none; padding: 6px;
@@ -387,6 +681,42 @@ import Layout from "../layouts/Layout.astro";
     cursor: pointer;
   }
   .quiz__breed-opt:hover { background: var(--c-pink-light); }
+
+  .quiz__breed-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 12px; max-width: 420px;
+  }
+  .quiz__breed-chips.is-disabled { opacity: 0.5; pointer-events: none; }
+  .chip-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 8px 6px 12px;
+    background: var(--c-pink-light);
+    border: 1.5px solid var(--c-pink);
+    border-radius: 999px;
+    font-size: 14px; color: var(--c-dark);
+  }
+  .chip-tag__x {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 0 4px;
+    color: var(--c-dark);
+  }
+  .chip-tag__x:hover { color: var(--c-pink); }
+
+  .quiz__breed-hint { margin-top: 8px; font-size: 14px; }
+  .quiz__breed-hint[hidden] { display: none; }
+
+  .quiz__breed-toggles {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 16px;
+  }
+  .checkbox {
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; font-size: 15px; color: var(--c-dark);
+    user-select: none;
+  }
+  .checkbox input[type="checkbox"] {
+    width: 18px; height: 18px; cursor: pointer;
+  }
 
   .quiz__footer {
     margin-top: 32px; display: flex; justify-content: space-between; gap: 12px;

@@ -13,7 +13,11 @@ const nextRaw = url.searchParams.get("next") ?? "/";
 const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
 ---
 
-<Layout title="Sign up · Purrtraits">
+<Layout
+  title="Sign up · Purrtraits"
+  description="Create a Purrtraits account."
+  noindex
+>
   <main class="page container auth-page">
     <header class="auth-page__header">
       <h1>One last step</h1>

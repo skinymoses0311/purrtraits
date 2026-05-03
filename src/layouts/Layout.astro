@@ -2,12 +2,17 @@
 import "../styles/global.css";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import SeoMeta from "../components/SeoMeta.astro";
 
 interface Props {
-  title?: string;
+  title: string;
+  description: string;
+  image?: string;
+  noindex?: boolean;
+  canonical?: string;
   hideNav?: boolean;
 }
-const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false } = Astro.props;
+const { title, description, image, noindex, canonical, hideNav = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -15,7 +20,9 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Turn your pet into museum-worthy art. AI portraits in seconds — digital or printed and framed." />
+    <SeoMeta {title} {description} {image} {noindex} {canonical}>
+      <slot name="jsonld" slot="jsonld" />
+    </SeoMeta>
     <!-- ?v=2 forces browsers to refetch when the favicon changes; bump it on
          future favicon updates to skip the aggressive favicon cache. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
@@ -34,7 +41,6 @@ const { title = "Purrtraits — Museum-worthy art for your pet", hideNav = false
     <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin />
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5797288699504998"
          crossorigin="anonymous"></script>
-    <title>{title}</title>
     <style>
       /* Sticky-footer scaffold: body is a column flex container, the main
          <slot> content flexes to fill, and the footer sits below — so on

@@ -1,9 +1,30 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import AdUnit from "../components/AdUnit.astro";
+
+const homeJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: "Purrtraits",
+      url: "https://purrtraits.shop",
+      logo: "https://purrtraits.shop/og-default.png",
+    },
+    {
+      "@type": "WebSite",
+      url: "https://purrtraits.shop",
+      name: "Purrtraits",
+    },
+  ],
+};
 ---
 
-<Layout>
+<Layout
+  title="Purrtraits — Custom AI pet portraits, framed and shipped"
+  description="Turn your pet's photo into museum-worthy art in under 60 seconds. Oil painting, watercolour, pop art and more — digital downloads, framed prints, and canvas, shipped worldwide."
+>
+  <script type="application/ld+json" slot="jsonld" set:html={JSON.stringify(homeJsonLd)} />
   <!-- Mobile top banner — sits directly under the nav, above the hero. -->
   <div class="ad-band ad-band--top">
     <AdUnit

@@ -3,7 +3,11 @@ import Layout from "../layouts/Layout.astro";
 import AdUnit from "../components/AdUnit.astro";
 ---
 
-<Layout title="Upload your pet's photos · Purrtraits">
+<Layout
+  title="Upload your pet's photos · Purrtraits"
+  description="Upload photos to generate your pet portrait."
+  noindex
+>
   <!-- Top banner ads. Wrapped in #upload-ads so we can hide both at once
        when the regen-exhausted card replaces the upload UI. -->
   <div id="upload-ads-top" class="ad-band ad-band--top">

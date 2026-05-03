@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /cart
+Disallow: /success
+Disallow: /sign-up
+Disallow: /gallery
+Disallow: /upload
+Disallow: /generate
+Disallow: /reveal
+Disallow: /style-pick
+Disallow: /quiz
+Disallow: /pdp
+
+Sitemap: https://purrtraits.shop/sitemap-index.xml

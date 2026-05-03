@@ -1,0 +1,45 @@
+---
+// Single source of truth for per-page SEO metadata. Layout.astro renders
+// this once in <head>; pages pass title/description/etc as Layout props.
+//
+// Canonical URL is derived from Astro.url.pathname against the configured
+// `site` in astro.config.mjs — pages don't need to think about it. Pass
+// `canonical` only for the rare case (paginated views, parameterized URLs)
+// where the auto-derived value is wrong.
+interface Props {
+  title: string;
+  description: string;
+  image?: string;
+  noindex?: boolean;
+  canonical?: string;
+}
+
+const {
+  title,
+  description,
+  image = "/og-default.png",
+  noindex = false,
+  canonical,
+} = Astro.props;
+
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site).href;
+const ogImageUrl = new URL(image, Astro.site).href;
+---
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalUrl} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Purrtraits" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalUrl} />
+<meta property="og:image" content={ogImageUrl} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImageUrl} />
+
+<slot name="jsonld" />
