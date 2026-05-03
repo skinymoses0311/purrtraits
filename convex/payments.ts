@@ -126,6 +126,7 @@ export const createCheckoutSession = action({
         displayUrl: item.displayUrl,
         style: item.style,
         petName: item.petName,
+        breed: item.breed,
         quantity: item.quantity,
         unitPriceCents: item.product.priceCents,
       })),

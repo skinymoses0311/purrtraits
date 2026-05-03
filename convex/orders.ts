@@ -19,6 +19,7 @@ const lineItemValidator = v.object({
   displayUrl: v.optional(v.string()),
   style: v.string(),
   petName: v.optional(v.string()),
+  breed: v.optional(v.string()),
   quantity: v.number(),
   unitPriceCents: v.number(),
 });
