@@ -13,9 +13,10 @@ export const addItem = mutation({
     displayUrl: v.optional(v.string()),
     style: v.string(),
     petName: v.optional(v.string()),
+    breed: v.optional(v.string()),
     quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { sessionId, productId, printFileUrl, displayUrl, style, petName, quantity }) => {
+  handler: async (ctx, { sessionId, productId, printFileUrl, displayUrl, style, petName, breed, quantity }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) throw new Error("Session not found");
     const product = await ctx.db.get(productId);
@@ -32,9 +33,10 @@ export const addItem = mutation({
       const existing = cart[existingIndex];
       cart[existingIndex] = {
         ...existing,
-        // If the existing line had no name/displayUrl (e.g. legacy add), fold
-        // the newly-supplied values in so the cart UI improves on next view.
+        // If the existing line had no name/breed/displayUrl (e.g. legacy add),
+        // fold the newly-supplied values in so the cart UI improves on next view.
         petName: existing.petName ?? petName,
+        breed: existing.breed ?? breed,
         displayUrl: existing.displayUrl ?? displayUrl,
         quantity: isDigital ? 1 : existing.quantity + requested,
       };
@@ -45,6 +47,7 @@ export const addItem = mutation({
         displayUrl,
         style,
         petName,
+        breed,
         quantity: isDigital ? 1 : requested,
         addedAt: Date.now(),
       });
@@ -140,6 +143,7 @@ export const getWithProducts = query({
         displayUrl: line.displayUrl,
         style: line.style,
         petName: line.petName,
+        breed: line.breed,
         quantity: line.quantity,
         product,
         lineTotalCents: product.priceCents * line.quantity,
@@ -188,12 +192,10 @@ export const getInternalForCheckout = internalQuery({
         displayUrl: line.displayUrl,
         style: line.style,
         petName: line.petName,
+        breed: line.breed,
         quantity: line.quantity,
         product,
       })),
-      // Breed is session-scoped (not per-line) so it lives at the top level.
-      // Used by formatProductDescription when rendering Stripe line items.
-      breed: session.quizAnswers?.breed,
       physicalCount,
       currency,
     };

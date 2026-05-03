@@ -64,6 +64,12 @@ export default defineSchema({
           style: v.string(),
           imageUrl: v.string(),
           printFileUrl: v.optional(v.string()),
+          // Pet identity is bound to the portrait, not the session: a session's
+          // quizAnswers can be wiped (clearCurrentFlow) or belong to a different
+          // pet (cross-session "buy this one"), but a generation always belongs
+          // to one pet. PDP + Stripe copy read these directly.
+          petName: v.optional(v.string()),
+          breed: v.optional(v.string()),
         }),
       ),
     ),
@@ -117,6 +123,7 @@ export default defineSchema({
           displayUrl: v.optional(v.string()),
           style: v.string(),
           petName: v.optional(v.string()),
+          breed: v.optional(v.string()),
           quantity: v.number(),
           addedAt: v.number(),
         }),

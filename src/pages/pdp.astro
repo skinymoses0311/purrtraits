@@ -166,8 +166,16 @@ import ProductPreview from "../components/ProductPreview.astro";
       const buy = document.getElementById("buy") as HTMLButtonElement;
       const benefit2 = document.getElementById("benefit-2")!;
 
-      const petName = session.quizAnswers?.name?.trim();
-      const breed = session.quizAnswers?.breed?.trim();
+      // Pet identity is bound to the portrait, so we can re-render PDP/Stripe
+      // copy correctly even after clearCurrentFlow or on cross-session buys.
+      // Fall back to session.quizAnswers for any legacy generations that
+      // pre-date the per-portrait fields.
+      const petName =
+        (portrait as any).petName?.trim() ||
+        session.quizAnswers?.name?.trim();
+      const breed =
+        (portrait as any).breed?.trim() ||
+        session.quizAnswers?.breed?.trim();
 
       attachImageLoading();
       hero.src = portrait.imageUrl;
@@ -331,6 +339,7 @@ import ProductPreview from "../components/ProductPreview.astro";
             displayUrl: portrait.imageUrl,
             style: selectedStyle,
             petName: petName ?? undefined,
+            breed: breed ?? undefined,
           });
           if (product) {
             const item = buildEcommerceItem({

@@ -348,9 +348,14 @@ export const generatePortraits = action({
       const ranked = (session?.rankedStyles ?? []) as Style[];
       const chosen = resolveSelectedStyles(styles, ranked);
       const generations = await generateAllStyles(ctx, sessionId, chosen);
+      const generationsWithIdentity = generations.map((g) => ({
+        ...g,
+        petName: session?.quizAnswers?.name,
+        breed: session?.quizAnswers?.breed,
+      }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
-        generations,
+        generations: generationsWithIdentity,
       });
       // Persist to the session-scoped gallery so users can revisit results
       // even after starting a new flow.
@@ -419,9 +424,14 @@ export const regenerate = action({
         ranked,
       );
       const generations = await generateAllStyles(ctx, sessionId, chosen);
+      const generationsWithIdentity = generations.map((g) => ({
+        ...g,
+        petName: session?.quizAnswers?.name,
+        breed: session?.quizAnswers?.breed,
+      }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
-        generations,
+        generations: generationsWithIdentity,
       });
       // Persist to the session-scoped gallery so users can revisit results
       // even after starting a new flow.

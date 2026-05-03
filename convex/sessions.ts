@@ -202,6 +202,8 @@ export const setGenerations = internalMutation({
         style: v.string(),
         imageUrl: v.string(),
         printFileUrl: v.optional(v.string()),
+        petName: v.optional(v.string()),
+        breed: v.optional(v.string()),
       }),
     ),
   },
@@ -287,27 +289,17 @@ export const useFromGallery = mutation({
     const items = session.galleryItems ?? [];
     const item = items[index];
     if (!item) throw new Error("Gallery item not found");
-    // Restore the pet identity captured when this gallery item was made,
-    // so PDP/Stripe copy stays personalised. Skip if the user wiped
-    // quizAnswers via clearCurrentFlow — schema requires activity/mood/room
-    // and we can't reconstruct those from a gallery item alone.
-    const restoredAnswers = session.quizAnswers
-      ? {
-          ...session.quizAnswers,
-          name: item.petName ?? session.quizAnswers.name,
-          breed: item.breed ?? session.quizAnswers.breed,
-        }
-      : undefined;
     await ctx.db.patch(id, {
       generations: [
         {
           style: item.style,
           imageUrl: item.imageUrl,
           printFileUrl: item.printFileUrl,
+          petName: item.petName,
+          breed: item.breed,
         },
       ],
       selectedStyle: item.style,
-      ...(restoredAnswers ? { quizAnswers: restoredAnswers } : {}),
     });
   },
 });
@@ -348,27 +340,17 @@ export const useFromUserGallery = mutation({
       throw new Error("Not your session");
     }
 
-    // Cross-session buys: the target session's quizAnswers belong to a
-    // different pet (or none at all). Carry the source pet's full quiz
-    // context across — the source always has it because gallery items only
-    // exist post-quiz — so PDP/Stripe copy reads the right name + breed.
-    const restoredAnswers = source.quizAnswers
-      ? {
-          ...source.quizAnswers,
-          name: item.petName ?? source.quizAnswers.name,
-          breed: item.breed ?? source.quizAnswers.breed,
-        }
-      : undefined;
     await ctx.db.patch(targetSessionId, {
       generations: [
         {
           style: item.style,
           imageUrl: item.imageUrl,
           printFileUrl: item.printFileUrl,
+          petName: item.petName,
+          breed: item.breed,
         },
       ],
       selectedStyle: item.style,
-      ...(restoredAnswers ? { quizAnswers: restoredAnswers } : {}),
     });
   },
 });

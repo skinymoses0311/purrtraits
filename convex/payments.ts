@@ -70,7 +70,7 @@ export const createCheckoutSession = action({
             description: formatProductDescription(
               item.product,
               item.petName,
-              cart.breed,
+              item.breed,
             ),
           },
         },
