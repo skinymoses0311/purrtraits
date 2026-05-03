@@ -68,13 +68,61 @@ const MOOD_HINT: Record<string, string> = {
 const IDENTITY_GUARD =
   "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing.";
 
-function buildPrompt(style: Style, activity?: string, mood?: string): string {
+// Q7 routes the user's chosen feature into the prompt as a creative-direction
+// nudge. "whole-vibe" intentionally has no fragment — when the user picks it
+// (or the field is missing on a legacy session) the block is omitted entirely.
+const FEATURE_EMPHASIS: Record<string, string> = {
+  eyes:
+    "Pay particular attention to the eyes — render them with depth and clarity, capturing their colour, the soft catchlights, and the expressive quality that makes them the focal point of the portrait.",
+  smile:
+    "Give particular care to the mouth and expression — the open mouth, soft tongue, or gentle smile that defines this pet's character, rendered with warmth.",
+  fur:
+    "Render the fur with particular care and texture — the patterns, markings, and tonal variations of the coat, with brushwork or linework that lets the texture sing.",
+  ears:
+    "Pay particular attention to the ears — their shape, set, and how they frame the face, rendered as a defining feature of this pet's character.",
+};
+
+// Anchors the model's existing breed knowledge to a name. Reference photos
+// already do the visual work — this is a flat factual sentence, no
+// adjectives. Returns "" when the breed is unknown so the caller can simply
+// concatenate without a leading-space artefact.
+function buildPetDescriptor(
+  breeds: string[] | undefined,
+  breed: string | undefined,
+): string {
+  if (breeds && breeds.length >= 2) {
+    if (breeds.length === 2) {
+      return `The pet is a ${breeds[0]}/${breeds[1]} crossbreed.`;
+    }
+    // 3 or 4 breeds — comma-separated with an Oxford-style ", and" before
+    // the last. Capped at 4 by the quiz UI.
+    const head = breeds.slice(0, -1).join(", ");
+    const tail = breeds[breeds.length - 1];
+    return `The pet is a crossbreed of ${head}, and ${tail}.`;
+  }
+  if (breed) return `The pet is a ${breed}.`;
+  return "";
+}
+
+function buildPrompt(
+  style: Style,
+  activity?: string,
+  mood?: string,
+  breeds?: string[],
+  breed?: string,
+  favouriteFeature?: string,
+): string {
   const stylePart = STYLE_PROMPTS[style];
   // Activity (what the pet is doing) leads — it sets the scene. Style then
   // dictates how that scene is rendered. Mood adds emotional flavour.
   const activityPart = activity ? ` ${ACTIVITY_PROMPTS[activity] ?? ""}` : "";
   const moodPart = mood ? ` ${MOOD_HINT[mood] ?? ""}` : "";
-  return `${stylePart}${activityPart}${moodPart} ${IDENTITY_GUARD}`;
+  const descriptor = buildPetDescriptor(breeds, breed);
+  const descriptorPart = descriptor ? ` ${descriptor}` : "";
+  const featurePart = favouriteFeature && FEATURE_EMPHASIS[favouriteFeature]
+    ? ` ${FEATURE_EMPHASIS[favouriteFeature]}`
+    : "";
+  return `${stylePart}${activityPart}${moodPart}${descriptorPart}${featurePart} ${IDENTITY_GUARD}`;
 }
 
 // ----- fal API call --------------------------------------------------------
@@ -268,14 +316,19 @@ async function generateAllStyles(
 
   const activity = session.quizAnswers?.activity;
   const mood = session.quizAnswers?.mood;
+  const breeds = session.quizAnswers?.breeds;
+  const breed = session.quizAnswers?.breed;
+  const favouriteFeature = session.quizAnswers?.favouriteFeature;
 
   // Fire chosen styles in parallel. If one fails we keep the rest;
   // returning a partial gallery is better than blanking the screen.
   const results = await Promise.allSettled(
     styles.map((style) =>
-      generateOnePortrait(ctx, buildPrompt(style, activity, mood), photos).then(
-        (urls) => ({ style, ...urls }),
-      ),
+      generateOnePortrait(
+        ctx,
+        buildPrompt(style, activity, mood, breeds, breed, favouriteFeature),
+        photos,
+      ).then((urls) => ({ style, ...urls })),
     ),
   );
 

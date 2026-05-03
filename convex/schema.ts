@@ -42,16 +42,29 @@ export default defineSchema({
     petPhotoUrls: v.optional(v.array(v.string())),
     quizAnswers: v.optional(
       v.object({
-        // Pet profile (collected first; not used in the portrait prompt).
+        // Pet profile (collected first).
         // Optional to keep older sessions valid; new sessions always set them.
         name: v.optional(v.string()),
+        // breed is the display string used everywhere downstream (PDP copy,
+        // cart lines, Stripe descriptions, gallery). For single-breed it's the
+        // breed name ("Labrador Retriever"); for crossbreeds it's the joined
+        // form ("Labrador Retriever / Poodle"). breeds is the structured form
+        // and the source of truth for the AI prompt's crossbreed phrasing —
+        // present iff the user picked crossbreed mode.
         breed: v.optional(v.string()),
+        breeds: v.optional(v.array(v.string())),
         age: v.optional(v.string()),       // "under-1" | "1-3" | "4-7" | "8-plus"
         lifestyle: v.optional(v.string()), // "homebody" | "adventurer"
         // Portrait creative direction — these feed the AI prompt.
         activity: v.string(), // "regal" | "playing" | "napping" | "adventuring"
         mood: v.string(),     // "calm" | "playful" | "regal" | "quirky"
-        room: v.string(),     // "living" | "bedroom" | "office" | "kitchen"
+        // Q7: which feature to emphasise in the prompt.
+        // "eyes" | "smile" | "fur" | "ears" | "whole-vibe"
+        favouriteFeature: v.optional(v.string()),
+        // Removed in Quiz v2. Kept optional in the validator so legacy rows
+        // still validate until the stripRoomFromQuizAnswers migration has
+        // run; the field can be deleted from this validator afterwards.
+        room: v.optional(v.string()),
       }),
     ),
     // One generation per style (always all 4).

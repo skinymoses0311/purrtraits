@@ -48,11 +48,12 @@ export const STYLE_BLURBS: Record<Style, string> = {
 export type QuizAnswers = {
   name?: string;
   breed?: string;
+  breeds?: string[];
   age?: string;
   lifestyle?: string;
   activity?: string;
   mood?: string;
-  room?: string;
+  favouriteFeature?: string;
 };
 
 type ScoreTable = Record<string, Partial<Record<Style, number>>>;
@@ -94,15 +95,6 @@ const LIFESTYLE: ScoreTable = {
   mix: { impressionist: 1, geometric: 1 },
 };
 
-const ROOM: ScoreTable = {
-  living: { oil: 1, impressionist: 1, watercolour: 1 },
-  bedroom: { watercolour: 1, sketch: 1, impressionist: 1 },
-  office: { geometric: 1, pop: 1, ukiyo: 1 },
-  kids: { comic: 2, pop: 1, geometric: 1 },
-  // The existing quiz also offers "kitchen" — left without a bonus so it
-  // simply doesn't tilt the ranking.
-};
-
 function applyTable(scores: Record<Style, number>, table: ScoreTable, value?: string) {
   if (!value) return;
   const row = table[value];
@@ -123,7 +115,6 @@ export function scoreStyles(answers: QuizAnswers | undefined): Style[] {
     applyTable(scores, ACTIVITY, answers.activity);
     applyTable(scores, AGE, answers.age);
     applyTable(scores, LIFESTYLE, answers.lifestyle);
-    applyTable(scores, ROOM, answers.room);
   }
   const indexed = ALL_STYLES.map((style, idx) => ({ style, idx, score: scores[style] }));
   indexed.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
