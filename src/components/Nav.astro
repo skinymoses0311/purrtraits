@@ -76,9 +76,10 @@ const path = Astro.url.pathname;
     border: 1.5px solid var(--c-stroke-light);
     display: inline-flex; align-items: center; justify-content: center;
     background: transparent; transition: border-color .15s ease, transform .08s ease;
+    isolation: isolate;
   }
   .nav__cart:hover { border-color: var(--c-stroke); transform: translateY(-1px); }
-  .nav__cart-icon { font-size: 17px; line-height: 1; }
+  .nav__cart-icon { position: relative; z-index: 1; font-size: 17px; line-height: 1; }
   .nav__cart-badge {
     position: absolute; top: -5px; right: -5px;
     min-width: 18px; height: 18px; padding: 0 5px;
@@ -86,6 +87,28 @@ const path = Astro.url.pathname;
     display: inline-flex; align-items: center; justify-content: center;
     font-family: var(--font-body); font-size: 10px; font-weight: 700;
     line-height: 1;
+    z-index: 2;
+    transform-origin: center;
+  }
+  .nav__cart::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: var(--c-pink-light);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .nav__cart.is-bumping::after { animation: cart-pulse 600ms ease-out; }
+  .nav__cart.is-bumping .nav__cart-badge { animation: badge-pop 320ms ease-out; }
+  @keyframes cart-pulse {
+    0%   { opacity: .9; transform: scale(1); }
+    100% { opacity: 0;  transform: scale(1.7); }
+  }
+  @keyframes badge-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.3); }
+    100% { transform: scale(1); }
   }
 
   .nav__menu {
@@ -212,9 +235,18 @@ const path = Astro.url.pathname;
   // Live cart badge — subscribes to api.cart.count so add/remove on any tab
   // is reflected without a page reload.
   const badge = document.getElementById('nav-cart-badge') as HTMLElement | null;
+  const cartLink = document.querySelector('.nav__cart') as HTMLElement | null;
   const sessionId = getSessionId();
   if (badge && sessionId) {
     const client = makeClient();
+    // Sentinel — the first callback delivers the existing count on page
+    // load and shouldn't animate; only subsequent increases should.
+    let previousCount = -1;
+    if (cartLink) {
+      cartLink.addEventListener('animationend', () => {
+        cartLink.classList.remove('is-bumping');
+      });
+    }
     client.onUpdate(api.cart.count, { sessionId: sessionId as any }, (n: number) => {
       if (n > 0) {
         badge.hidden = false;
@@ -222,6 +254,14 @@ const path = Astro.url.pathname;
       } else {
         badge.hidden = true;
       }
+      if (previousCount >= 0 && n > previousCount && cartLink) {
+        // Force reflow so re-adding the class restarts the animation
+        // when items are added in quick succession.
+        cartLink.classList.remove('is-bumping');
+        void cartLink.offsetWidth;
+        cartLink.classList.add('is-bumping');
+      }
+      previousCount = n;
     });
   }
 
