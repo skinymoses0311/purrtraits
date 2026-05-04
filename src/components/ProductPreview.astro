@@ -134,18 +134,21 @@
     border-radius: var(--r-md);
   }
 
-  /* Strip the beige presentation panel for photo slides — only the mockup
-     slide (slide 0) gets the product-container styling. */
+  /* Photo slides keep .pp's padding + gap intact so the viewport (and the
+     nav arrows centered on it) stay at the same vertical position as
+     slide 0. Only the decorative background/border is stripped so the
+     product photos read as standalone images rather than panel inserts. */
   .pp[data-format="framed"]:not([data-slide="0"]),
   .pp[data-format="canvas"]:not([data-slide="0"]),
   .pp[data-format="poster"]:not([data-slide="0"]) {
-    padding: 0;
-    gap: 12px;
     background: transparent;
     border-color: transparent;
   }
-  /* Caption only describes the mockup, so hide it on the lifestyle slides. */
-  .pp:not([data-slide="0"]) .pp__caption { display: none; }
+  /* Caption only describes the mockup, so hide it on the lifestyle slides.
+     visibility: hidden (not display: none) preserves its row so the
+     viewport height — and therefore the nav arrow Y — is identical
+     across slide types. */
+  .pp:not([data-slide="0"]) .pp__caption { visibility: hidden; }
 
   /* ---- Nav arrows + dots: visible for any physical format. ---- */
   .pp__nav, .pp__dots { display: none; }
