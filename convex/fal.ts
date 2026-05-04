@@ -66,7 +66,7 @@ const MOOD_HINT: Record<string, string> = {
 };
 
 const IDENTITY_GUARD =
-  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing.";
+  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin around the artwork — the artwork must extend edge-to-edge to all four sides of the canvas.";
 
 // Q7 routes the user's chosen feature into the prompt as a creative-direction
 // nudge. "whole-vibe" intentionally has no fragment — when the user picks it
