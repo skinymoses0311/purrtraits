@@ -49,9 +49,9 @@ const STYLE_PROMPTS: Record<Style, string> = {
 // What the pet is actually doing in the portrait — driven by Q1 of the quiz.
 const ACTIVITY_PROMPTS: Record<string, string> = {
   regal:
-    "The pet is sitting upright in a regal, dignified pose, wearing a small ornamental gold crown perched lightly atop their head, like noble portraiture. Centred head-and-shoulders composition.",
+    "The pet is sitting upright in a regal, dignified pose, wearing a small ornamental gold crown perched lightly atop their head, like noble portraiture. Centred head-and-shoulders composition. Set against a stately formal-portrait backdrop — softly draped rich fabric or a subtly textured neutral wall in muted tones, evocative of a classical portrait studio rather than any domestic interior.",
   playing:
-    "The pet is captured mid-action playing energetically with a colourful toy or ball, tail in motion, joyful expression. Dynamic full-body composition.",
+    "The pet is captured mid-action playing energetically with a colourful toy or ball, tail in motion, joyful expression. Dynamic full-body composition. Set in a bright open outdoor scene — a sunlit garden lawn, soft meadow, or painterly grassy clearing with hints of greenery and natural light, never inside a home.",
   napping:
     "The pet is curled up peacefully asleep on a soft cushion or blanket, eyes gently closed, paws tucked in. Cosy intimate composition.",
   adventuring:
@@ -66,7 +66,7 @@ const MOOD_HINT: Record<string, string> = {
 };
 
 const IDENTITY_GUARD =
-  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin around the artwork — the artwork must extend edge-to-edge to all four sides of the canvas.";
+  "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin around the artwork — the artwork must extend edge-to-edge to all four sides of the canvas. The reference photos are for the pet only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet. The portrait's setting must be the fresh environment described by the style and scene above, never the room from the reference photos. You may retain the lighting direction from the references where it helps preserve the pet's likeness, but no recognisable element of the original room or surroundings should appear in the output.";
 
 // Q7 routes the user's chosen feature into the prompt as a creative-direction
 // nudge. "whole-vibe" intentionally has no fragment — when the user picks it
