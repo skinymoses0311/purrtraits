@@ -72,7 +72,7 @@
 
 <style>
   .pp {
-    margin: 0; padding: 24px 16px; display: flex; flex-direction: column;
+    margin: 0; padding: 24px 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 16px;
     aspect-ratio: 1 / 1;
     background: var(--c-fill);
@@ -84,7 +84,9 @@
 
   /* ---- Carousel viewport — wraps the slides + nav arrows. The viewport
      flex-grows inside the square figure so the slide area is whatever
-     vertical space is left after the dots + caption row. ---- */
+     vertical space is left after the dots + caption row. Spans full width
+     of .pp (no horizontal padding) so the nav arrows sit at the same
+     horizontal offset on both slide types. ---- */
   .pp__viewport {
     position: relative;
     display: flex;
