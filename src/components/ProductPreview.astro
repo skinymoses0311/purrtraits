@@ -72,33 +72,38 @@
 
 <style>
   .pp {
-    margin: 0; padding: 36px 16px 28px; display: flex; flex-direction: column;
-    align-items: center; gap: 56px; background: var(--c-fill);
+    margin: 0; padding: 24px 16px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    aspect-ratio: 1 / 1;
+    background: var(--c-fill);
     border-radius: var(--r-md); border: 1px solid var(--c-stroke-light);
   }
   /* The framed format casts the heaviest drop shadow (~34px below the frame),
      so we add extra margin under the stage to keep the shadow out of the caption. */
   .pp[data-format="framed"] .pp__stage { margin-bottom: 8px; }
 
-  /* ---- Carousel viewport — wraps the slides + nav arrows. ---- */
+  /* ---- Carousel viewport — wraps the slides + nav arrows. The viewport
+     flex-grows inside the square figure so the slide area is whatever
+     vertical space is left after the dots + caption row. ---- */
   .pp__viewport {
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
   /* Slides: only the active one is visible. Each photo slide is tagged with
      the format it belongs to so canvas/poster don't accidentally show frame
      photos (and vice-versa). */
   .pp__slide { display: none; }
-  /* Slide 0 is a square viewport that centers the artwork. The artwork keeps
-     its natural aspect ratio inside the square — we letterbox the container,
-     not the image. */
+  /* Slide 0 fills the viewport and centers the artwork. The artwork keeps
+     its natural aspect ratio — we letterbox the container, not the image. */
   .pp__slide--mockup {
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 100%;
   }
   .pp[data-slide="0"] .pp__slide--mockup {
     display: flex;
@@ -117,7 +122,7 @@
      the image goes corner-to-corner instead of sitting on the beige panel. */
   .pp__slide--photo {
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 100%;
   }
   .pp__photo {
     display: block;
@@ -137,12 +142,6 @@
     background: transparent;
     border-color: transparent;
   }
-  /* The dots' negative margin tucks them under the mockup's drop shadow;
-     on photo slides there is no shadow so reset it to avoid overlap. */
-  .pp[data-format="framed"]:not([data-slide="0"]) .pp__dots,
-  .pp[data-format="canvas"]:not([data-slide="0"]) .pp__dots,
-  .pp[data-format="poster"]:not([data-slide="0"]) .pp__dots { margin-top: 0; }
-
   /* Caption only describes the mockup, so hide it on the lifestyle slides. */
   .pp:not([data-slide="0"]) .pp__caption { display: none; }
 
@@ -175,7 +174,6 @@
 
   .pp__dots {
     justify-content: center; gap: 8px;
-    margin-top: -32px; /* tuck dots up under the stage's bottom margin */
   }
   .pp__dot {
     width: 8px; height: 8px;
