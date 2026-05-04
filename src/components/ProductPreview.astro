@@ -93,7 +93,18 @@
      the format it belongs to so canvas/poster don't accidentally show frame
      photos (and vice-versa). */
   .pp__slide { display: none; }
-  .pp[data-slide="0"] .pp__slide--mockup { display: block; }
+  /* Slide 0 is a square viewport that centers the artwork. The artwork keeps
+     its natural aspect ratio inside the square — we letterbox the container,
+     not the image. */
+  .pp__slide--mockup {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+  }
+  .pp[data-slide="0"] .pp__slide--mockup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .pp[data-format="framed"][data-slide="1"] .pp__slide[data-photo-format="framed"][data-slide="1"],
   .pp[data-format="framed"][data-slide="2"] .pp__slide[data-photo-format="framed"][data-slide="2"],
   .pp[data-format="framed"][data-slide="3"] .pp__slide[data-photo-format="framed"][data-slide="3"],
@@ -183,10 +194,14 @@
   }
 
   /* The stage is a width-constrained wrapper. Height adjusts to whatever
-     aspect ratio the artwork actually has, so we never crop it. */
+     aspect ratio the artwork actually has, so we never crop it. The
+     max-height cap keeps super-portrait artworks from overflowing the
+     1:1 slide viewport. */
   .pp__stage {
     position: relative;
     width: var(--art-w, 240px);
+    max-width: 100%;
+    max-height: 100%;
   }
 
   /* Floor shadow sits below the stage in the figure's flex flow rather than
