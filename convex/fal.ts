@@ -27,23 +27,23 @@ const STYLE_PROMPTS: Record<Style, string> = {
   oil:
     "Render the scene as a masterful classical oil painting in the style of 19th-century European portraiture. Rich layered brushstrokes with visible texture, warm chiaroscuro lighting, deep shadows, museum-quality finish. Soft painterly neutral background tones (deep umber to ochre) where the scene allows. Elegant and timeless.",
   watercolour:
-    "Render the scene as a delicate watercolour painting. Soft translucent washes of pigment, subtle paper texture, gentle blooms where colors bleed at the edges, light pastel palette with airy negative space. Loose impressionistic brushwork while keeping the pet's features precise. Light cream paper background.",
+    "Render the scene as a delicate watercolour painting. Soft translucent washes of pigment, subtle paper-grain texture filling the entire canvas to every edge, gentle blooms where colors bleed across the surface, light pastel palette with airy negative space. Loose impressionistic brushwork while keeping the pet's features precise. The cream paper-textured surface extends fully to all four edges of the canvas — never depict the edges of a sheet of paper.",
   pop:
-    "Render the scene as a bold Andy Warhol-style pop art print. Vibrant flat blocks of saturated color, high-contrast outlines, retro silkscreen aesthetic, halftone dot patterns, two or three colour palette. Graphic and punchy.",
+    "Render the scene as a bold Andy Warhol-style pop art image. Vibrant flat blocks of saturated color, high-contrast outlines, retro silkscreen colour palette and halftone dot feel, two or three colour palette. Graphic and punchy. Treat this as a full-bleed digital artwork that extends to every edge of the canvas — do NOT add a printed silkscreen border, ink margin, black rectangle, or any framing bar around the image.",
   sketch:
-    "Render the scene as a hand-drawn pencil and charcoal sketch with a timeless monochrome feel. Fine graphite linework, layered crosshatching for tonal shading, soft smudged charcoal in the shadows, subtle paper grain visible throughout. Detailed naturalistic drawing on warm off-white paper, no colour beyond a faint sepia cast. Refined, classical, hand-crafted.",
+    "Render the scene as a hand-drawn pencil and charcoal sketch with a timeless monochrome feel. Fine graphite linework, layered crosshatching for tonal shading, soft smudged charcoal in the shadows, subtle paper-grain texture throughout. The warm off-white paper-textured surface fills the entire canvas to every edge, with no colour beyond a faint sepia cast. Refined, classical, hand-crafted — never depict the edges of a sheet of paper.",
   impressionist:
     "Render the scene as a Monet-style impressionist painting. Soft broken brushwork in dabs and short strokes, dreamy diffused natural light, harmonious dappled colour palette of muted pastels, less defined edges where forms melt into background. Painterly atmosphere with visible canvas texture, romantic and luminous.",
   ukiyo:
-    "Render the scene as a Japanese woodblock print in the Ukiyo-e tradition (think Hokusai or Hiroshige). Bold confident black outlines, flat areas of solid colour with no gradients, limited refined palette of indigo, vermillion, ochre and ink black, decorative patterning, subtle paper texture. Graphic, elegant, and balanced.",
+    "Render the scene in the Japanese woodblock-print visual tradition of Ukiyo-e (think Hokusai or Hiroshige). Bold confident black outlines, flat areas of solid colour with no gradients, limited refined palette of indigo, vermillion, ochre and ink black, decorative patterning, subtle paper-grain texture filling the canvas. Graphic, elegant, and balanced. The artwork must fill the entire canvas to all four edges — do NOT depict the edges of a printed sheet of paper, a paper margin, a cartouche border, or any white/cream unprinted area around the image.",
   renaissance:
-    "Render the scene as a formal Renaissance royal portrait in the manner of the Old Masters. Ornate background with deep velvet drapery, gold filigree detailing and a heraldic motif, classical sidelight chiaroscuro illuminating the subject, rich earthy palette of crimson, gold and umber. Very regal, dignified, museum-quality oil-on-canvas finish.",
+    "Render the scene as a formal Renaissance royal portrait in the manner of the Old Masters. Ornate painted backdrop of deep velvet drapery, gold-thread embroidery and a heraldic motif worked into the cloth itself, classical sidelight chiaroscuro illuminating the subject, rich earthy palette of crimson, gold and umber. Very regal, dignified, museum-quality oil-on-canvas finish. Any decorative gold detail belongs within the painted backdrop only — do NOT render a gilded picture frame, ornate moulding, or any frame-shaped border around the artwork.",
   comic:
     "Render the scene in a modern comic book / graphic novel style. Bold inked black outlines of varying weight, cel-shaded vibrant flat colour with crisp shadow shapes, dynamic energetic feel, subtle halftone dot shading, action-focused composition. High contrast and punchy without being silly.",
   geometric:
     "Render the scene in a low-poly geometric style. Form built from angular faceted triangular planes, clean flat-shaded surfaces with subtle gradients between facets, modern and striking modern graphic aesthetic, considered colour palette. Crisp vector-like edges, contemporary and decorative.",
   botanical:
-    "Render the scene as a vintage botanical illustration in the style of 19th-century Victorian scientific plates. Fine ink linework with delicate stippling and crosshatching, muted earthy watercolour washes (sepia, sage, dusty rose, ochre), refined and naturalistic, on aged cream paper with subtle foxing. Elegant, scholarly, and timeless.",
+    "Render the scene as a vintage botanical illustration in the style of 19th-century Victorian scientific plates. Fine ink linework with delicate stippling and crosshatching, muted earthy watercolour washes (sepia, sage, dusty rose, ochre), refined and naturalistic, across an aged cream paper-textured surface with subtle foxing that fills the canvas to every edge. Elegant, scholarly, and timeless — never depict the edges of a printed plate or sheet of paper, no margin or border around the artwork.",
 };
 
 // What the pet is actually doing in the portrait — driven by Q1 of the quiz.
@@ -82,27 +82,43 @@ const FEATURE_EMPHASIS: Record<string, string> = {
     "Pay particular attention to the ears — their shape, set, and how they frame the face, rendered as a defining feature of this pet's character.",
 };
 
-// Anchors the model's existing breed knowledge to a name. Reference photos
-// already do the visual work — this is a flat factual sentence, no
-// adjectives. Returns "" when the breed is unknown so the caller can simply
-// concatenate without a leading-space artefact.
-function buildPetDescriptor(
+// The breed name is included for vocabulary only — the reference photos are
+// the source of truth for the pet's actual appearance. Phrasing this as a
+// flat fact ("The pet is a Labrador Retriever.") biases the model toward a
+// breed-stereotypical render and away from the user's photos. Pairing the
+// breed with explicit primacy language for the photos prevents that drift.
+// Returns "" when the breed is unknown so the caller can simply concatenate
+// without a leading-space artefact.
+function buildBreedPrimacy(
   breeds: string[] | undefined,
   breed: string | undefined,
 ): string {
+  let breedPhrase: string;
   if (breeds && breeds.length >= 2) {
     if (breeds.length === 2) {
-      return `The pet is a ${breeds[0]}/${breeds[1]} crossbreed.`;
+      breedPhrase = `a ${breeds[0]}/${breeds[1]} crossbreed`;
+    } else {
+      // 3 or 4 breeds — capped at 4 by the quiz UI.
+      const head = breeds.slice(0, -1).join(", ");
+      const tail = breeds[breeds.length - 1];
+      breedPhrase = `a crossbreed of ${head}, and ${tail}`;
     }
-    // 3 or 4 breeds — comma-separated with an Oxford-style ", and" before
-    // the last. Capped at 4 by the quiz UI.
-    const head = breeds.slice(0, -1).join(", ");
-    const tail = breeds[breeds.length - 1];
-    return `The pet is a crossbreed of ${head}, and ${tail}.`;
+  } else if (breed) {
+    breedPhrase = `a ${breed}`;
+  } else {
+    return "";
   }
-  if (breed) return `The pet is a ${breed}.`;
-  return "";
+  return `Note for vocabulary only: the pet is ${breedPhrase}. The reference photos are the absolute source of truth for this individual pet's appearance — render the exact pet shown, not a breed-typical example. If the pet's fur colour, markings, build, ear shape, eye colour, or any other visible feature differs from what is typical for the breed, follow the photos and ignore the breed.`;
 }
+
+// Leads every prompt. Diffusion-style models weight earlier text more, and the
+// negative-only border rule at the end of IDENTITY_GUARD has not been strong
+// enough on its own — several styles (ukiyo, pop, sketch, watercolour,
+// botanical, renaissance) implicitly carry "artwork-on-a-substrate" framing
+// that produces paper margins or silkscreen borders. Stating the rule first,
+// in capitals, gives it priority over those style cues.
+const FULL_BLEED_LEAD =
+  "FULL-BLEED, EDGE-TO-EDGE ARTWORK. The artwork must completely fill the canvas with absolutely no border, frame, mat, paper margin, silkscreen edge, painted edge, ornate moulding, drawn rectangle, or unprinted area — every pixel up to the canvas edge is part of the artwork itself.";
 
 function buildPrompt(
   style: Style,
@@ -117,12 +133,15 @@ function buildPrompt(
   // dictates how that scene is rendered. Mood adds emotional flavour.
   const activityPart = activity ? ` ${ACTIVITY_PROMPTS[activity] ?? ""}` : "";
   const moodPart = mood ? ` ${MOOD_HINT[mood] ?? ""}` : "";
-  const descriptor = buildPetDescriptor(breeds, breed);
-  const descriptorPart = descriptor ? ` ${descriptor}` : "";
   const featurePart = favouriteFeature && FEATURE_EMPHASIS[favouriteFeature]
     ? ` ${FEATURE_EMPHASIS[favouriteFeature]}`
     : "";
-  return `${stylePart}${activityPart}${moodPart}${descriptorPart}${featurePart} ${IDENTITY_GUARD}`;
+  // BREED_PRIMACY sits immediately before IDENTITY_GUARD so the model reads
+  // the breed name and the "follow the photos, never the breed" rule as one
+  // adjacent block. Empty when breed is unknown.
+  const breedPrimacy = buildBreedPrimacy(breeds, breed);
+  const breedPrimacyPart = breedPrimacy ? ` ${breedPrimacy}` : "";
+  return `${FULL_BLEED_LEAD} ${stylePart}${activityPart}${moodPart}${featurePart}${breedPrimacyPart} ${IDENTITY_GUARD}`;
 }
 
 // ----- fal API call --------------------------------------------------------
