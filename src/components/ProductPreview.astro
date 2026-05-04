@@ -120,11 +120,13 @@
   .pp[data-format="poster"][data-slide="1"] .pp__slide[data-photo-format="poster"][data-slide="1"],
   .pp[data-format="poster"][data-slide="2"] .pp__slide[data-photo-format="poster"][data-slide="2"] { display: block; }
 
-  /* Photo slides fill the viewport edge-to-edge using object-fit: cover, so
-     the image goes corner-to-corner instead of sitting on the beige panel. */
+  /* Photo slides are 1:1 like the source assets — sized by viewport height
+     so the square stays square inside the wider-than-tall viewport, with
+     the beige panel showing on either side rather than the photo getting
+     cover-cropped top/bottom. */
   .pp__slide--photo {
-    width: 100%;
     height: 100%;
+    aspect-ratio: 1 / 1;
   }
   .pp__photo {
     display: block;
