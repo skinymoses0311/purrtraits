@@ -2,6 +2,7 @@ import { mutation, query, internalQuery, internalMutation } from "./_generated/s
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { scoreStyles } from "./styleScoring";
+import { currencyValidator } from "./currency";
 
 export const create = mutation({
   args: {},
@@ -21,6 +22,20 @@ export const create = mutation({
 export const get = query({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
+// Stamps the buyer's currency on the session. Called once on first visit
+// after /api/geo resolves a country, and any time the user picks a different
+// currency from the footer toggle. Idempotent — no-op if already set to the
+// same value.
+export const setPreferredCurrency = mutation({
+  args: { id: v.id("sessions"), currency: currencyValidator },
+  handler: async (ctx, { id, currency }) => {
+    const session = await ctx.db.get(id);
+    if (!session) throw new Error("Session not found");
+    if (session.preferredCurrency === currency) return;
+    await ctx.db.patch(id, { preferredCurrency: currency });
+  },
 });
 
 export const getInternal = internalQuery({

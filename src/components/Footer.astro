@@ -18,9 +18,65 @@ const year = new Date().getFullYear();
       <a href="/cookies" class="footer__link">Cookie Policy</a>
     </nav>
 
+    <div class="footer__currency">
+      <label for="footer-currency" class="footer__currency-label muted">Currency</label>
+      <select id="footer-currency" class="footer__currency-select" aria-label="Currency">
+        <option value="usd">$ USD</option>
+        <option value="gbp">£ GBP</option>
+        <option value="eur">€ EUR</option>
+        <option value="cad">CA$ CAD</option>
+        <option value="aud">A$ AUD</option>
+      </select>
+    </div>
+
     <p class="footer__copy muted">© {year} Purrtraits. All rights reserved.</p>
   </div>
 </footer>
+
+<script>
+  // Footer currency toggle. Drives both the local cache (so a future page
+  // load doesn't redetect via /api/geo) and the Convex session (so the
+  // cart/checkout query reprices server-side). Mirrors the auto-detected
+  // value back into the select on load so the dropdown reflects the user's
+  // actual currency.
+  import { makeClient, getSessionId } from "../lib/client.ts";
+  import {
+    ensureCurrencyForSession,
+    getCachedCurrency,
+    setCurrency,
+    onCurrencyChange,
+    type Currency,
+  } from "../lib/currency.ts";
+
+  const select = document.getElementById("footer-currency") as HTMLSelectElement | null;
+  if (select) {
+    const cached = getCachedCurrency();
+    if (cached) select.value = cached;
+
+    // Resolve currency lazily so users on read-only pages (privacy, cookies)
+    // still get the auto-detect on first visit, just deferred until the
+    // footer hydrates. We only patch the Convex session if one already
+    // exists — pages without a session should not create one solely for
+    // currency detection.
+    const sessionId = getSessionId();
+    const client = makeClient();
+    void ensureCurrencyForSession(client, sessionId).then((currency) => {
+      select.value = currency;
+    });
+
+    // Other pages dispatch currency-change events when the user toggles
+    // there; reflect those back in the dropdown so a multi-tab user sees
+    // the toggle stay consistent.
+    onCurrencyChange((currency) => {
+      select.value = currency;
+    });
+
+    select.addEventListener("change", async () => {
+      const next = select.value as Currency;
+      await setCurrency(client, sessionId, next);
+    });
+  }
+</script>
 
 <style>
   .footer {
@@ -86,6 +142,30 @@ const year = new Date().getFullYear();
     border-color: var(--c-pink);
     background: var(--c-white);
   }
+  .footer__currency {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .footer__currency-label {
+    font-size: 13px;
+  }
+  .footer__currency-select {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--c-text);
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-pill);
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: border-color .15s ease;
+  }
+  .footer__currency-select:hover,
+  .footer__currency-select:focus {
+    border-color: var(--c-pink);
+    outline: none;
+  }
   .footer__copy {
     font-size: 13px;
     color: var(--c-text);
@@ -99,6 +179,7 @@ const year = new Date().getFullYear();
       align-items: center;
       text-align: left;
       gap: 24px;
+      flex-wrap: wrap;
     }
     .footer__brand { align-items: flex-start; }
     .footer__copy { text-align: right; }

@@ -162,7 +162,10 @@ import Layout from "../layouts/Layout.astro";
       item_category: product.format,
       item_variant: product.size,
       item_brand: "Purrtraits",
-      price: (product.priceCents ?? 0) / 100,
+      // unitPriceCents is the per-line snapshot captured at checkout time
+      // (in the order's currency). Preferred over re-reading the product's
+      // current price, which may now be in a different currency.
+      price: (it.unitPriceCents ?? 0) / 100,
       quantity: it.quantity,
       portrait_style: it.style,
     };
@@ -206,6 +209,8 @@ import Layout from "../layouts/Layout.astro";
     switch (currency.toUpperCase()) {
       case "GBP": return "£";
       case "EUR": return "€";
+      case "CAD": return "CA$";
+      case "AUD": return "A$";
       default:    return "$";
     }
   }

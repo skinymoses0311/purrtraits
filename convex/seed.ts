@@ -19,11 +19,33 @@ const FRAMES = [
   { frame: "dark-wood" as const, label: "Dark Wood" },
 ];
 
-// Placeholder pricing (USD cents). Tweak any time.
+// Placeholder pricing per currency, in minor units. Hand-tuned to round
+// endings (.99) per currency rather than FX-converting at runtime so prices
+// are stable and locale-customary. Tweak any time.
+const DIGITAL_PRICES = {
+  usd: 999,
+  gbp: 799,
+  eur: 999,
+  cad: 1399,
+  aud: 1499,
+} as const;
+
 const PRICES = {
-  poster: { small: 1999, medium: 2999, large: 3999 },
-  framed: { small: 5999, medium: 7999, large: 9999 },
-  canvas: { small: 4999, medium: 6999, large: 8999 },
+  poster: {
+    small:  { usd: 1999, gbp: 1599, eur: 1899, cad: 2799, aud: 2999 },
+    medium: { usd: 2999, gbp: 2399, eur: 2799, cad: 4099, aud: 4499 },
+    large:  { usd: 3999, gbp: 3199, eur: 3699, cad: 5499, aud: 5999 },
+  },
+  framed: {
+    small:  { usd: 5999, gbp: 4799, eur: 5499, cad: 8199,  aud: 9099  },
+    medium: { usd: 7999, gbp: 6299, eur: 7399, cad: 10899, aud: 12099 },
+    large:  { usd: 9999, gbp: 7899, eur: 9199, cad: 13599, aud: 15099 },
+  },
+  canvas: {
+    small:  { usd: 4999, gbp: 3999, eur: 4599, cad: 6799,  aud: 7599  },
+    medium: { usd: 6999, gbp: 5499, eur: 6499, cad: 9499,  aud: 10599 },
+    large:  { usd: 8999, gbp: 7099, eur: 8299, cad: 12199, aud: 13599 },
+  },
 } as const;
 
 const SIZE_LABEL = {
@@ -84,8 +106,7 @@ export const seedV1Catalog = action({
       name: "Digital Portrait",
       format: "digital",
       size: "small", // placeholder; digital has no real size
-      priceCents: 999,
-      currency: "usd",
+      prices: DIGITAL_PRICES,
       active: true,
     });
     inserted++;
@@ -101,8 +122,7 @@ export const seedV1Catalog = action({
         format: "poster",
         size,
         gelatoProductUid: posterUid,
-        priceCents: PRICES.poster[size],
-        currency: "usd",
+        prices: PRICES.poster[size],
         active: true,
       });
       inserted++;
@@ -121,8 +141,7 @@ export const seedV1Catalog = action({
           size,
           frame,
           gelatoProductUid: framedUid,
-          priceCents: PRICES.framed[size],
-          currency: "usd",
+          prices: PRICES.framed[size],
           active: true,
         });
         inserted++;
@@ -139,8 +158,7 @@ export const seedV1Catalog = action({
         format: "canvas",
         size,
         gelatoProductUid: canvasUid,
-        priceCents: PRICES.canvas[size],
-        currency: "usd",
+        prices: PRICES.canvas[size],
         active: true,
       });
       inserted++;

@@ -74,11 +74,19 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
+  import {
+    ensureCurrencyForSession,
+    onCurrencyChange,
+    formatMoney,
+    type Currency,
+  } from "../lib/currency.ts";
 
   type Format = "digital" | "poster" | "framed" | "canvas";
 
   // Map a cart line into the GA4 ecommerce item shape. quantity comes from
   // the line, price reflects the unit (not line) cost so GA can multiply.
+  // unitPriceCents is set server-side by cart.getWithProducts in the
+  // resolved currency, so the value here is already in the buyer's currency.
   function lineToEcommerceItem(it: any) {
     const product = it.product ?? {};
     const sizePart = product.format === "digital" || !product.size ? "" : ` - ${product.size}`;
@@ -89,7 +97,7 @@ import Layout from "../layouts/Layout.astro";
       item_category: product.format,
       item_variant: product.size,
       item_brand: "Purrtraits",
-      price: (product.priceCents ?? 0) / 100,
+      price: (it.unitPriceCents ?? 0) / 100,
       quantity: it.quantity,
       portrait_style: it.style,
     };
@@ -116,9 +124,8 @@ import Layout from "../layouts/Layout.astro";
     "dark-wood": "Dark wood",
   };
 
-  const fmt = (cents: number, currency = "usd") =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency: currency.toUpperCase() })
-      .format(cents / 100);
+  const fmt = (cents: number, currency: Currency | string = "usd") =>
+    formatMoney(cents, currency);
 
   const sessionId = getSessionId();
   const withItems = document.getElementById("cart-with-items")!;
@@ -259,7 +266,30 @@ import Layout from "../layouts/Layout.astro";
       attachImageLoading();
     }
 
-    client.onUpdate(api.cart.getWithProducts, { sessionId: sessionId as any }, showEmptyOrItems);
+    // Pass the buyer's currency along with the cart query so the server
+    // reprices subtotal/shipping/total in the resolved currency. When the
+    // user toggles currency in the footer, tear down the live subscription
+    // and reopen it with the new currency arg so prices update immediately
+    // — otherwise we'd be looking at the cached subscription keyed off the
+    // old arg and wouldn't see new totals until a full reload.
+    let currency: Currency = await ensureCurrencyForSession(client, sessionId);
+    let cartUnsub = client.onUpdate(
+      api.cart.getWithProducts,
+      { sessionId: sessionId as any, currency },
+      showEmptyOrItems,
+    );
+    onCurrencyChange((next) => {
+      currency = next;
+      // Reset the once-per-page latch so we re-emit view_cart with the
+      // newly priced cart (totals are denominated in the new currency).
+      viewCartFired = false;
+      cartUnsub();
+      cartUnsub = client.onUpdate(
+        api.cart.getWithProducts,
+        { sessionId: sessionId as any, currency },
+        showEmptyOrItems,
+      );
+    });
 
     checkoutBtn.addEventListener("click", async () => {
       const original = checkoutBtn.textContent;

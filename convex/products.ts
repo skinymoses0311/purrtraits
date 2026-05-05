@@ -1,5 +1,6 @@
 import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { pricesValidator } from "./currency";
 
 export const list = query({
   args: {},
@@ -41,8 +42,7 @@ const productFields = {
     v.union(v.literal("natural-wood"), v.literal("dark-wood")),
   ),
   gelatoProductUid: v.optional(v.string()),
-  priceCents: v.number(),
-  currency: v.string(),
+  prices: pricesValidator,
   printFileUrl: v.optional(v.string()),
   active: v.boolean(),
 };

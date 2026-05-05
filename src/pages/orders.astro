@@ -737,7 +737,7 @@ import Layout from "../layouts/Layout.astro";
     const showEta = badge === "printing" || badge === "shipped";
     const eta = showEta ? formatEta(rec.order) : "";
     const dateStr = formatDate(rec.order._creationTime);
-    const total = formatMoney(rec.order.amountTotal ?? 0, rec.order.currency ?? "GBP");
+    const total = formatMoney(rec.order.amountTotal ?? 0, rec.order.currency ?? "USD");
 
     return `
       <button type="button" class="order-row" data-idx="${idx}">
@@ -959,7 +959,7 @@ import Layout from "../layouts/Layout.astro";
     if (o.shipping?.country) {
       rows.push(["Shipping to", `${o.shipping.city}, ${o.shipping.country}`]);
     }
-    const total = formatMoney(o.amountTotal ?? 0, o.currency ?? "GBP");
+    const total = formatMoney(o.amountTotal ?? 0, o.currency ?? "USD");
 
     return `
       <div class="drawer-receipt">

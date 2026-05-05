@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import Stripe from "stripe";
 import type { Id } from "./_generated/dataModel";
 import { formatProductDescription } from "./productCopy";
+import { SHIPPING_CENTS_BY_CURRENCY } from "./currency";
 
 // Indexed-access type lookup: Stripe SDK 22.x re-exports SessionCreateParams
 // as a type alias in Checkout/index.d.ts, which strips the companion
@@ -32,7 +33,6 @@ const ALLOWED_SHIPPING_COUNTRIES: AllowedCountry[] = [
   "UA","UG","US","UY","UZ","VA","VC","VE","VG","VN","VU","WF","WS","XK","YE","YT","ZA","ZM","ZW","ZZ",
 ];
 
-const SHIPPING_FLAT_CENTS = 3000;
 
 // Builds a Stripe Checkout session for the entire cart on the given Convex
 // session. Server re-prices every line from the products table — the client
@@ -64,7 +64,7 @@ export const createCheckoutSession = action({
         quantity: item.quantity,
         price_data: {
           currency,
-          unit_amount: item.product.priceCents,
+          unit_amount: item.unitPriceCents,
           product_data: {
             name: item.product.name,
             description: formatProductDescription(
@@ -94,7 +94,10 @@ export const createCheckoutSession = action({
         {
           shipping_rate_data: {
             type: "fixed_amount",
-            fixed_amount: { amount: SHIPPING_FLAT_CENTS, currency },
+            fixed_amount: {
+              amount: SHIPPING_CENTS_BY_CURRENCY[currency],
+              currency,
+            },
             display_name: "Worldwide standard",
             delivery_estimate: {
               minimum: { unit: "business_day", value: 5 },
@@ -128,7 +131,7 @@ export const createCheckoutSession = action({
         petName: item.petName,
         breed: item.breed,
         quantity: item.quantity,
-        unitPriceCents: item.product.priceCents,
+        unitPriceCents: item.unitPriceCents,
       })),
     });
 

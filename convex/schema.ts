@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
+import { currencyValidator, pricesValidator } from "./currency";
 
 export default defineSchema({
   // Convex Auth tables (users, authAccounts, authSessions, etc.). The `users`
@@ -36,6 +37,10 @@ export default defineSchema({
   // creation time.
   sessions: defineTable({
     userId: v.optional(v.id("users")),
+    // Buyer's selected currency. Set on first visit by /api/geo (Vercel
+    // header lookup) and overridden by the footer toggle. Optional so legacy
+    // sessions still validate; cart pricing falls back to USD when missing.
+    preferredCurrency: v.optional(currencyValidator),
     // Multiple pet photos: more reference images = better likeness from
     // Nano Banana. Stored as parallel arrays.
     petPhotoStorageIds: v.optional(v.array(v.id("_storage"))),
@@ -164,8 +169,9 @@ export default defineSchema({
     ),
     // gelatoProductUid is optional now — digital SKUs don't have one.
     gelatoProductUid: v.optional(v.string()),
-    priceCents: v.number(),
-    currency: v.string(),
+    // Per-currency price set in minor units (cents/pence). Hand-tuned to
+    // round-number endings per currency; see convex/currency.ts.
+    prices: pricesValidator,
     printFileUrl: v.optional(v.string()),
     active: v.boolean(),
   })

@@ -1,5 +1,17 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  type Currency,
+  SHIPPING_CENTS_BY_CURRENCY,
+  currencyValidator,
+} from "./currency";
+
+// Resolve which currency a cart should be priced in. Order of precedence:
+//   1. The session's preferredCurrency (set by /api/geo or footer toggle).
+//   2. USD as global fallback.
+function resolveCurrency(preferred: Currency | undefined): Currency {
+  return preferred ?? "usd";
+}
 
 // Add an item to the session cart.
 //   - merges duplicates by (productId + printFileUrl)
@@ -101,9 +113,16 @@ export const clear = mutation({
 
 // Cart joined with product info — what the cart UI and the count badge use.
 // Computes subtotal/shipping/total server-side so the UI never has to.
+//
+// Currency precedence: optional `currency` arg first (so the cart page can
+// reprice live when the user toggles), else the session's preferredCurrency,
+// else USD.
 export const getWithProducts = query({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
+  args: {
+    sessionId: v.id("sessions"),
+    currency: v.optional(currencyValidator),
+  },
+  handler: async (ctx, { sessionId, currency }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) return null;
     const lines = session.cart ?? [];
@@ -122,18 +141,20 @@ export const getWithProducts = query({
         Boolean(i.product && i.product.active),
     );
 
+    const resolved = resolveCurrency(currency ?? session.preferredCurrency);
+
     let subtotalCents = 0;
     let physicalCount = 0;
     let unitCount = 0;
     for (const { line, product } of valid) {
-      subtotalCents += product.priceCents * line.quantity;
+      const unit = product.prices[resolved];
+      subtotalCents += unit * line.quantity;
       unitCount += line.quantity;
       if (product.format !== "digital") physicalCount += line.quantity;
     }
 
-    const shippingCents = physicalCount > 0 ? 3000 : 0;
+    const shippingCents = physicalCount > 0 ? SHIPPING_CENTS_BY_CURRENCY[resolved] : 0;
     const totalCents = subtotalCents + shippingCents;
-    const currency = valid[0]?.product.currency ?? "usd";
 
     return {
       items: valid.map(({ line, product }, index) => ({
@@ -146,12 +167,13 @@ export const getWithProducts = query({
         breed: line.breed,
         quantity: line.quantity,
         product,
-        lineTotalCents: product.priceCents * line.quantity,
+        unitPriceCents: product.prices[resolved],
+        lineTotalCents: product.prices[resolved] * line.quantity,
       })),
       subtotalCents,
       shippingCents,
       totalCents,
-      currency,
+      currency: resolved,
       unitCount,
       physicalCount,
     };
@@ -179,11 +201,12 @@ export const getInternalForCheckout = internalQuery({
         Boolean(i.product && i.product.active),
     );
 
+    const resolved = resolveCurrency(session.preferredCurrency);
+
     let physicalCount = 0;
     for (const { line, product } of valid) {
       if (product.format !== "digital") physicalCount += line.quantity;
     }
-    const currency = valid[0]?.product.currency ?? "usd";
 
     return {
       items: valid.map(({ line, product }) => ({
@@ -195,9 +218,10 @@ export const getInternalForCheckout = internalQuery({
         breed: line.breed,
         quantity: line.quantity,
         product,
+        unitPriceCents: product.prices[resolved],
       })),
       physicalCount,
-      currency,
+      currency: resolved,
     };
   },
 });
