@@ -221,10 +221,20 @@ export const fulfillConvexOrder = internalAction({
       await ctx.runMutation(internal.orders.setStatus, { id: orderId, status: "failed" });
       throw new Error(`Gelato order create failed (${res.status}): ${text}`);
     }
-    const gelatoOrder = (await res.json()) as { id: string };
+    const gelatoOrder = (await res.json()) as {
+      id: string;
+      shipment?: { minDeliveryDate?: string; maxDeliveryDate?: string };
+    };
+    const parseDate = (s: string | undefined): number | undefined => {
+      if (!s) return undefined;
+      const t = Date.parse(s);
+      return Number.isFinite(t) ? t : undefined;
+    };
     await ctx.runMutation(internal.orders.setFulfilling, {
       id: orderId,
       gelatoOrderId: gelatoOrder.id,
+      etaMinAt: parseDate(gelatoOrder.shipment?.minDeliveryDate),
+      etaMaxAt: parseDate(gelatoOrder.shipment?.maxDeliveryDate),
     });
   },
 });
@@ -273,7 +283,20 @@ export const handleWebhook = internalAction({
       const fetched = await ctx.runAction(internal.brevo.fetchGelatoTracking, {
         gelatoOrderId: e.orderId,
       });
-      tracking = fetched ?? undefined;
+      if (fetched) {
+        // Persist whatever Gelato returned so /orders can render the
+        // tracking pill + refined ETA without an extra API hop. The
+        // setTracking mutation only runs when we actually got a URL.
+        if (fetched.tracking) {
+          await ctx.runMutation(internal.orders.setTracking, {
+            id: order._id,
+            tracking: fetched.tracking,
+            etaMinAt: fetched.etaMinAt,
+            etaMaxAt: fetched.etaMaxAt,
+          });
+          tracking = fetched.tracking;
+        }
+      }
     }
 
     await ctx.scheduler.runAfter(0, internal.brevo.sendStatusEmail, {

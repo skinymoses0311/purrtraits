@@ -1,6 +1,7 @@
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Doc, Id } from "./_generated/dataModel";
 
 const shippingValidator = v.object({
   name: v.string(),
@@ -147,9 +148,44 @@ export const getByStripeSession = query({
 });
 
 export const setFulfilling = internalMutation({
-  args: { id: v.id("orders"), gelatoOrderId: v.string() },
-  handler: async (ctx, { id, gelatoOrderId }) => {
-    await ctx.db.patch(id, { status: "fulfilling", gelatoOrderId });
+  args: {
+    id: v.id("orders"),
+    gelatoOrderId: v.string(),
+    // Captured from Gelato's create-order response when present. Stored
+    // here so /orders can show a real ETA range from the moment the order
+    // is accepted, without a follow-up API call.
+    etaMinAt: v.optional(v.number()),
+    etaMaxAt: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, gelatoOrderId, etaMinAt, etaMaxAt }) => {
+    const patch: Partial<Doc<"orders">> = {
+      status: "fulfilling",
+      gelatoOrderId,
+    };
+    if (etaMinAt !== undefined) patch.etaMinAt = etaMinAt;
+    if (etaMaxAt !== undefined) patch.etaMaxAt = etaMaxAt;
+    await ctx.db.patch(id, patch);
+  },
+});
+
+// Stamps tracking + (optionally) refreshed ETA on an order. Called from
+// the Gelato webhook in-transit branch after fetchGelatoTracking returns.
+export const setTracking = internalMutation({
+  args: {
+    id: v.id("orders"),
+    tracking: v.object({
+      url: v.string(),
+      code: v.optional(v.string()),
+      carrier: v.optional(v.string()),
+    }),
+    etaMinAt: v.optional(v.number()),
+    etaMaxAt: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, tracking, etaMinAt, etaMaxAt }) => {
+    const patch: Partial<Doc<"orders">> = { tracking };
+    if (etaMinAt !== undefined) patch.etaMinAt = etaMinAt;
+    if (etaMaxAt !== undefined) patch.etaMaxAt = etaMaxAt;
+    await ctx.db.patch(id, patch);
   },
 });
 
@@ -204,6 +240,62 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("orders").order("desc").take(50);
+  },
+});
+
+// Powers /orders. Returns the authed user's most-recent 20 orders, each
+// with its line items joined to their product record so the page can
+// render formats / pricing without a per-line follow-up query. Returns
+// null if the caller isn't signed in so the frontend can redirect.
+export const listMine = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(20);
+    return await Promise.all(
+      orders.map(async (order) => {
+        const lines = order.lineItems ?? [];
+        const lineItemsWithProduct = await Promise.all(
+          lines.map(async (line) => ({
+            ...line,
+            product: await ctx.db.get(line.productId),
+          })),
+        );
+        const legacyProduct = order.productId
+          ? await ctx.db.get(order.productId)
+          : null;
+        return { order, lineItems: lineItemsWithProduct, legacyProduct };
+      }),
+    );
+  },
+});
+
+// Single-order detail for the drawer/sheet on /orders. Ownership is
+// checked against the authed user — returns null for non-owners or
+// signed-out callers, mirroring listMine's null-on-anon convention.
+export const getMine = query({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const order = await ctx.db.get(id);
+    if (!order || order.userId !== userId) return null;
+    const lines = order.lineItems ?? [];
+    const lineItemsWithProduct = await Promise.all(
+      lines.map(async (line) => ({
+        ...line,
+        product: await ctx.db.get(line.productId),
+      })),
+    );
+    const legacyProduct = order.productId
+      ? await ctx.db.get(order.productId)
+      : null;
+    return { order, lineItems: lineItemsWithProduct, legacyProduct };
   },
 });
 

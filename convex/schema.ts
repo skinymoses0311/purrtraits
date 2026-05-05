@@ -213,6 +213,20 @@ export default defineSchema({
     ),
     status: v.string(),
     gelatoOrderId: v.optional(v.string()),
+    // Captured from Gelato — minDeliveryDate / maxDeliveryDate on
+    // shipment.minDeliveryDate / maxDeliveryDate. Stored as unix ms so
+    // /orders can render an ETA range without an extra Gelato API call.
+    etaMinAt: v.optional(v.number()),
+    etaMaxAt: v.optional(v.number()),
+    // Tracking info pulled off Gelato's order detail at in-transit time.
+    // Persisted so the orders page is a pure DB read.
+    tracking: v.optional(
+      v.object({
+        url: v.string(),
+        code: v.optional(v.string()),
+        carrier: v.optional(v.string()),
+      }),
+    ),
     // Set the first time fal.upscaleAndFulfil successfully patches the order's
     // print URLs to their high-res versions. Used to make duplicate Stripe
     // webhooks noop the upscale instead of paying for it again.

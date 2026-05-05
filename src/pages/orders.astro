@@ -1,0 +1,1020 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout
+  title="My orders · Purrtraits"
+  description="Your Purrtraits order history."
+  noindex
+>
+  <main class="page orders-page container">
+    <header class="orders-header">
+      <div class="orders-header__eyebrow">Hi <span id="orders-name"></span></div>
+      <div class="orders-header__title-row">
+        <h1 class="orders-header__title">Your orders</h1>
+        <span class="orders-header__count muted" id="orders-count"></span>
+      </div>
+    </header>
+
+    <!-- Loading state — shown until listMine resolves. -->
+    <div class="orders-loading" id="orders-loading">
+      <div class="img-loading-wrap is-loading orders-loading__paw"></div>
+      <p class="muted">Loading your orders…</p>
+    </div>
+
+    <!-- Empty state -->
+    <div class="orders-empty" id="orders-empty" hidden>
+      <div class="orders-empty__stack" aria-hidden="true">
+        <div class="orders-empty__card orders-empty__card--left"></div>
+        <div class="orders-empty__card orders-empty__card--right"></div>
+        <div class="orders-empty__card orders-empty__card--center"></div>
+      </div>
+      <h2 class="orders-empty__title">No orders yet — but oh, the possibilities 🐾</h2>
+      <p class="orders-empty__sub muted">
+        Upload a photo of your favourite furry tyrant, pick a style, and we'll
+        turn them into something worth framing. Files in minutes, prints on the
+        wall in days.
+      </p>
+      <div class="orders-empty__actions">
+        <a href="/upload" class="btn-pill btn-pill--primary">Create your first portrait →</a>
+        <a href="/gallery" class="btn-pill btn-pill--ghost">My gallery</a>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div class="orders-list" id="orders-list" hidden></div>
+  </main>
+
+  <!-- Drawer (desktop) / sheet (mobile) for order detail. Lives outside
+       .page so its overlay covers the full viewport. Hidden by default;
+       opened by clicking a row. -->
+  <div class="order-drawer" id="order-drawer" hidden aria-hidden="true">
+    <div class="order-drawer__backdrop" data-drawer-close></div>
+    <aside class="order-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="drawer-id">
+      <header class="order-drawer__head">
+        <div class="order-drawer__head-id">
+          <span class="order-drawer__eyebrow">Order</span>
+          <span class="order-drawer__id" id="drawer-id"></span>
+        </div>
+        <button type="button" class="order-drawer__close" data-drawer-close aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div class="order-drawer__body" id="drawer-body"></div>
+    </aside>
+  </div>
+</Layout>
+
+<style is:global>
+  .orders-page {
+    padding-top: 32px;
+    padding-bottom: 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  @media (min-width: 768px) {
+    .orders-page { padding-top: 40px; padding-bottom: 80px; gap: 28px; }
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .orders-header { display: flex; flex-direction: column; gap: 4px; }
+  .orders-header__eyebrow {
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    color: var(--c-light); text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .orders-header__title-row {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  .orders-header__title {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.5rem); line-height: 1.1;
+    color: var(--c-dark);
+  }
+  .orders-header__count { font-size: 14px; }
+
+  /* ── Loading + empty ────────────────────────────────────────── */
+  /* `display: flex` would override the [hidden] attribute's
+     default `display: none`, so always re-assert it. */
+  .orders-loading[hidden],
+  .orders-empty[hidden],
+  .orders-list[hidden] { display: none !important; }
+
+  .orders-loading {
+    padding: 60px 20px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .orders-loading__paw {
+    width: 56px; height: 56px; border-radius: 50%;
+  }
+  .orders-empty {
+    padding: 40px 20px 60px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+  }
+  .orders-empty__stack {
+    position: relative; width: 240px; height: 170px; margin-bottom: 8px;
+  }
+  .orders-empty__card {
+    position: absolute; width: 110px; height: 130px;
+    background: linear-gradient(180deg, var(--c-pink-light) 0%, var(--c-fill) 100%);
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  }
+  .orders-empty__card--left   { left: 8px;  top: 30px; transform: rotate(-8deg); }
+  .orders-empty__card--right  { right: 8px; top: 14px; transform: rotate(7deg); }
+  .orders-empty__card--center {
+    left: 50%; top: 0; transform: translateX(-50%);
+    width: 130px; height: 150px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    background: linear-gradient(180deg, var(--c-fill) 0%, var(--c-stroke-light) 100%);
+  }
+  .orders-empty__title {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.8rem, 5vw, 2.6rem); color: var(--c-dark);
+    line-height: 1.1; max-width: 560px;
+  }
+  .orders-empty__sub {
+    max-width: 520px; font-size: 14px; line-height: 1.55;
+  }
+  .orders-empty__actions {
+    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  }
+
+  /* ── Order list ─────────────────────────────────────────────── */
+  .orders-list {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  .order-row {
+    background: var(--c-white);
+    border: 1px solid var(--c-stroke-light);
+    border-radius: 16px;
+    padding: 16px;
+    display: grid; gap: 12px;
+    grid-template-columns: 72px 1fr;
+    grid-template-areas:
+      "thumb meta"
+      "footer footer";
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    transition: border-color .15s ease, transform .08s ease, box-shadow .15s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .order-row:hover {
+    border-color: var(--c-pink);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(217,139,168,0.18);
+  }
+  .order-row__thumb-wrap {
+    grid-area: thumb;
+    width: 72px; height: 72px; border-radius: 10px;
+    overflow: hidden;
+    background: var(--c-fill);
+    flex-shrink: 0;
+  }
+  .order-row__thumb {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .order-row__meta { grid-area: meta; min-width: 0; }
+  .order-row__name-row {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px;
+  }
+  .order-row__name {
+    font-family: var(--font-display); font-weight: 700; font-size: 24px;
+    color: var(--c-dark); line-height: 1;
+  }
+  .order-row__id {
+    font-family: var(--font-body); font-size: 11px;
+    color: var(--c-light); font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .order-row__sub {
+    font-family: var(--font-body); font-size: 12px; color: var(--c-text);
+    margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .order-row__date {
+    font-family: var(--font-body); font-size: 12px; color: var(--c-light);
+    margin-top: 1px;
+  }
+  .order-row__footer {
+    grid-area: footer;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid var(--c-stroke-light);
+    padding-top: 12px;
+  }
+  .order-row__status-block {
+    display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  }
+  .order-row__eta {
+    font-family: var(--font-body); font-size: 11px; color: var(--c-text);
+  }
+  .order-row__chev {
+    flex-shrink: 0; color: var(--c-light);
+    display: inline-flex;
+  }
+
+  /* Desktop: switch to row layout. */
+  @media (min-width: 768px) {
+    .order-row {
+      grid-template-columns: 92px 1fr 200px 28px;
+      grid-template-areas: "thumb meta status chev";
+      align-items: center;
+      padding: 18px 22px;
+      gap: 24px;
+    }
+    .order-row__thumb-wrap { width: 92px; height: 92px; border-radius: 12px; }
+    .order-row__name { font-size: 26px; }
+    .order-row__sub  { font-size: 13px; }
+    .order-row__date { font-size: 12px; }
+    .order-row__footer {
+      grid-area: status;
+      border-top: 0; padding-top: 0;
+      flex-direction: column; align-items: flex-start;
+      gap: 6px;
+    }
+    .order-row__chev {
+      grid-area: chev;
+      justify-content: flex-end;
+      align-self: center;
+    }
+    .order-row__id-inline {
+      display: inline-block; padding: 2px 8px;
+      background: var(--c-fill); border-radius: 100px;
+      margin-left: 8px;
+    }
+  }
+
+  /* ── Status badge ───────────────────────────────────────────── */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 100px;
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    letter-spacing: 0.1px; white-space: nowrap;
+  }
+  .status-badge--printing  { background: #F6ECD8; color: #C99647; }
+  .status-badge--shipped   { background: #E2EAF2; color: #6B8FB0; }
+  .status-badge--delivered { background: #E8F0E2; color: #7AAB6E; }
+  .status-badge--digital   { background: var(--c-pink-light); color: var(--c-pink); }
+  .status-badge--cancelled { background: #F4DEDE; color: #C26B6B; }
+
+  /* ── Drawer / sheet ─────────────────────────────────────────── */
+  .order-drawer {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; justify-content: flex-end;
+  }
+  .order-drawer[hidden] { display: none; }
+  .order-drawer__backdrop {
+    position: absolute; inset: 0;
+    background: rgba(30,20,16,0.32);
+    animation: drawer-fade .18s ease-out;
+  }
+  .order-drawer__panel {
+    position: relative; z-index: 1;
+    background: var(--c-cream);
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    animation: drawer-slide-up .22s ease-out;
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .order-drawer__panel {
+      width: 480px; max-width: 100%;
+      box-shadow: -12px 0 32px rgba(0,0,0,0.10);
+      border-left: 1px solid var(--c-stroke-light);
+      animation: drawer-slide-in .22s ease-out;
+    }
+  }
+  @keyframes drawer-fade {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  @keyframes drawer-slide-up {
+    from { transform: translateY(40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes drawer-slide-in {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .order-drawer__head {
+    padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--c-stroke-light);
+    background: var(--c-cream);
+    flex-shrink: 0;
+  }
+  .order-drawer__head-id {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .order-drawer__eyebrow {
+    font-size: 11px; font-weight: 600; color: var(--c-light);
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .order-drawer__id {
+    font-family: var(--font-body); font-size: 13px; font-weight: 600;
+    color: var(--c-dark); font-variant-numeric: tabular-nums;
+    padding: 3px 10px; background: var(--c-fill); border-radius: 100px;
+  }
+  .order-drawer__close {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--c-text);
+  }
+  .order-drawer__close:hover { background: var(--c-pink-light); border-color: var(--c-pink); }
+  .order-drawer__body {
+    flex: 1; overflow: auto;
+    padding: 22px 20px 28px;
+    display: flex; flex-direction: column; gap: 22px;
+  }
+
+  .drawer-hero {
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .drawer-hero__img-wrap {
+    width: 120px; height: 120px; border-radius: 14px;
+    overflow: hidden;
+    background: var(--c-fill);
+    flex-shrink: 0;
+  }
+  .drawer-hero__img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .drawer-hero__name {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 36px; color: var(--c-dark); line-height: 1;
+  }
+  .drawer-hero__line { font-size: 13px; color: var(--c-text); margin-top: 4px; }
+  .drawer-hero__badge { margin-top: 8px; }
+
+  .drawer-tracking {
+    background: var(--c-pink-light);
+    border: 1px solid #F0D9E2;
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    color: var(--c-dark);
+  }
+  .drawer-tracking:hover { background: #F2DEE7; }
+  .drawer-tracking__icon {
+    color: var(--c-pink); flex-shrink: 0;
+    display: inline-flex;
+  }
+  .drawer-tracking__main { flex: 1; min-width: 0; }
+  .drawer-tracking__title { font-size: 12.5px; font-weight: 600; color: var(--c-dark); }
+  .drawer-tracking__sub {
+    font-size: 11.5px; color: var(--c-text); margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .drawer-tracking__eta { text-align: right; }
+  .drawer-tracking__eta-range {
+    font-family: var(--font-display); font-weight: 700; font-size: 22px;
+    color: var(--c-dark); line-height: 1;
+  }
+  .drawer-tracking__eta-label {
+    font-size: 11px; color: var(--c-text); margin-top: 2px;
+  }
+
+  .drawer-section-title {
+    font-size: 13px; font-weight: 600; color: var(--c-dark);
+    margin-bottom: 14px;
+  }
+
+  .drawer-step { display: flex; gap: 14px; align-items: flex-start; }
+  .drawer-step__rail {
+    display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
+  }
+  .drawer-step__dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--c-stroke-light);
+    background: var(--c-white); color: var(--c-light);
+  }
+  .drawer-step--done .drawer-step__dot {
+    background: #7AAB6E; border-color: #7AAB6E; color: #fff;
+  }
+  .drawer-step--active .drawer-step__dot {
+    background: var(--c-pink-light); border-color: var(--c-pink); color: var(--c-pink);
+    box-shadow: 0 0 0 4px var(--c-pink-light);
+  }
+  .drawer-step__line {
+    width: 2px; flex: 1; min-height: 32px; background: var(--c-stroke-light);
+    margin-top: 2px;
+  }
+  .drawer-step--done .drawer-step__line { background: #7AAB6E; }
+  .drawer-step__text { padding: 4px 0 18px; }
+  .drawer-step__label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: var(--c-dark);
+  }
+  .drawer-step__pill {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--c-pink);
+    background: var(--c-pink-light); padding: 2px 7px; border-radius: 100px;
+  }
+  .drawer-step__sub {
+    font-size: 12px; color: var(--c-text); line-height: 1.45;
+    margin-top: 2px;
+  }
+
+  .drawer-receipt {
+    background: var(--c-white);
+    border: 1px solid var(--c-stroke-light);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+  .drawer-receipt__row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; font-size: 12.5px;
+  }
+  .drawer-receipt__row span:first-child { color: var(--c-text); }
+  .drawer-receipt__row span:last-child  { color: var(--c-dark); font-weight: 500; }
+  .drawer-receipt__divider {
+    height: 1px; background: var(--c-stroke-light); margin: 10px 0;
+  }
+  .drawer-receipt__total {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .drawer-receipt__total-label { font-size: 13px; font-weight: 600; color: var(--c-dark); }
+  .drawer-receipt__total-amount {
+    font-family: var(--font-display); font-weight: 700; font-size: 24px;
+    color: var(--c-dark);
+  }
+
+  .drawer-actions {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  /* ── Shared button-pill primitives — local copies aligned to the
+       success page's btn-pill conventions, in case those aren't on
+       this page yet. ─────────────────────────────────────────── */
+  .btn-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 7px;
+    padding: 11px 20px; border-radius: 100px;
+    font-family: var(--font-body); font-size: 14px; font-weight: 600;
+    border: 1.5px solid transparent;
+    cursor: pointer; text-align: center;
+    transition: background .15s ease, border-color .15s ease, transform .08s ease;
+  }
+  .btn-pill--primary {
+    background: var(--c-pink); color: #fff;
+    box-shadow: 0 4px 12px rgba(217,139,168,0.35);
+  }
+  .btn-pill--primary:hover { transform: translateY(-1px); }
+  .btn-pill--ghost {
+    background: var(--c-white); color: var(--c-dark);
+    border-color: var(--c-stroke-light);
+  }
+  .btn-pill--ghost:hover { background: var(--c-pink-light); border-color: var(--c-pink); }
+  .btn-pill--block { width: 100%; }
+</style>
+
+<script>
+  import { attachImageLoading } from "../lib/client.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
+  import { api } from "../../convex/_generated/api.js";
+
+  // ── Auth gate ────────────────────────────────────────────────
+  if (!isSignedIn()) {
+    const next = encodeURIComponent("/orders");
+    window.location.href = `/sign-up?next=${next}`;
+  }
+
+  type BadgeKind = "printing" | "shipped" | "delivered" | "digital" | "cancelled";
+  type LineWithProduct = {
+    productId: string;
+    printFileUrl: string;
+    displayUrl?: string;
+    style: string;
+    petName?: string;
+    breed?: string;
+    quantity: number;
+    unitPriceCents: number;
+    product: any;
+  };
+  type OrderRecord = {
+    order: any;
+    lineItems: LineWithProduct[];
+    legacyProduct: any | null;
+  };
+
+  const FORMAT_LABEL: Record<string, string> = {
+    digital: "Digital download",
+    poster: "Poster",
+    framed: "Framed print",
+    canvas: "Canvas",
+  };
+  const SIZE_LABEL: Record<string, string> = {
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
+  };
+  const STYLE_LABEL: Record<string, string> = {
+    oil: "Oil Painting",
+    watercolour: "Watercolour",
+    pop: "Pop Art",
+    minimalist: "Minimalist",
+  };
+
+  function styleLabel(style: string | undefined): string {
+    if (!style) return "Custom";
+    return STYLE_LABEL[style] ?? (style[0]?.toUpperCase() + style.slice(1));
+  }
+  function formatProduct(product: any): string {
+    if (!product) return "";
+    const fmt = FORMAT_LABEL[product.format] ?? product.format ?? "";
+    if (product.format === "digital") return fmt;
+    const size = product.size ? SIZE_LABEL[product.size] ?? product.size : "";
+    return [fmt, size].filter(Boolean).join(" · ");
+  }
+  function formatMoney(amountCents: number, currency: string): string {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: currency.toUpperCase(),
+      }).format(amountCents / 100);
+    } catch {
+      return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+    }
+  }
+  function formatDate(ms: number, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" }): string {
+    return new Intl.DateTimeFormat(undefined, opts).format(new Date(ms));
+  }
+  function formatEta(order: any): string {
+    const explicitMin = order.etaMinAt as number | undefined;
+    const explicitMax = order.etaMaxAt as number | undefined;
+    const minMs = explicitMin ?? order._creationTime + 3 * 24 * 60 * 60 * 1000;
+    const maxMs = explicitMax ?? order._creationTime + 7 * 24 * 60 * 60 * 1000;
+    const fmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+    return `${fmt.format(new Date(minMs))} – ${fmt.format(new Date(maxMs))}`;
+  }
+  function shortId(id: string): string {
+    return id.slice(-8).toUpperCase();
+  }
+
+  function hasPhysicalLine(rec: OrderRecord): boolean {
+    if (rec.lineItems.some((l) => l.product?.format && l.product.format !== "digital")) return true;
+    if (rec.legacyProduct && rec.legacyProduct.format && rec.legacyProduct.format !== "digital") return true;
+    return false;
+  }
+  function hasDigitalLine(rec: OrderRecord): boolean {
+    if (rec.lineItems.some((l) => l.product?.format === "digital")) return true;
+    if (rec.legacyProduct?.format === "digital") return true;
+    return false;
+  }
+
+  // Maps order status + email-sent timestamps to the design's 5 badge
+  // states. Per the agreed spec: digital orders always show "digital";
+  // for physical orders we use inTransit/delivered email timestamps as
+  // the source of truth alongside the raw status string (which can be
+  // any Gelato fulfillmentStatus value, not just our 4-state machine).
+  function badgeFor(rec: OrderRecord): BadgeKind {
+    const o = rec.order;
+    const status = String(o.status ?? "");
+    // Bucket "failed" with cancelled — it's not on the design's 5-state list
+    // but visually the user shouldn't expect a delivery either way.
+    if (
+      status === "canceled" || status === "cancelled" || status === "failed" ||
+      o.canceledEmailSentAt
+    ) {
+      return "cancelled";
+    }
+    const physical = hasPhysicalLine(rec);
+    if (!physical) return "digital";
+    if (status === "delivered" || status === "fulfilled" || o.deliveredEmailSentAt) {
+      return "delivered";
+    }
+    if (status === "in_transit" || o.inTransitEmailSentAt) return "shipped";
+    return "printing";
+  }
+
+  const BADGE_LABEL: Record<BadgeKind, string> = {
+    printing: "Printing",
+    shipped: "Shipped",
+    delivered: "Delivered",
+    digital: "Files ready",
+    cancelled: "Cancelled",
+  };
+
+  // ── Icon SVGs (kept as functions returning HTML) ─────────────
+  function svgCheck(c = "#fff", size = 14) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  function svgTruck(c = "currentColor", size = 14) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M3 7h11v9H3V7zm11 3h4l3 3v3h-7v-6z" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.6" stroke="${c}" stroke-width="1.7"/><circle cx="17" cy="18" r="1.6" stroke="${c}" stroke-width="1.7"/></svg>`;
+  }
+  function svgBox(c = "currentColor", size = 14) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 7l8 4 8-4M12 11v10" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+  }
+  function svgDownload(c = "currentColor", size = 14) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M5 19h14" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  function svgChev(size = 14) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  function svgCross(c = "#C26B6B", size = 12) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18L18 6" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+  }
+
+  function renderBadge(kind: BadgeKind): string {
+    const icon =
+      kind === "delivered"  ? svgCheck("#7AAB6E", 12)
+      : kind === "shipped"  ? svgTruck("#6B8FB0", 12)
+      : kind === "printing" ? svgBox("#C99647", 12)
+      : kind === "digital"  ? svgDownload("var(--c-pink)", 12)
+                            : svgCross("#C26B6B", 11);
+    return `<span class="status-badge status-badge--${kind}">${icon}<span>${BADGE_LABEL[kind]}</span></span>`;
+  }
+
+  // ── Cross-origin download helper (mirrors success.astro). ────
+  async function downloadAsFile(url: string, filename: string): Promise<void> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download fetch failed: ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  }
+  function makeDownloadFilename(petName: string | undefined, style: string | undefined) {
+    const slug = (s: string) =>
+      s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const parts = [petName ? slug(petName) : "portrait", style ? slug(style) : ""].filter(Boolean);
+    return `${parts.join("-")}.jpg`;
+  }
+
+  // ── Page bootstrap ───────────────────────────────────────────
+  const client = makeAuthedClient();
+  const loadingEl = document.getElementById("orders-loading")!;
+  const emptyEl = document.getElementById("orders-empty")!;
+  const listEl = document.getElementById("orders-list")!;
+  const countEl = document.getElementById("orders-count")!;
+  const nameEl = document.getElementById("orders-name")!;
+
+  // Also fetch the user record for the greeting. Cheap; same client.
+  Promise.all([
+    client.query(api.orders.listMine, {}),
+    client.query(api.users.me, {}),
+  ])
+    .then(([orders, me]) => {
+      loadingEl.hidden = true;
+      if (me) {
+        const display = (me.name as string | undefined) ?? (me.email as string | undefined) ?? "";
+        const first = display.split(/[@\s]/)[0];
+        if (first) nameEl.textContent = first;
+      }
+
+      if (orders === null) {
+        // Server says we aren't authed — token may be stale. Bounce.
+        const next = encodeURIComponent("/orders");
+        window.location.href = `/sign-up?next=${next}`;
+        return;
+      }
+      if (!orders || orders.length === 0) {
+        countEl.textContent = "0 pieces of pet history";
+        emptyEl.hidden = false;
+        return;
+      }
+      countEl.textContent = `${orders.length} ${orders.length === 1 ? "piece" : "pieces"} of pet history`;
+      renderList(orders as OrderRecord[]);
+      listEl.hidden = false;
+    })
+    .catch((err) => {
+      console.error("Failed to load orders", err);
+      loadingEl.hidden = true;
+      emptyEl.hidden = false;
+    });
+
+  function renderList(orders: OrderRecord[]) {
+    const html = orders.map((rec, i) => renderRow(rec, i)).join("");
+    listEl.innerHTML = html;
+    attachImageLoading(listEl);
+    listEl.querySelectorAll<HTMLButtonElement>(".order-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const idx = Number(row.dataset.idx);
+        const rec = orders[idx];
+        if (rec) openDrawer(rec);
+      });
+    });
+  }
+
+  function summaryFor(rec: OrderRecord): { petName: string; style: string; format: string; thumb: string | undefined } {
+    const lines = rec.lineItems;
+    const first = lines[0];
+    const petName = (rec.order.petName as string | undefined)?.trim()
+      || first?.petName?.trim()
+      || "Your portrait";
+    const style = styleLabel(first?.style);
+    const formats = lines
+      .map((l) => formatProduct(l.product))
+      .filter(Boolean);
+    // For mixed orders show both formats; otherwise the single one.
+    const uniqFormats = Array.from(new Set(formats));
+    const format = uniqFormats.length === 1 ? uniqFormats[0]
+      : uniqFormats.length === 0 ? (rec.legacyProduct ? formatProduct(rec.legacyProduct) : "")
+      : `${uniqFormats[0]} +${uniqFormats.length - 1}`;
+    const thumb = first?.displayUrl ?? first?.printFileUrl ?? rec.order.printFileUrl;
+    return { petName, style, format, thumb };
+  }
+
+  function renderRow(rec: OrderRecord, idx: number): string {
+    const { petName, style, format, thumb } = summaryFor(rec);
+    const badge = badgeFor(rec);
+    const showEta = badge === "printing" || badge === "shipped";
+    const eta = showEta ? formatEta(rec.order) : "";
+    const dateStr = formatDate(rec.order._creationTime);
+    const total = formatMoney(rec.order.amountTotal ?? 0, rec.order.currency ?? "GBP");
+
+    return `
+      <button type="button" class="order-row" data-idx="${idx}">
+        <div class="order-row__thumb-wrap img-loading-wrap is-loading">
+          ${thumb
+            ? `<img class="order-row__thumb" src="${thumb}" alt="" data-loadable />`
+            : ""}
+        </div>
+        <div class="order-row__meta">
+          <div class="order-row__name-row">
+            <span class="order-row__name">${escapeHtml(petName)}</span>
+            <span class="order-row__id">#${shortId(String(rec.order._id))}</span>
+          </div>
+          <div class="order-row__sub">${escapeHtml(style)}${format ? ` · ${escapeHtml(format)}` : ""}</div>
+          <div class="order-row__date">Ordered ${dateStr} · ${total}</div>
+        </div>
+        <div class="order-row__footer">
+          <div class="order-row__status-block">
+            ${renderBadge(badge)}
+            ${eta ? `<span class="order-row__eta">${eta}</span>` : ""}
+          </div>
+        </div>
+        <span class="order-row__chev" aria-hidden="true">${svgChev(16)}</span>
+      </button>
+    `;
+  }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ── Drawer ───────────────────────────────────────────────────
+  const drawerEl = document.getElementById("order-drawer")!;
+  const drawerIdEl = document.getElementById("drawer-id")!;
+  const drawerBodyEl = document.getElementById("drawer-body")!;
+
+  drawerEl.addEventListener("click", (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-drawer-close]")) closeDrawer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !drawerEl.hidden) closeDrawer();
+  });
+
+  function openDrawer(rec: OrderRecord) {
+    drawerIdEl.textContent = `#${shortId(String(rec.order._id))}`;
+    drawerBodyEl.innerHTML = renderDrawerBody(rec);
+    attachImageLoading(drawerBodyEl);
+    drawerEl.hidden = false;
+    drawerEl.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    bindDownloadButtons(rec);
+  }
+  function closeDrawer() {
+    drawerEl.hidden = true;
+    drawerEl.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function renderDrawerBody(rec: OrderRecord): string {
+    const { petName, style, format, thumb } = summaryFor(rec);
+    const badge = badgeFor(rec);
+    const physical = hasPhysicalLine(rec);
+    const digital = hasDigitalLine(rec);
+
+    const trackingCard = physical && badge !== "cancelled" ? renderTrackingCard(rec, badge) : "";
+    const timeline = physical && badge !== "cancelled" ? renderTimeline(rec, badge) : "";
+    const receipt = renderReceipt(rec);
+    const actions = renderActions(digital);
+
+    return `
+      <div class="drawer-hero">
+        <div class="drawer-hero__img-wrap img-loading-wrap is-loading">
+          ${thumb
+            ? `<img class="drawer-hero__img" src="${thumb}" alt="" data-loadable />`
+            : ""}
+        </div>
+        <div>
+          <div class="drawer-hero__name">${escapeHtml(petName)}</div>
+          <div class="drawer-hero__line">${escapeHtml(style)}</div>
+          ${format ? `<div class="drawer-hero__line">${escapeHtml(format)}</div>` : ""}
+          <div class="drawer-hero__badge">${renderBadge(badge)}</div>
+        </div>
+      </div>
+      ${trackingCard}
+      ${timeline}
+      ${receipt}
+      ${actions}
+    `;
+  }
+
+  function renderTrackingCard(rec: OrderRecord, badge: BadgeKind): string {
+    const o = rec.order;
+    const eta = formatEta(o);
+    const tracking = o.tracking as { url?: string; code?: string; carrier?: string } | undefined;
+    const title = badge === "delivered"
+      ? "Delivered"
+      : badge === "shipped"
+        ? "On its way"
+        : "In production";
+    const subParts: string[] = [];
+    if (tracking?.carrier) subParts.push(tracking.carrier);
+    if (tracking?.code) subParts.push(tracking.code);
+    if (subParts.length === 0) {
+      subParts.push(badge === "delivered" ? "Hope you love it" : "We'll email when there's tracking");
+    }
+    const wrapStart = tracking?.url
+      ? `<a class="drawer-tracking" href="${escapeAttr(tracking.url)}" target="_blank" rel="noopener">`
+      : `<div class="drawer-tracking">`;
+    const wrapEnd = tracking?.url ? `</a>` : `</div>`;
+    return `
+      ${wrapStart}
+        <span class="drawer-tracking__icon">${svgTruck("currentColor", 20)}</span>
+        <div class="drawer-tracking__main">
+          <div class="drawer-tracking__title">${escapeHtml(title)}</div>
+          <div class="drawer-tracking__sub">${escapeHtml(subParts.join(" · "))}</div>
+        </div>
+        ${badge !== "delivered" ? `
+        <div class="drawer-tracking__eta">
+          <div class="drawer-tracking__eta-range">${eta}</div>
+          <div class="drawer-tracking__eta-label">Estimated arrival</div>
+        </div>` : ""}
+      ${wrapEnd}
+    `;
+  }
+
+  function renderTimeline(rec: OrderRecord, badge: BadgeKind): string {
+    const o = rec.order;
+    type Step = { state: "done" | "active" | "upcoming"; icon: string; label: string; sub: string };
+    // 4-stage timeline. State derived from email-sent timestamps + status,
+    // mirroring the spec mapping.
+    const filesReadyDone = !!o.printFileHiResUpscaledAt || badge !== "printing" || true; // always done by the time we land here
+    const printedDone = badge === "shipped" || badge === "delivered" || !!o.inProductionEmailSentAt || !!o.inTransitEmailSentAt || !!o.deliveredEmailSentAt;
+    const shippedDone = badge === "delivered" || !!o.inTransitEmailSentAt || !!o.deliveredEmailSentAt;
+    const deliveredDone = badge === "delivered";
+
+    const stamp = (ms?: number) => (ms ? formatDate(ms, { month: "short", day: "numeric" }) : "");
+
+    const steps: Step[] = [
+      {
+        state: filesReadyDone ? "done" : "active",
+        icon: svgDownload("currentColor", 14),
+        label: "Digital files ready",
+        sub: o.printFileHiResUpscaledAt
+          ? `Saved ${stamp(o.printFileHiResUpscaledAt)}`
+          : "Saved to your device & emailed",
+      },
+      {
+        state: printedDone ? "done" : (badge === "printing" ? "active" : "upcoming"),
+        icon: svgBox("currentColor", 14),
+        label: "Printed & quality-checked",
+        sub: o.inProductionEmailSentAt
+          ? `By our print partner · ${stamp(o.inProductionEmailSentAt)}`
+          : "By our print partner · 3–5 days",
+      },
+      {
+        state: shippedDone ? "done" : (badge === "shipped" ? "active" : "upcoming"),
+        icon: svgTruck("currentColor", 14),
+        label: "Out for shipping",
+        sub: o.inTransitEmailSentAt
+          ? `Picked up ${stamp(o.inTransitEmailSentAt)}`
+          : "Worldwide tracking by email",
+      },
+      {
+        state: deliveredDone ? "done" : "upcoming",
+        icon: svgCheck("currentColor", 14),
+        label: "Delivered to you",
+        sub: o.deliveredEmailSentAt ? `Delivered ${stamp(o.deliveredEmailSentAt)}` : "We'll let you know it landed",
+      },
+    ];
+
+    const rendered = steps.map((s, i) => {
+      const last = i === steps.length - 1;
+      return `
+        <div class="drawer-step drawer-step--${s.state}">
+          <div class="drawer-step__rail">
+            <div class="drawer-step__dot">
+              ${s.state === "done" ? svgCheck("#fff", 14) : s.icon}
+            </div>
+            ${last ? "" : `<div class="drawer-step__line"></div>`}
+          </div>
+          <div class="drawer-step__text">
+            <div class="drawer-step__label">
+              <span>${escapeHtml(s.label)}</span>
+              ${s.state === "active" ? `<span class="drawer-step__pill">Now</span>` : ""}
+            </div>
+            <div class="drawer-step__sub">${escapeHtml(s.sub)}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div>
+        <div class="drawer-section-title">Where it is</div>
+        ${rendered}
+      </div>
+    `;
+  }
+
+  function renderReceipt(rec: OrderRecord): string {
+    const o = rec.order;
+    const lines = rec.lineItems;
+    const first = lines[0];
+    const totalQuantity = lines.reduce((sum, l) => sum + (l.quantity ?? 0), 0) || 1;
+    const formatList = Array.from(new Set(
+      lines.map((l) => formatProduct(l.product)).filter(Boolean)
+    )).join(", ") || formatProduct(rec.legacyProduct) || "—";
+
+    const petName = (o.petName as string | undefined)?.trim() || first?.petName || "Your portrait";
+    const style = styleLabel(first?.style);
+
+    const rows: Array<[string, string]> = [
+      ["Subject", petName],
+      ["Style", style],
+      ["Format", formatList],
+      ["Quantity", String(totalQuantity)],
+    ];
+    if (o.shipping?.country) {
+      rows.push(["Shipping to", `${o.shipping.city}, ${o.shipping.country}`]);
+    }
+    const total = formatMoney(o.amountTotal ?? 0, o.currency ?? "GBP");
+
+    return `
+      <div class="drawer-receipt">
+        <div class="drawer-section-title">Receipt</div>
+        ${rows.map(([k, v]) => `
+          <div class="drawer-receipt__row">
+            <span>${escapeHtml(k)}</span>
+            <span>${escapeHtml(v)}</span>
+          </div>
+        `).join("")}
+        <div class="drawer-receipt__divider"></div>
+        <div class="drawer-receipt__total">
+          <span class="drawer-receipt__total-label">Total paid</span>
+          <span class="drawer-receipt__total-amount">${total}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderActions(digital: boolean): string {
+    const downloadBtn = digital
+      ? `<button type="button" class="btn-pill btn-pill--primary btn-pill--block" data-action="download-all">
+          ${svgDownload("#fff", 13)} Re-download digital files
+        </button>`
+      : "";
+    return `
+      <div class="drawer-actions">
+        ${downloadBtn}
+        <a href="/contact" class="btn-pill btn-pill--ghost btn-pill--block">Get help with this order</a>
+      </div>
+    `;
+  }
+
+  function bindDownloadButtons(rec: OrderRecord) {
+    const btn = drawerBodyEl.querySelector<HTMLButtonElement>('[data-action="download-all"]');
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      // Download every unique print file URL on the order. Sequential
+      // to avoid the browser blocking parallel saves.
+      const seen = new Set<string>();
+      for (const line of rec.lineItems) {
+        if (line.product?.format !== "digital") continue;
+        const url = line.printFileUrl;
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        try {
+          await downloadAsFile(url, makeDownloadFilename(line.petName ?? rec.order.petName, line.style));
+        } catch {
+          window.open(url, "_blank");
+        }
+      }
+    });
+  }
+
+  function escapeAttr(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  }
+</script>

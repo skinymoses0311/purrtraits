@@ -234,16 +234,22 @@ export const sendWelcome = internalAction({
   },
 });
 
-// Pulls tracking info off a Gelato order. Gelato exposes shipment info on
-// the order detail endpoint under `shipment` (and per-item `fulfillments`).
-// We try the order-level shipment first; fall back to the first item's
-// fulfillment that has a tracking URL.
+// Pulls tracking info + ETA off a Gelato order. Gelato exposes shipment
+// info on the order detail endpoint under `shipment` (and per-item
+// `fulfillments`). We try the order-level shipment first; fall back to
+// the first item's fulfillment that has a tracking URL. ETA is taken
+// from `shipment.minDeliveryDate` / `maxDeliveryDate` when present and
+// returned as unix ms so the orders page can render it directly.
 export const fetchGelatoTracking = internalAction({
   args: { gelatoOrderId: v.string() },
   handler: async (
     _ctx,
     { gelatoOrderId },
-  ): Promise<{ url?: string; carrier?: string; code?: string } | null> => {
+  ): Promise<{
+    tracking: { url: string; carrier?: string; code?: string } | null;
+    etaMinAt?: number;
+    etaMaxAt?: number;
+  } | null> => {
     const key = process.env.GELATO_API_KEY;
     if (!key) return null;
     const res = await fetch(
@@ -255,7 +261,13 @@ export const fetchGelatoTracking = internalAction({
       return null;
     }
     const body = (await res.json()) as {
-      shipment?: { trackingUrl?: string; trackingCode?: string; shipmentMethodName?: string };
+      shipment?: {
+        trackingUrl?: string;
+        trackingCode?: string;
+        shipmentMethodName?: string;
+        minDeliveryDate?: string;
+        maxDeliveryDate?: string;
+      };
       items?: Array<{
         fulfillments?: Array<{
           trackingUrl?: string;
@@ -264,24 +276,38 @@ export const fetchGelatoTracking = internalAction({
         }>;
       }>;
     };
+
+    const parseDate = (s: string | undefined): number | undefined => {
+      if (!s) return undefined;
+      const t = Date.parse(s);
+      return Number.isFinite(t) ? t : undefined;
+    };
+    const etaMinAt = parseDate(body.shipment?.minDeliveryDate);
+    const etaMaxAt = parseDate(body.shipment?.maxDeliveryDate);
+
+    let tracking: { url: string; code?: string; carrier?: string } | null = null;
     if (body.shipment?.trackingUrl) {
-      return {
+      tracking = {
         url: body.shipment.trackingUrl,
         code: body.shipment.trackingCode,
         carrier: body.shipment.shipmentMethodName,
       };
-    }
-    for (const item of body.items ?? []) {
-      for (const f of item.fulfillments ?? []) {
-        if (f.trackingUrl) {
-          return {
-            url: f.trackingUrl,
-            code: f.trackingCode,
-            carrier: f.shipmentMethodName,
-          };
+    } else {
+      for (const item of body.items ?? []) {
+        for (const f of item.fulfillments ?? []) {
+          if (f.trackingUrl) {
+            tracking = {
+              url: f.trackingUrl,
+              code: f.trackingCode,
+              carrier: f.shipmentMethodName,
+            };
+            break;
+          }
         }
+        if (tracking) break;
       }
     }
-    return null;
+
+    return { tracking, etaMinAt, etaMaxAt };
   },
 });

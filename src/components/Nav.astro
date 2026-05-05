@@ -195,6 +195,15 @@ const path = Astro.url.pathname;
     color: var(--c-dark); font-weight: 600;
     word-break: break-all;
   }
+  .nav__account-link {
+    font-family: inherit; font-size: 14px; color: var(--c-dark);
+    padding: 8px 14px; border-radius: 100px;
+    background: var(--c-white); border: 1.5px solid var(--c-stroke-light);
+    text-align: center;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .nav__account-link:hover { background: var(--c-pink-light); border-color: var(--c-pink); }
+
   .nav__account-signout {
     font-family: inherit; font-size: 14px;
     padding: 8px 14px; border-radius: 100px;
@@ -322,6 +331,7 @@ const path = Astro.url.pathname;
               </summary>
               <div class="nav__account-menu" role="menu">
                 <p class="nav__account-meta">Signed in as<br/><strong>${display}</strong></p>
+                <a href="/orders" class="nav__account-link" role="menuitem">My orders</a>
                 <button class="nav__account-signout" id="nav-signout">Sign out</button>
               </div>
             </details>
