@@ -143,12 +143,20 @@ export const getWithProducts = query({
 
     const resolved = resolveCurrency(currency ?? session.preferredCurrency);
 
+    // Defensive read against `prices`: if the products table hasn't been
+    // re-seeded after the multi-currency migration, individual rows may be
+    // missing the `prices` map. Fall back to 0 so the query still resolves
+    // (and the UI renders a £0.00 line) rather than throwing — a thrown
+    // query freezes the cart subscription on "Loading…" forever.
+    function unitPriceFor(product: { prices?: Record<string, number> }): number {
+      return product.prices?.[resolved] ?? 0;
+    }
+
     let subtotalCents = 0;
     let physicalCount = 0;
     let unitCount = 0;
     for (const { line, product } of valid) {
-      const unit = product.prices[resolved];
-      subtotalCents += unit * line.quantity;
+      subtotalCents += unitPriceFor(product) * line.quantity;
       unitCount += line.quantity;
       if (product.format !== "digital") physicalCount += line.quantity;
     }
@@ -167,8 +175,8 @@ export const getWithProducts = query({
         breed: line.breed,
         quantity: line.quantity,
         product,
-        unitPriceCents: product.prices[resolved],
-        lineTotalCents: product.prices[resolved] * line.quantity,
+        unitPriceCents: unitPriceFor(product),
+        lineTotalCents: unitPriceFor(product) * line.quantity,
       })),
       subtotalCents,
       shippingCents,
@@ -203,6 +211,11 @@ export const getInternalForCheckout = internalQuery({
 
     const resolved = resolveCurrency(session.preferredCurrency);
 
+    // Same defensive guard as in getWithProducts — see comment there.
+    function unitPriceFor(product: { prices?: Record<string, number> }): number {
+      return product.prices?.[resolved] ?? 0;
+    }
+
     let physicalCount = 0;
     for (const { line, product } of valid) {
       if (product.format !== "digital") physicalCount += line.quantity;
@@ -218,7 +231,7 @@ export const getInternalForCheckout = internalQuery({
         breed: line.breed,
         quantity: line.quantity,
         product,
-        unitPriceCents: product.prices[resolved],
+        unitPriceCents: unitPriceFor(product),
       })),
       physicalCount,
       currency: resolved,

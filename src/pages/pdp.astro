@@ -234,8 +234,12 @@ import ProductPreview from "../components/ProductPreview.astro";
       // Per-currency unit price for the currently selected product. Prices
       // are stored as a per-currency cents map (see convex/seed.ts), so we
       // index in at render time using the resolved buyer currency.
-      function unitPriceCents(p: any): number {
-        return p?.prices?.[currency] ?? 0;
+      // Returns null if the product has no `prices` map at all (legacy /
+      // un-migrated data) so callers can render "—" rather than a misleading
+      // free price; an explicit 0 in `prices` is still allowed.
+      function unitPriceCents(p: any): number | null {
+        const cents = p?.prices?.[currency];
+        return typeof cents === "number" ? cents : null;
       }
 
       function render() {
@@ -298,11 +302,20 @@ import ProductPreview from "../components/ProductPreview.astro";
           format === "digital" ? "✓ Instant download" : "✓ Worldwide shipping";
 
         // Price + buy state
-        if (product) {
-          price.textContent = formatMoney(unitPriceCents(product), currency);
+        const cents = product ? unitPriceCents(product) : null;
+        if (product && cents !== null) {
+          price.textContent = formatMoney(cents, currency);
           buy.disabled = false;
           buy.textContent = "Add to cart";
           buy.dataset.productId = product._id;
+        } else if (product) {
+          // Product matched but is missing a price in the buyer's currency
+          // — typically because the products table hasn't been re-seeded
+          // since the multi-currency migration. Disable buy + show a dash
+          // so we don't ship a broken £0.00 buy button.
+          price.textContent = "—";
+          buy.disabled = true;
+          buy.textContent = "Unavailable";
         } else {
           price.textContent = "—";
           buy.disabled = true;
@@ -366,7 +379,7 @@ import ProductPreview from "../components/ProductPreview.astro";
             breed: breed ?? undefined,
           });
           if (product) {
-            const cents = unitPriceCents(product);
+            const cents = unitPriceCents(product) ?? 0;
             const item = buildEcommerceItem({
               productId,
               format: product.format,
@@ -402,7 +415,7 @@ import ProductPreview from "../components/ProductPreview.astro";
       // measured separately via add_to_cart so we don't drown GA in churn.
       const initialProduct = findProduct();
       if (initialProduct) {
-        const cents = unitPriceCents(initialProduct);
+        const cents = unitPriceCents(initialProduct) ?? 0;
         const item = buildEcommerceItem({
           productId: String(initialProduct._id),
           format: initialProduct.format,

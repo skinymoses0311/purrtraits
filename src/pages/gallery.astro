@@ -43,6 +43,12 @@ import Layout from "../layouts/Layout.astro";
   import type { Id } from "../../convex/_generated/dataModel";
   import { ALL_STYLES, STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
   import { track } from "../lib/analytics.ts";
+  import {
+    ensureCurrencyForSession,
+    onCurrencyChange,
+    formatMoney,
+    type Currency,
+  } from "../lib/currency.ts";
 
   const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
     { key: "all", label: "All styles" },
@@ -91,6 +97,36 @@ import Layout from "../layouts/Layout.astro";
 
   let allItems: Item[] = [];
   let currentFilter: "all" | Style = "all";
+
+  // Resolved currency for "From £X" / "From $X" labels on every card.
+  // The cheapest SKU in the catalog is the digital download, so we use
+  // its per-currency price as the "from" anchor across all cards.
+  // Fall back to "—" if the products query fails or returns nothing
+  // (e.g. seed never ran), rather than misleading customers with $0.
+  let currency: Currency = "usd";
+  let fromLabel: string = "";
+  async function resolveFromLabel(c: Currency): Promise<string> {
+    try {
+      const products = await client.query(api.products.list, {});
+      const digital = products.find((p: any) => p.format === "digital");
+      const cents = digital?.prices?.[c];
+      if (typeof cents !== "number") return "";
+      return `From ${formatMoney(cents, c)}`;
+    } catch {
+      return "";
+    }
+  }
+
+  // Resolve currency before kicking off the per-mode loaders so the first
+  // render shows the correct "From £…" labels rather than an empty string
+  // that flashes a moment later. Footer toggle re-fetches and re-renders.
+  currency = await ensureCurrencyForSession(client, sessionId);
+  fromLabel = await resolveFromLabel(currency);
+  onCurrencyChange(async (next) => {
+    currency = next;
+    fromLabel = await resolveFromLabel(next);
+    renderGrid();
+  });
 
   if (userScoped) {
     // Cross-session view: every gallery item across every session this user
@@ -211,7 +247,7 @@ import Layout from "../layouts/Layout.astro";
               <p class="g-card__title">${titleText}</p>
               <p class="g-card__sub">Pick your format</p>
             </div>
-            <p class="g-card__price">From $9.99</p>
+            <p class="g-card__price">${fromLabel}</p>
           </div>
           <button class="btn btn--primary g-card__buy" data-i="${it._index}">Buy this one</button>
         </div>
