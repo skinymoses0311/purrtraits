@@ -171,15 +171,7 @@ export default defineSchema({
     gelatoProductUid: v.optional(v.string()),
     // Per-currency price set in minor units (cents/pence). Hand-tuned to
     // round-number endings per currency; see convex/currency.ts.
-    //
-    // TRANSITIONAL: marked optional alongside the legacy `priceCents` /
-    // `currency` fields so the multi-currency schema can deploy against an
-    // un-migrated products table. Once seed:seedV1Catalog has wiped and
-    // re-created the catalog with `prices` populated, this should be
-    // tightened back to required and the legacy fields removed.
-    prices: v.optional(pricesValidator),
-    priceCents: v.optional(v.number()),
-    currency: v.optional(v.string()),
+    prices: pricesValidator,
     printFileUrl: v.optional(v.string()),
     active: v.boolean(),
   })
