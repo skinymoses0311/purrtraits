@@ -248,11 +248,33 @@ import Layout from "../layouts/Layout.astro";
       crossCb.checked = breedUi.isCrossbreed;
       unknownCb.checked = breedUi.isUnknown;
 
+      // Index of the keyboard-highlighted option in the dropdown. -1 means
+      // nothing is highlighted, which is the state on first open.
+      let activeIndex = -1;
+
+      function listOptions() {
+        return Array.from(
+          list.querySelectorAll<HTMLLIElement>(".quiz__breed-opt"),
+        );
+      }
+
+      function setActive(i: number) {
+        const opts = listOptions();
+        activeIndex = i;
+        opts.forEach((el, idx) => {
+          el.classList.toggle("is-active", idx === i);
+        });
+        if (i >= 0 && opts[i]) {
+          opts[i].scrollIntoView({ block: "nearest" });
+        }
+      }
+
       function showMatches(query: string) {
         const q = query.trim().toLowerCase();
         if (!q) {
           list.hidden = true;
           list.innerHTML = "";
+          activeIndex = -1;
           return;
         }
         // In crossbreed mode, hide breeds the user has already picked so the
@@ -273,12 +295,37 @@ import Layout from "../layouts/Layout.astro";
         if (matches.length === 0) {
           list.hidden = true;
           list.innerHTML = "";
+          activeIndex = -1;
           return;
         }
         list.innerHTML = matches
           .map((b) => `<li class="quiz__breed-opt" data-v="${escapeHtml(b)}">${escapeHtml(b)}</li>`)
           .join("");
         list.hidden = false;
+        // Re-rendering the options invalidates any prior highlight.
+        activeIndex = -1;
+      }
+
+      function pickBreed(picked: string) {
+        if (breedUi.isCrossbreed) {
+          const current = answers.breeds ?? [];
+          if (current.includes(picked) || current.length >= MAX_CROSSBREEDS) return;
+          answers.breeds = [...current, picked];
+          updateBreedDisplayFromBreeds();
+          input.value = "";
+          list.hidden = true;
+          activeIndex = -1;
+          renderChips();
+          renderHint();
+          recomputeNext();
+          input.focus();
+        } else {
+          answers.breed = picked;
+          input.value = picked;
+          list.hidden = true;
+          activeIndex = -1;
+          recomputeNext();
+        }
       }
 
       function syncSingle() {
@@ -387,9 +434,43 @@ import Layout from "../layouts/Layout.astro";
         setTimeout(() => (list.hidden = true), 120);
       });
       input.addEventListener("keydown", (e) => {
+        if (breedUi.isUnknown) return;
+
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          // Open the list if it's closed and we have something to show.
+          if (list.hidden) showMatches(input.value);
+          const opts = listOptions();
+          if (opts.length === 0) return;
+          e.preventDefault();
+          const last = opts.length - 1;
+          if (e.key === "ArrowDown") {
+            setActive(activeIndex < 0 ? 0 : (activeIndex + 1) % opts.length);
+          } else {
+            setActive(activeIndex < 0 ? last : (activeIndex - 1 + opts.length) % opts.length);
+          }
+          return;
+        }
+
+        if (e.key === "Escape") {
+          if (!list.hidden) {
+            e.preventDefault();
+            list.hidden = true;
+            activeIndex = -1;
+          }
+          return;
+        }
+
         if (e.key === "Enter") {
-          // In crossbreed mode Enter shouldn't submit the form — only the
-          // explicit Next button does. In single mode it's a fast-forward.
+          // If a dropdown option is highlighted, Enter selects it.
+          const opts = listOptions();
+          if (!list.hidden && activeIndex >= 0 && opts[activeIndex]?.dataset.v) {
+            e.preventDefault();
+            pickBreed(opts[activeIndex].dataset.v!);
+            return;
+          }
+          // Otherwise: in crossbreed mode Enter shouldn't submit the form —
+          // only the explicit Next button does. In single mode it's a
+          // fast-forward to Next when a breed is already selected.
           if (breedUi.isCrossbreed) {
             e.preventDefault();
             return;
@@ -402,24 +483,7 @@ import Layout from "../layouts/Layout.astro";
         const target = (e.target as HTMLElement).closest<HTMLLIElement>(".quiz__breed-opt");
         if (!target?.dataset.v) return;
         e.preventDefault();
-        const picked = target.dataset.v;
-        if (breedUi.isCrossbreed) {
-          const current = answers.breeds ?? [];
-          if (current.includes(picked) || current.length >= MAX_CROSSBREEDS) return;
-          answers.breeds = [...current, picked];
-          updateBreedDisplayFromBreeds();
-          input.value = "";
-          list.hidden = true;
-          renderChips();
-          renderHint();
-          recomputeNext();
-          input.focus();
-        } else {
-          answers.breed = picked;
-          input.value = picked;
-          list.hidden = true;
-          recomputeNext();
-        }
+        pickBreed(target.dataset.v);
       });
 
       chips.addEventListener("click", (e) => {
@@ -688,7 +752,8 @@ import Layout from "../layouts/Layout.astro";
     font-size: 15px; color: var(--c-dark);
     cursor: pointer;
   }
-  .quiz__breed-opt:hover { background: var(--c-pink-light); }
+  .quiz__breed-opt:hover,
+  .quiz__breed-opt.is-active { background: var(--c-pink-light); }
 
   .quiz__breed-chips {
     display: flex; flex-wrap: wrap; gap: 8px;
