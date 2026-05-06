@@ -219,13 +219,21 @@ import Layout from "../layouts/Layout.astro";
         <div id="breed-chips" class="quiz__breed-chips" hidden></div>
         <p id="breed-hint" class="quiz__breed-hint muted" hidden></p>
         <div class="quiz__breed-toggles">
-          <label class="checkbox">
-            <input id="breed-cross" type="checkbox" />
-            <span>My dog is a crossbreed</span>
+          <label class="option option--toggle">
+            <input id="breed-cross" type="checkbox" class="option__checkbox" />
+            <span class="option__emoji">🐾</span>
+            <div>
+              <p class="display option__title">Crossbreed</p>
+              <p class="muted option__blurb">A mix of breeds</p>
+            </div>
           </label>
-          <label class="checkbox">
-            <input id="breed-unknown" type="checkbox" />
-            <span>I'm not sure</span>
+          <label class="option option--toggle">
+            <input id="breed-unknown" type="checkbox" class="option__checkbox" />
+            <span class="option__emoji">❓</span>
+            <div>
+              <p class="display option__title">I'm not sure</p>
+              <p class="muted option__blurb">Pick the closest later</p>
+            </div>
           </label>
         </div>
       `;
@@ -706,16 +714,17 @@ import Layout from "../layouts/Layout.astro";
   .quiz__breed-hint[hidden] { display: none; }
 
   .quiz__breed-toggles {
-    display: flex; flex-direction: column; gap: 8px;
-    margin-top: 16px;
+    display: grid; gap: 12px; grid-template-columns: 1fr;
+    margin-top: 20px;
   }
-  .checkbox {
-    display: inline-flex; align-items: center; gap: 8px;
-    cursor: pointer; font-size: 15px; color: var(--c-dark);
-    user-select: none;
+  @media (min-width: 600px) { .quiz__breed-toggles { grid-template-columns: 1fr 1fr; } }
+
+  .option--toggle { user-select: none; }
+  .option--toggle:has(.option__checkbox:checked) {
+    border-color: var(--c-pink); background: var(--c-pink-light);
   }
-  .checkbox input[type="checkbox"] {
-    width: 18px; height: 18px; cursor: pointer;
+  .option__checkbox {
+    position: absolute; opacity: 0; pointer-events: none;
   }
 
   .quiz__footer {
