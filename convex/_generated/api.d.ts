@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as brevo from "../brevo.js";
 import type * as cart from "../cart.js";
+import type * as currency from "../currency.js";
 import type * as fal from "../fal.js";
 import type * as files from "../files.js";
 import type * as galleryExport from "../galleryExport.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   brevo: typeof brevo;
   cart: typeof cart;
+  currency: typeof currency;
   fal: typeof fal;
   files: typeof files;
   galleryExport: typeof galleryExport;
