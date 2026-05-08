@@ -220,7 +220,15 @@ import Layout from "../layouts/Layout.astro";
         <p id="breed-hint" class="quiz__breed-hint muted" hidden></p>
         <div class="quiz__breed-toggles">
           <label class="option option--toggle">
-            <input id="breed-cross" type="checkbox" class="option__checkbox" />
+            <input id="breed-pure" type="radio" name="breed-mode" class="option__checkbox" />
+            <span class="option__emoji">🐕</span>
+            <div>
+              <p class="display option__title">Purebreed</p>
+              <p class="muted option__blurb">One specific breed</p>
+            </div>
+          </label>
+          <label class="option option--toggle">
+            <input id="breed-cross" type="radio" name="breed-mode" class="option__checkbox" />
             <span class="option__emoji">🐾</span>
             <div>
               <p class="display option__title">Crossbreed</p>
@@ -228,7 +236,7 @@ import Layout from "../layouts/Layout.astro";
             </div>
           </label>
           <label class="option option--toggle">
-            <input id="breed-unknown" type="checkbox" class="option__checkbox" />
+            <input id="breed-unknown" type="radio" name="breed-mode" class="option__checkbox" />
             <span class="option__emoji">❓</span>
             <div>
               <p class="display option__title">I'm not sure</p>
@@ -242,9 +250,13 @@ import Layout from "../layouts/Layout.astro";
       const list = document.getElementById("breed-list") as HTMLUListElement;
       const chips = document.getElementById("breed-chips") as HTMLDivElement;
       const hint = document.getElementById("breed-hint") as HTMLParagraphElement;
+      const pureCb = document.getElementById("breed-pure") as HTMLInputElement;
       const crossCb = document.getElementById("breed-cross") as HTMLInputElement;
       const unknownCb = document.getElementById("breed-unknown") as HTMLInputElement;
 
+      // The mode tiles are a radio group; "purebreed" is the implicit default
+      // (no flags set) so a quick boolean derives the initial checked state.
+      pureCb.checked = !breedUi.isCrossbreed && !breedUi.isUnknown;
       crossCb.checked = breedUi.isCrossbreed;
       unknownCb.checked = breedUi.isUnknown;
 
@@ -503,43 +515,51 @@ import Layout from "../layouts/Layout.astro";
         recomputeNext();
       });
 
-      crossCb.addEventListener("change", () => {
-        breedUi.isCrossbreed = crossCb.checked;
-        if (breedUi.isCrossbreed) {
-          // Switching on: seed the breeds array if there's a single breed
-          // typed already, then clear the input ready for the next pick.
+      // Single mode-switch handler for the radio group. Radios only fire
+      // 'change' on the newly-selected input (not the deselected one), so
+      // each handler can assume its own input is now checked.
+      function applyMode(mode: "pure" | "cross" | "unknown") {
+        breedUi.isCrossbreed = mode === "cross";
+        breedUi.isUnknown = mode === "unknown";
+
+        if (mode === "cross") {
+          // Switching to crossbreed: seed the breeds array from any single
+          // breed already typed so the user doesn't lose their pick, then
+          // clear the input ready for the next selection.
           if (answers.breed && !answers.breeds) {
             answers.breeds = [answers.breed];
           }
           input.value = "";
           delete answers.breed;
           updateBreedDisplayFromBreeds();
-        } else {
-          // Switching off: clear the multi-select state and any partial
-          // single-breed text. The user will type / pick fresh.
-          delete answers.breeds;
-          delete answers.breed;
-          input.value = "";
-        }
-        list.hidden = true;
-        renderChips();
-        renderHint();
-        recomputeNext();
-      });
-
-      unknownCb.addEventListener("change", () => {
-        breedUi.isUnknown = unknownCb.checked;
-        if (breedUi.isUnknown) {
+        } else if (mode === "unknown") {
           // Clear all breed state — nothing flows to the prompt or copy.
           delete answers.breed;
           delete answers.breeds;
           input.value = "";
-          list.hidden = true;
+        } else {
+          // Purebreed (default): drop any multi-select state and let the
+          // user type / pick a single breed fresh.
+          delete answers.breeds;
+          delete answers.breed;
+          input.value = "";
         }
+
+        list.hidden = true;
         applyDisabledState();
         renderChips();
         renderHint();
         recomputeNext();
+      }
+
+      pureCb.addEventListener("change", () => {
+        if (pureCb.checked) applyMode("pure");
+      });
+      crossCb.addEventListener("change", () => {
+        if (crossCb.checked) applyMode("cross");
+      });
+      unknownCb.addEventListener("change", () => {
+        if (unknownCb.checked) applyMode("unknown");
       });
 
       // Initial paint
@@ -782,7 +802,7 @@ import Layout from "../layouts/Layout.astro";
     display: grid; gap: 12px; grid-template-columns: 1fr;
     margin-top: 20px;
   }
-  @media (min-width: 600px) { .quiz__breed-toggles { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 600px) { .quiz__breed-toggles { grid-template-columns: 1fr 1fr 1fr; } }
 
   .option--toggle { user-select: none; }
   .option--toggle:has(.option__checkbox:checked) {
