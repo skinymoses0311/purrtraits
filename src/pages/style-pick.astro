@@ -14,6 +14,10 @@ try {
 } catch {
   // Folder doesn't exist yet — ship without examples; tiles fall back to text.
 }
+
+// Skeleton count matches the 10 real cards so the grid is stable when the
+// client replaces them.
+const SKELETON_COUNT = 10;
 ---
 
 <Layout
@@ -48,13 +52,23 @@ try {
       </span>
     </div>
 
-    <div class="pick__grid" id="grid" role="group" aria-label="Art styles"></div>
+    <div class="pick__grid" id="grid" role="group" aria-label="Art styles" aria-busy="true">
+      {Array.from({ length: SKELETON_COUNT }).map(() => (
+        <div class="pcard pcard--skel" aria-hidden="true">
+          <div class="pcard__media shimmer"></div>
+          <div class="pcard__body">
+            <div class="skel-line skel-line--title shimmer"></div>
+            <div class="skel-line skel-line--desc shimmer"></div>
+          </div>
+        </div>
+      ))}
+    </div>
 
     <div class="pick__footer">
       <button id="go" class="btn btn--primary btn--lg" disabled>
         Generate my portraits →
       </button>
-      <p class="pick__counter" id="counter">0/3 styles selected — pick three to continue</p>
+      <p class="pick__counter" id="counter">Loading your picks…</p>
     </div>
 
     <script
@@ -233,6 +247,7 @@ try {
 
       function renderGrid() {
         grid.innerHTML = gridOrder().map(cardHtml).join("");
+        grid.removeAttribute("aria-busy");
         grid.querySelectorAll<HTMLButtonElement>(".pcard").forEach((btn) => {
           btn.addEventListener("click", () => toggle(btn.dataset.style as Style));
         });
@@ -408,6 +423,22 @@ try {
     transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
   }
   .pcard:hover { transform: translateY(-1px); border-color: var(--c-stroke); }
+
+  /* Skeleton placeholders — match the real card shape so the grid doesn't
+     reflow when the script replaces them with real content. Inherit .pcard's
+     border/radius/shadow, but kill the interactive affordances. */
+  .pcard--skel {
+    cursor: default;
+    box-shadow: 0 1px 2px rgba(30, 20, 16, 0.04);
+  }
+  .pcard--skel:hover { transform: none; border-color: var(--c-stroke-light); }
+  .pcard--skel .pcard__media { background: var(--c-shimmer); }
+  .skel-line {
+    height: 12px; border-radius: 6px;
+    background: var(--c-shimmer);
+  }
+  .skel-line--title { height: 18px; width: 60%; margin-bottom: 8px; }
+  .skel-line--desc { width: 90%; }
   .pcard--selected {
     border: 2.5px solid var(--c-pink);
     box-shadow: 0 6px 18px rgba(217, 139, 168, 0.28);
