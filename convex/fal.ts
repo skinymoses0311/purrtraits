@@ -365,6 +365,13 @@ async function upscaleAndPersist(ctx: any, lowResUrl: string): Promise<string> {
 
 // ----- Generation orchestration --------------------------------------------
 
+// Nano Banana edit endpoint rejects requests with more than 10 reference
+// images. The /upload page already wipes prior photos on mount and the UI
+// caps each batch at 5, but we keep a defensive cap here so that any
+// unforeseen path (legacy session, race, manual API call) can never
+// produce a 422 in front of a paying user.
+const FAL_MAX_REFERENCE_IMAGES = 10;
+
 async function generateAllStyles(
   ctx: any,
   sessionId: any,
@@ -372,8 +379,14 @@ async function generateAllStyles(
 ): Promise<{ style: StyleOrArtist; imageUrl: string; printFileUrl: string }[]> {
   const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
   if (!session) throw new Error("Session not found");
-  const photos = session.petPhotoUrls ?? [];
-  if (photos.length === 0) throw new Error("No pet photos uploaded");
+  const allPhotos = session.petPhotoUrls ?? [];
+  if (allPhotos.length === 0) throw new Error("No pet photos uploaded");
+  const photos = allPhotos.slice(0, FAL_MAX_REFERENCE_IMAGES);
+  if (allPhotos.length > FAL_MAX_REFERENCE_IMAGES) {
+    console.warn(
+      `generateAllStyles: session has ${allPhotos.length} photos, capping to ${FAL_MAX_REFERENCE_IMAGES}`,
+    );
+  }
 
   const activity = session.quizAnswers?.activity;
   const mood = session.quizAnswers?.mood;

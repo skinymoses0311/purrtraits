@@ -236,16 +236,16 @@ import AdUnit from "../components/AdUnit.astro";
   let sessionId: Id<"sessions"> | null = null;
   let nextId = 1;
 
-  // If the user finished a previous flow in this session and is back at
-  // /upload, treat that as "start a new portrait". We clear photos/quiz/
-  // generations but preserve the session id so the gallery survives.
+  // Every /upload mount is treated as the start of a new portrait. We wipe
+  // photos, quiz answers, and generations from the session (preserving the
+  // session id so the gallery survives) so each upload run is a clean batch.
+  // Without this, photos accumulate across visits and fal eventually rejects
+  // the request once the array exceeds Nano Banana's 10-image limit.
+  // Trade-off: back-nav from /quiz to /upload also wipes — accepted.
   {
     const existing = (await import("../lib/client.ts")).getSessionId();
     if (existing) {
-      const session = await client.query(api.sessions.get, { id: existing });
-      if (session?.generations) {
-        await client.mutation(api.sessions.clearCurrentFlow, { id: existing });
-      }
+      await client.mutation(api.sessions.clearCurrentFlow, { id: existing });
     }
   }
 
