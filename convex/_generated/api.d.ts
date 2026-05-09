@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as artistScoring from "../artistScoring.js";
 import type * as auth from "../auth.js";
 import type * as brevo from "../brevo.js";
 import type * as cart from "../cart.js";
@@ -36,6 +37,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  artistScoring: typeof artistScoring;
   auth: typeof auth;
   brevo: typeof brevo;
   cart: typeof cart;

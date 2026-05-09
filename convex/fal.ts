@@ -6,6 +6,13 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ALL_STYLES, type Style } from "./styleScoring";
+import { ALL_ARTISTS, type Artist } from "./artistScoring";
+
+// A picker selection is either a style key or an artist key. The fal
+// pipeline treats them uniformly — same prompt structure, same fan-out,
+// same regen accounting — so we widen the internal type rather than
+// branching everywhere.
+type StyleOrArtist = Style | Artist;
 
 // Nano Banana (Gemini 2.5 Flash Image) — image-editing mode. Takes 1+ reference
 // images + a prompt and returns a new styled image while preserving identity.
@@ -44,6 +51,41 @@ const STYLE_PROMPTS: Record<Style, string> = {
     "Render the scene in a low-poly geometric style. Form built from angular faceted triangular planes, clean flat-shaded surfaces with subtle gradients between facets, modern and striking modern graphic aesthetic, considered colour palette. Crisp vector-like edges, contemporary and decorative.",
   botanical:
     "Render the scene as a vintage botanical illustration in the style of 19th-century Victorian scientific plates. Fine ink linework with delicate stippling and crosshatching, muted earthy watercolour washes (sepia, sage, dusty rose, ochre), refined and naturalistic, across an aged cream paper-textured surface with subtle foxing that fills the canvas to every edge. Elegant, scholarly, and timeless — never depict the edges of a printed plate or sheet of paper, no margin or border around the artwork.",
+};
+
+// Per-artist prompts for Tab 2 of the picker. Same shape as STYLE_PROMPTS
+// but each entry briefs Nano Banana on a specific public-domain painter's
+// signature look. Kept in a separate dictionary for editorial clarity, then
+// merged into STYLE_OR_ARTIST_PROMPTS below so the rest of the file can stay
+// agnostic to which vocabulary a picker key came from.
+const ARTIST_PROMPTS: Record<Artist, string> = {
+  vangogh:
+    "Render the scene as a Vincent van Gogh oil painting from his Saint-Rémy or Arles period (1888-1890). Thick visible impasto brushstrokes with directional swirling movement, vivid saturated palette of cobalt blue, chrome yellow, viridian and warm ochre, expressive bold colour. Energetic, emotional, and luminous. The brushwork itself carries the form — every surface alive with painted texture.",
+  monet:
+    "Render the scene as a Claude Monet impressionist oil painting (c.1880-1900). Soft broken brushwork in short overlapping dabs, dappled diffused natural light, harmonious gentle palette of dove-grey, lavender, sage and pale rose, edges that dissolve into atmospheric haze. Painterly canvas texture throughout. Romantic, luminous, plein-air.",
+  vermeer:
+    "Render the scene as a Johannes Vermeer Dutch Golden Age oil painting (mid-1660s). Soft directional light from a single source, finely glazed layers with no visible brushwork, restrained palette of ultramarine, lead-tin yellow, ochre and umber, intimate quiet atmosphere with deep shadows and luminous highlights. Polished, contemplative, jewel-like.",
+  klimt:
+    "Render the scene as a Gustav Klimt Vienna Secession painting from his Golden Phase (c.1907-1908). Decorative gold-leaf ornament throughout with stamped circles, spirals and geometric patterning, form built from a mosaic of flat patterned shapes against gilded ground, restrained accents of viridian, vermilion and ivory against shimmering gold. Opulent, decorative, unmistakably Art Nouveau.",
+  hokusai:
+    "Render the scene as a Katsushika Hokusai ukiyo-e woodblock print (c.1830s, in the manner of Thirty-six Views of Mount Fuji). Bold confident black outlines defining every form, flat areas of solid colour with no gradients, refined palette of Prussian blue, Indian red, ochre and cream, visible block-printed paper-grain texture filling the canvas. Graphic, decorative, and unmistakably Japanese.",
+  mucha:
+    "Render the scene as an Alphonse Mucha Art Nouveau decorative panel (c.1896-1900). Ornate flowing line-work with whiplash curves, decorative stylised foliage and a circular halo motif framing the subject, soft pastel palette of dusky rose, ivory, sage and honey, gentle gold accents. Elegant, decorative, Belle Époque.",
+  davinci:
+    "Render the scene as a Leonardo da Vinci High Renaissance oil painting on poplar panel (c.1500-1510). Sfumato modelling with soft tonal transitions and no hard edges, restrained earth-tone palette of umber, sienna, olive and warm cream, atmospheric perspective with hazy distant landscape, gentle directional light. Refined, contemplative, museum-quality.",
+  rembrandt:
+    "Render the scene as a Rembrandt van Rijn Dutch Baroque oil painting from his late period (1660s). Dramatic chiaroscuro with a single warm light source emerging from deep shadow, rich palette of bitumen black, burnt sienna, ochre and ivory highlights, thick painterly impasto in the lit areas with glazed shadows, intimate human warmth. Timeless and dignified.",
+  seurat:
+    "Render the scene as a Georges Seurat pointillist painting in the Neo-Impressionist tradition (c.1884-1891). Form built entirely from small dots and short dabs of pure unmixed colour that optically blend into shimmering form, palette of complementary colour pairs creating luminous vibration, calm and structured composition. Rigorous, scientific, and dreamlike.",
+  cassatt:
+    "Render the scene as a Mary Cassatt American Impressionist painting (c.1880-1900). Soft loose brushwork with visible canvas texture, warm palette of peach, sage, rose and cream, gentle directional natural light, intimate domestic warmth. Tender, modern, quietly luminous.",
+};
+
+// Unified lookup keyed by either a style or artist slug. Keeps buildPrompt
+// and the picker-selection path agnostic to which tab the key came from.
+const STYLE_OR_ARTIST_PROMPTS: Record<StyleOrArtist, string> = {
+  ...STYLE_PROMPTS,
+  ...ARTIST_PROMPTS,
 };
 
 // What the pet is actually doing in the portrait — driven by Q1 of the quiz.
@@ -121,14 +163,14 @@ const FULL_BLEED_LEAD =
   "FULL-BLEED, EDGE-TO-EDGE ARTWORK. The artwork must completely fill the canvas with absolutely no border, frame, mat, paper margin, silkscreen edge, painted edge, ornate moulding, drawn rectangle, or unprinted area — every pixel up to the canvas edge is part of the artwork itself.";
 
 function buildPrompt(
-  style: Style,
+  key: StyleOrArtist,
   activity?: string,
   mood?: string,
   breeds?: string[],
   breed?: string,
   favouriteFeature?: string,
 ): string {
-  const stylePart = STYLE_PROMPTS[style];
+  const stylePart = STYLE_OR_ARTIST_PROMPTS[key];
   // Activity (what the pet is doing) leads — it sets the scene. Style then
   // dictates how that scene is rendered. Mood adds emotional flavour.
   const activityPart = activity ? ` ${ACTIVITY_PROMPTS[activity] ?? ""}` : "";
@@ -326,8 +368,8 @@ async function upscaleAndPersist(ctx: any, lowResUrl: string): Promise<string> {
 async function generateAllStyles(
   ctx: any,
   sessionId: any,
-  styles: Style[],
-): Promise<{ style: Style; imageUrl: string; printFileUrl: string }[]> {
+  styles: StyleOrArtist[],
+): Promise<{ style: StyleOrArtist; imageUrl: string; printFileUrl: string }[]> {
   const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
   if (!session) throw new Error("Session not found");
   const photos = session.petPhotoUrls ?? [];
@@ -351,7 +393,7 @@ async function generateAllStyles(
     ),
   );
 
-  const generations: { style: Style; imageUrl: string; printFileUrl: string }[] = [];
+  const generations: { style: StyleOrArtist; imageUrl: string; printFileUrl: string }[] = [];
   const errors: string[] = [];
   for (const r of results) {
     if (r.status === "fulfilled") generations.push(r.value);
@@ -362,21 +404,25 @@ async function generateAllStyles(
   return generations;
 }
 
-// Validate caller-supplied style keys against the canonical list and dedupe.
-// Returns at most 3 valid styles, in the order given.
-function resolveSelectedStyles(input: string[] | undefined, fallback: Style[]): Style[] {
-  const allow = new Set<string>(ALL_STYLES);
+// Validate caller-supplied picker keys against the union of canonical
+// styles + artists, and dedupe. Returns at most 3 valid keys, in the
+// order given. The fallback (typically rankedStyles) is used to backfill
+// when the user-provided input is empty or short.
+function resolveSelectedKeys(
+  input: string[] | undefined,
+  fallback: StyleOrArtist[],
+): StyleOrArtist[] {
+  const allow = new Set<string>([...ALL_STYLES, ...ALL_ARTISTS]);
   const seen = new Set<string>();
-  const valid: Style[] = [];
+  const valid: StyleOrArtist[] = [];
   for (const s of input ?? []) {
     if (allow.has(s) && !seen.has(s)) {
       seen.add(s);
-      valid.push(s as Style);
+      valid.push(s as StyleOrArtist);
     }
     if (valid.length === 3) break;
   }
   if (valid.length === 3) return valid;
-  // Backfill from the fallback (top-ranked) so we always generate exactly 3.
   for (const s of fallback) {
     if (!seen.has(s)) {
       seen.add(s);
@@ -417,8 +463,8 @@ export const generatePortraits = action({
     });
     try {
       const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
-      const ranked = (session?.rankedStyles ?? []) as Style[];
-      const chosen = resolveSelectedStyles(styles, ranked);
+      const ranked = (session?.rankedStyles ?? []) as StyleOrArtist[];
+      const chosen = resolveSelectedKeys(styles, ranked);
       const generations = await generateAllStyles(ctx, sessionId, chosen);
       const generationsWithIdentity = generations.map((g) => ({
         ...g,
@@ -489,9 +535,9 @@ export const regenerate = action({
     });
     try {
       // Re-paint the same styles the user just saw, unless caller overrides.
-      const fallback = (session.generations?.map((g) => g.style) ?? []) as Style[];
-      const ranked = (session.rankedStyles ?? []) as Style[];
-      const chosen = resolveSelectedStyles(
+      const fallback = (session.generations?.map((g) => g.style) ?? []) as StyleOrArtist[];
+      const ranked = (session.rankedStyles ?? []) as StyleOrArtist[];
+      const chosen = resolveSelectedKeys(
         styles ?? fallback,
         ranked,
       );

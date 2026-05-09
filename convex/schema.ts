@@ -105,6 +105,10 @@ export default defineSchema({
     // Quiz-derived ranking of all 10 styles, highest-scoring first. Computed
     // at quiz-save time; the top 3 are pre-suggested on the picker.
     rankedStyles: v.optional(v.array(v.string())),
+    // Quiz-derived ranking of all 10 artists, highest-scoring first. Mirrors
+    // rankedStyles. Computed at quiz-save time; the top 3 are surfaced first
+    // on the Artist tab of the picker.
+    rankedArtists: v.optional(v.array(v.string())),
     // The 3 styles the user actually picked to generate. Set on the picker
     // screen and consumed by the fal action.
     selectedStyles: v.optional(v.array(v.string())),

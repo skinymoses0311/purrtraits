@@ -6,13 +6,24 @@ import { join } from "node:path";
 // Build-time scan of public/samples/styles/ so the client can resolve example
 // images by (activity, mood, style) regardless of any trailing suffix on the
 // actual filename (e.g. "..._jh799q76ast12y4vhczhd984p185j271").
-let sampleFiles: string[] = [];
+let styleSamples: string[] = [];
 try {
-  sampleFiles = readdirSync(join(process.cwd(), "public", "samples", "styles"))
+  styleSamples = readdirSync(join(process.cwd(), "public", "samples", "styles"))
     .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
     .sort();
 } catch {
   // Folder doesn't exist yet — ship without examples; tiles fall back to text.
+}
+
+// Artists are addressed by a flat slug (e.g. "vangogh.jpg") with no
+// activity/mood permutation, so the lookup is a simple basename match.
+let artistSamples: string[] = [];
+try {
+  artistSamples = readdirSync(join(process.cwd(), "public", "samples", "artists"))
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort();
+} catch {
+  // Folder doesn't exist yet — operator drops files in post-launch.
 }
 
 // Skeleton count matches the 10 real cards so the grid is stable when the
@@ -47,21 +58,56 @@ const SKELETON_COUNT = 10;
       <span class="pick__rec-chip">
         ✦ Recommended for <span class="pick__pet">your pet</span>
       </span>
-      <span class="pick__rec-text">
+      <span class="pick__rec-text" id="pick-rec-text">
         The first three cards are pre-selected — swap any by tapping a different style.
       </span>
     </div>
 
-    <div class="pick__grid" id="grid" role="group" aria-label="Art styles" aria-busy="true">
-      {Array.from({ length: SKELETON_COUNT }).map(() => (
-        <div class="pcard pcard--skel" aria-hidden="true">
-          <div class="pcard__media shimmer"></div>
-          <div class="pcard__body">
-            <div class="skel-line skel-line--title shimmer"></div>
-            <div class="skel-line skel-line--desc shimmer"></div>
+    <div class="pick__tabs" role="tablist" aria-label="Picker tabs">
+      <button
+        class="pick__tab pick__tab--active"
+        data-tab="style"
+        role="tab"
+        aria-selected="true"
+        aria-controls="panel-style"
+        type="button"
+      >Style</button>
+      <button
+        class="pick__tab"
+        data-tab="artist"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-artist"
+        type="button"
+      >Artist</button>
+    </div>
+
+    <div class="pick__panel" id="panel-style" data-panel="style" role="tabpanel">
+      <div class="pick__grid" id="grid-style" role="group" aria-label="Art styles" aria-busy="true">
+        {Array.from({ length: SKELETON_COUNT }).map(() => (
+          <div class="pcard pcard--skel" aria-hidden="true">
+            <div class="pcard__media shimmer"></div>
+            <div class="pcard__body">
+              <div class="skel-line skel-line--title shimmer"></div>
+              <div class="skel-line skel-line--desc shimmer"></div>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </div>
+
+    <div class="pick__panel pick__panel--hidden" id="panel-artist" data-panel="artist" role="tabpanel" hidden>
+      <div class="pick__grid" id="grid-artist" role="group" aria-label="Famous artists" aria-busy="true">
+        {Array.from({ length: SKELETON_COUNT }).map(() => (
+          <div class="pcard pcard--skel" aria-hidden="true">
+            <div class="pcard__media shimmer"></div>
+            <div class="pcard__body">
+              <div class="skel-line skel-line--title shimmer"></div>
+              <div class="skel-line skel-line--desc shimmer"></div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
 
     <div class="pick__footer">
@@ -73,9 +119,15 @@ const SKELETON_COUNT = 10;
 
     <script
       type="application/json"
-      id="sample-manifest"
+      id="style-sample-manifest"
       is:inline
-      set:html={JSON.stringify(sampleFiles)}
+      set:html={JSON.stringify(styleSamples)}
+    />
+    <script
+      type="application/json"
+      id="artist-sample-manifest"
+      is:inline
+      set:html={JSON.stringify(artistSamples)}
     />
   </main>
 </Layout>
@@ -92,6 +144,16 @@ const SKELETON_COUNT = 10;
     scoreStyles,
     type Style,
   } from "../../convex/styleScoring.ts";
+  import {
+    ALL_ARTISTS,
+    ARTIST_LABELS,
+    ARTIST_BLURBS,
+    scoreArtists,
+    type Artist,
+  } from "../../convex/artistScoring.ts";
+
+  type SelKey = Style | Artist;
+  type TabKind = "style" | "artist";
 
   const client = makeClient();
   const sessionId = getSessionId();
@@ -115,14 +177,20 @@ const SKELETON_COUNT = 10;
         el.textContent = petLabel;
       });
       const titleEl = document.getElementById("pick-title")!;
-      titleEl.textContent = `We've picked three styles we think suit ${petLabel}`;
       const subEl = document.getElementById("pick-sub")!;
-      // Rebuild subtitle with possessive applied to the photos line.
-      subEl.innerHTML =
-        `Your <strong>3 recommended styles</strong> are highlighted below — ` +
-        `tap any to swap it for another. The previews show ` +
-        `<strong>a different pet as a sample</strong>; your portraits will be ` +
-        `painted from ${escapeHtml(petPossessive)} photos.`;
+      const recTextEl = document.getElementById("pick-rec-text")!;
+
+      function setHeaderCopy(kind: TabKind) {
+        const noun = kind === "style" ? "styles" : "artists";
+        titleEl.textContent = `We've picked three ${noun} we think suit ${petLabel}`;
+        subEl.innerHTML =
+          `Your <strong>3 recommended ${noun}</strong> are highlighted below — ` +
+          `tap any to swap it for another. The previews show ` +
+          `<strong>a different pet as a sample</strong>; your portraits will be ` +
+          `painted from ${escapeHtml(petPossessive)} photos.`;
+        recTextEl.textContent =
+          `The top three ${noun} for ${petLabel} are shown first — tap any to add or swap.`;
+      }
 
       // Prefer the server-side ranking saved on the session; fall back to a
       // fresh client-side score so an older session still gets a sensible
@@ -137,11 +205,25 @@ const SKELETON_COUNT = 10;
       const known = new Set<string>(ranked);
       for (const s of ALL_STYLES) if (!known.has(s)) ranked.push(s);
 
+      // Same fallback chain for artists. Older sessions saved before the
+      // Artist tab shipped won't have rankedArtists — recompute client-side.
+      const rankedArtists: Artist[] =
+        ((session.rankedArtists as Artist[] | undefined)?.filter((a) =>
+          (ALL_ARTISTS as readonly string[]).includes(a),
+        ) as Artist[] | undefined) ?? scoreArtists(session.quizAnswers);
+
+      const knownA = new Set<string>(rankedArtists);
+      for (const a of ALL_ARTISTS) if (!knownA.has(a)) rankedArtists.push(a);
+
       // Selection order matters: if a 4th gets picked we evict the oldest.
-      const selected: Style[] = ranked.slice(0, 3);
+      // Default state preserves Tab 1 behaviour — top 3 styles preselected.
+      // Tab 2's recommendations are surfaced through grid order only; no
+      // artist is selected on initial load.
+      const selected: SelKey[] = ranked.slice(0, 3);
       // Remember the original pre-selected set so we can keep the "Our pick"
       // wording on cards the user kept, and switch to "Selected" on cards
-      // they swapped in.
+      // they swapped in. Only the initial style pre-selection is captured —
+      // any artist the user picks later renders as "Selected".
       const originalPicks = new Set<string>(selected);
 
       // styles_suggested fires once with the server-side ranking so we can
@@ -151,8 +233,15 @@ const SKELETON_COUNT = 10;
         top_style_2: ranked[1],
         top_style_3: ranked[2],
       });
+      // Parallel signal for Tab 2 ranking. Even though no artist is
+      // pre-selected, capturing the suggested top 3 lets us measure
+      // engagement once the operator turns the Artist tab on.
+      track("artists_suggested", {
+        top_artist_1: rankedArtists[0],
+        top_artist_2: rankedArtists[1],
+        top_artist_3: rankedArtists[2],
+      });
 
-      const grid = document.getElementById("grid")!;
       const counter = document.getElementById("counter")!;
       const go = document.getElementById("go") as HTMLButtonElement;
 
@@ -162,50 +251,77 @@ const SKELETON_COUNT = 10;
         }[c]!));
       }
 
-      // Build-time manifest of every file in public/samples/styles/. The
-      // picker matches by `${activity}_${mood}_${style}` prefix, so files
-      // can carry any trailing session-id suffix (e.g.
-      // "adventuring_playful_oil_jh799q76….jpg") and still resolve.
-      const manifestEl = document.getElementById("sample-manifest");
-      const sampleFiles: string[] = manifestEl
-        ? JSON.parse(manifestEl.textContent || "[]")
-        : [];
+      // Build-time manifests of every file in public/samples/{styles,artists}/.
+      // Style files match by `${activity}_${mood}_${style}` prefix; artist
+      // files match by exact basename (`${artist}.jpg`).
+      function readManifest(id: string): string[] {
+        const el = document.getElementById(id);
+        return el ? JSON.parse(el.textContent || "[]") : [];
+      }
+      const styleSampleFiles: string[] = readManifest("style-sample-manifest");
+      const artistSampleFiles: string[] = readManifest("artist-sample-manifest");
 
       const quizActivity = session.quizAnswers!.activity;
       const quizMood = session.quizAnswers!.mood;
 
-      function findSample(activity: string, mood: string, style: string): string | null {
+      function findStyleSample(activity: string, mood: string, style: string): string | null {
         const prefix = `${activity}_${mood}_${style}`;
-        const match = sampleFiles.find((f) => {
+        const match = styleSampleFiles.find((f) => {
           const base = f.replace(/\.[^.]+$/, "");
           return base === prefix || base.startsWith(prefix + "_");
         });
         return match ? `/samples/styles/${match}` : null;
       }
 
-      function sampleImg(style: Style, label: string): string {
-        // Try the user's (activity, mood); fall back to adventuring_playful
-        // (the only pair currently generated for every style). If neither
-        // file exists, omit the image and the card shows the placeholder bg.
-        const personalised = findSample(quizActivity, quizMood, style);
-        const fallback =
-          quizActivity === "adventuring" && quizMood === "playful"
-            ? null
-            : findSample("adventuring", "playful", style);
-        const src = personalised ?? fallback;
+      function findArtistSample(artist: Artist): string | null {
+        const match = artistSampleFiles.find(
+          (f) => f.replace(/\.[^.]+$/, "") === artist,
+        );
+        return match ? `/samples/artists/${match}` : null;
+      }
+
+      function isStyleKey(key: SelKey): key is Style {
+        return (ALL_STYLES as readonly string[]).includes(key);
+      }
+
+      function getMeta(key: SelKey): { label: string; blurb: string; kind: TabKind } {
+        if (isStyleKey(key)) {
+          return { label: STYLE_LABELS[key], blurb: STYLE_BLURBS[key], kind: "style" };
+        }
+        return {
+          label: ARTIST_LABELS[key as Artist],
+          blurb: ARTIST_BLURBS[key as Artist],
+          kind: "artist",
+        };
+      }
+
+      function sampleImg(key: SelKey, label: string): string {
+        let src: string | null;
+        if (isStyleKey(key)) {
+          // Try the user's (activity, mood); fall back to adventuring_playful
+          // (the only pair currently generated for every style). If neither
+          // file exists, omit the image and the card shows the placeholder bg.
+          const personalised = findStyleSample(quizActivity, quizMood, key);
+          const fallback =
+            quizActivity === "adventuring" && quizMood === "playful"
+              ? null
+              : findStyleSample("adventuring", "playful", key);
+          src = personalised ?? fallback;
+        } else {
+          src = findArtistSample(key as Artist);
+        }
         if (!src) return "";
         return `<img class="pcard__media-img" src="${src}"
-                     alt="${escapeHtml(label)} style example on another pet"
+                     alt="${escapeHtml(label)} example on another pet"
                      loading="lazy">`;
       }
 
-      function cardHtml(s: Style): string {
-        const isSel = selected.includes(s);
-        const selIdx = isSel ? selected.indexOf(s) + 1 : 0;
-        const wasOriginal = originalPicks.has(s);
+      function cardHtml(key: SelKey): string {
+        const isSel = selected.includes(key);
+        const selIdx = isSel ? selected.indexOf(key) + 1 : 0;
+        const wasOriginal = originalPicks.has(key);
         const pickLabel = wasOriginal ? "Our pick" : "Selected";
-        const label = STYLE_LABELS[s];
-        const blurb = STYLE_BLURBS[s];
+        const meta = getMeta(key);
         const sampleBadge = `<span class="pcard__sample-badge">Sample · not ${escapeHtml(petLabel)}</span>`;
         const topLeft = isSel
           ? `<span class="pcard__pick">
@@ -218,39 +334,50 @@ const SKELETON_COUNT = 10;
           : "";
         return `
           <button class="pcard${isSel ? " pcard--selected" : ""}"
-                  data-style="${s}"
+                  data-style="${key}"
+                  data-kind="${meta.kind}"
                   type="button"
                   aria-pressed="${isSel}">
             <span class="pcard__media">
-              ${sampleImg(s, label)}
+              ${sampleImg(key, meta.label)}
               ${topLeft}
               ${sampleBadge}
             </span>
             <span class="pcard__body">
               <span class="pcard__title-row">
-                <span class="pcard__title">${escapeHtml(label)}</span>
+                <span class="pcard__title">${escapeHtml(meta.label)}</span>
                 ${tag}
               </span>
-              <span class="pcard__desc">${escapeHtml(blurb)}</span>
+              <span class="pcard__desc">${escapeHtml(meta.blurb)}</span>
             </span>
           </button>`;
       }
 
-      function gridOrder(): Style[] {
-        // Selected cards (in selection order) first, then everything else
-        // in the original ranked order. Keeps the picks anchored to slots
-        // 1/2/3 so the visual reading matches the "Our pick" badges.
-        const picks = selected.slice();
-        const rest = ranked.filter((s) => !picks.includes(s));
-        return [...picks, ...rest];
+      function gridOrder(kind: TabKind): SelKey[] {
+        const universe: SelKey[] = kind === "style" ? ranked : rankedArtists;
+        const allowed = kind === "style"
+          ? (ALL_STYLES as readonly string[])
+          : (ALL_ARTISTS as readonly string[]);
+        // Selected cards (in selection order) first, but only the ones that
+        // belong to this tab. Then everything else in ranked order. Keeps the
+        // picks anchored to the top of whichever tab they came from.
+        const picksInTab = selected.filter((k) => allowed.includes(k));
+        const rest = universe.filter((k) => !picksInTab.includes(k));
+        return [...picksInTab, ...rest];
       }
 
-      function renderGrid() {
-        grid.innerHTML = gridOrder().map(cardHtml).join("");
+      function renderTab(kind: TabKind) {
+        const grid = document.getElementById(`grid-${kind}`)!;
+        grid.innerHTML = gridOrder(kind).map(cardHtml).join("");
         grid.removeAttribute("aria-busy");
         grid.querySelectorAll<HTMLButtonElement>(".pcard").forEach((btn) => {
-          btn.addEventListener("click", () => toggle(btn.dataset.style as Style));
+          btn.addEventListener("click", () => toggle(btn.dataset.style as SelKey));
         });
+      }
+
+      function renderAllTabs() {
+        renderTab("style");
+        renderTab("artist");
       }
 
       function updateCounter() {
@@ -259,12 +386,12 @@ const SKELETON_COUNT = 10;
         if (n === 3) suffix = "ready to go";
         else if (n === 0) suffix = "pick three to continue";
         else suffix = `pick ${3 - n} more`;
-        counter.textContent = `${n}/3 styles selected — ${suffix}`;
+        counter.textContent = `${n}/3 selected — ${suffix}`;
         go.disabled = n !== 3;
       }
 
-      function toggle(style: Style) {
-        const idx = selected.indexOf(style);
+      function toggle(key: SelKey) {
+        const idx = selected.indexOf(key);
         const wasSelected = idx >= 0;
         if (wasSelected) {
           // Tapping a selected card deselects it.
@@ -274,17 +401,44 @@ const SKELETON_COUNT = 10;
             // Evict the oldest selection so the new one fits.
             selected.shift();
           }
-          selected.push(style);
+          selected.push(key);
         }
+        const kind: TabKind = isStyleKey(key) ? "style" : "artist";
         track("style_toggled", {
-          style,
+          style: key,
+          kind,
           action: wasSelected ? "deselected" : "selected",
         });
-        renderGrid();
+        renderAllTabs();
         updateCounter();
       }
 
-      renderGrid();
+      // Tab switching. Both panels are kept rendered; we just toggle which
+      // is visible so switching is instant.
+      let activeTab: TabKind = "style";
+      setHeaderCopy(activeTab);
+      document.querySelectorAll<HTMLButtonElement>(".pick__tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const target = tab.dataset.tab as TabKind;
+          if (target === activeTab) return;
+          activeTab = target;
+          document.querySelectorAll<HTMLButtonElement>(".pick__tab").forEach((t) => {
+            const active = t.dataset.tab === target;
+            t.classList.toggle("pick__tab--active", active);
+            t.setAttribute("aria-selected", active ? "true" : "false");
+          });
+          document.querySelectorAll<HTMLDivElement>(".pick__panel").forEach((p) => {
+            const active = p.dataset.panel === target;
+            p.classList.toggle("pick__panel--hidden", !active);
+            if (active) p.removeAttribute("hidden");
+            else p.setAttribute("hidden", "");
+          });
+          setHeaderCopy(target);
+          track("tab_switched", { to: target });
+        });
+      });
+
+      renderAllTabs();
       updateCounter();
 
       go.addEventListener("click", async () => {
@@ -397,6 +551,39 @@ const SKELETON_COUNT = 10;
     }
     .pick__rec-text { font-size: 11.5px; }
   }
+
+  /* ── Tab strip ────────────────────────────────────────── */
+  .pick__tabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 14px;
+    background: var(--c-fill);
+    border: 1px solid var(--c-stroke-light);
+    border-radius: var(--r-pill);
+  }
+  .pick__tab {
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--c-text);
+    background: transparent;
+    border: none;
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease;
+  }
+  .pick__tab:hover { color: var(--c-dark); }
+  .pick__tab--active {
+    background: var(--c-white);
+    color: var(--c-dark);
+    box-shadow: 0 1px 3px rgba(30, 20, 16, 0.08);
+  }
+  .pick__tab:focus-visible {
+    outline: 3px solid var(--c-pink);
+    outline-offset: 2px;
+  }
+  .pick__panel--hidden { display: none; }
 
   /* ── Grid ────────────────────────────────────────────── */
   .pick__grid {

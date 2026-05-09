@@ -2,6 +2,7 @@ import { mutation, query, internalQuery, internalMutation } from "./_generated/s
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { scoreStyles } from "./styleScoring";
+import { scoreArtists } from "./artistScoring";
 import { currencyValidator } from "./currency";
 
 export const create = mutation({
@@ -170,7 +171,8 @@ export const saveQuiz = mutation({
   },
   handler: async (ctx, { id, answers }) => {
     const rankedStyles = scoreStyles(answers);
-    await ctx.db.patch(id, { quizAnswers: answers, rankedStyles });
+    const rankedArtists = scoreArtists(answers);
+    await ctx.db.patch(id, { quizAnswers: answers, rankedStyles, rankedArtists });
   },
 });
 
@@ -399,6 +401,7 @@ export const clearCurrentFlow = mutation({
       generations: undefined,
       selectedStyle: undefined,
       rankedStyles: undefined,
+      rankedArtists: undefined,
       selectedStyles: undefined,
       generationStatus: "idle",
       generationError: undefined,
