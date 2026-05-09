@@ -16,14 +16,39 @@ import Layout from "../layouts/Layout.astro";
       <a href="/upload" class="btn btn--primary g-cta" id="cta-new">✨ Create another portrait</a>
     </header>
 
-    <!-- Filter pills -->
-    <div class="g-filters" id="filters" role="tablist" aria-label="Filter by style"></div>
+    <!-- Desktop filter bar: one dropdown chip per facet -->
+    <div class="g-filterbar" id="filterbar" hidden>
+      <span class="g-filterbar__label">Filter</span>
+      <div class="g-filterbar__chips" id="filter-chips"></div>
+    </div>
+
+    <!-- Mobile filter trigger: one button → bottom sheet -->
+    <div class="g-mobiletrigger" id="mobile-trigger" hidden>
+      <button type="button" class="g-mobiletrigger__btn" id="mobile-filter-btn">
+        <span class="g-mobiletrigger__label">
+          <span aria-hidden="true">⚙</span>
+          <span>Filters</span>
+          <span class="g-mobiletrigger__count" id="mobile-filter-count" hidden>0</span>
+        </span>
+        <span class="g-mobiletrigger__caret" aria-hidden="true">▸</span>
+      </button>
+    </div>
+
+    <!-- Active chips row (both layouts) -->
+    <div class="g-activechips" id="active-chips" hidden></div>
 
     <!-- Empty state -->
     <div id="empty" class="g-empty" hidden>
       <p class="display g-empty__title">No portraits yet</p>
       <p class="muted">Upload some photos and we'll generate four styles for you.</p>
       <a href="/upload" class="btn btn--primary">✨ Start now</a>
+    </div>
+
+    <!-- No-results state (after filters applied) -->
+    <div id="noresults" class="g-empty g-empty--noresults" hidden>
+      <p class="display g-empty__title">No matches</p>
+      <p class="muted">Try removing a filter to see more portraits.</p>
+      <button type="button" class="btn btn--primary" id="noresults-clear">Clear all filters</button>
     </div>
 
     <!-- Card grid -->
@@ -33,6 +58,23 @@ import Layout from "../layouts/Layout.astro";
       Portraits are saved for this session ·
       <a href="/upload" class="g-foot__link">Make another portrait →</a>
     </p>
+
+    <!-- Mobile bottom sheet -->
+    <div class="g-sheet" id="filter-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="filter-sheet-title">
+      <div class="g-sheet__backdrop" data-sheet-close></div>
+      <div class="g-sheet__panel">
+        <div class="g-sheet__handle" aria-hidden="true"></div>
+        <div class="g-sheet__head">
+          <h2 class="g-sheet__title" id="filter-sheet-title">Filters</h2>
+          <button type="button" class="g-sheet__clear" id="sheet-clear-all" hidden>Clear all</button>
+        </div>
+        <div class="g-sheet__body" id="sheet-body"></div>
+        <div class="g-sheet__foot">
+          <button type="button" class="g-sheet__reset" id="sheet-reset">Reset</button>
+          <button type="button" class="g-sheet__apply" id="sheet-apply">Show all portraits</button>
+        </div>
+      </div>
+    </div>
   </main>
 </Layout>
 
@@ -42,6 +84,7 @@ import Layout from "../layouts/Layout.astro";
   import { api } from "../../convex/_generated/api.js";
   import type { Id } from "../../convex/_generated/dataModel";
   import { ALL_STYLES, STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
+  import { ALL_ARTISTS, ARTIST_LABELS, type Artist } from "../../convex/artistScoring.ts";
   import { track } from "../lib/analytics.ts";
   import {
     ensureCurrencyForSession,
@@ -50,35 +93,80 @@ import Layout from "../layouts/Layout.astro";
     type Currency,
   } from "../lib/currency.ts";
 
-  const STYLE_FILTERS: Array<{ key: "all" | Style; label: string }> = [
-    { key: "all", label: "All styles" },
-    ...ALL_STYLES.map((s) => ({ key: s, label: STYLE_LABELS[s] })),
+  // Activity / mood vocabularies match the quiz exactly. Anything outside
+  // these lists falls through to the raw value at render time.
+  const ACTIVITY_OPTIONS: Array<{ key: string; label: string; emoji: string }> = [
+    { key: "regal",        label: "Regal",      emoji: "👑" },
+    { key: "playing",      label: "Playing",    emoji: "🎾" },
+    { key: "napping",      label: "Napping",    emoji: "💤" },
+    { key: "adventuring",  label: "Adventure",  emoji: "🏔️" },
   ];
-  const ACTIVITY_LABELS: Record<string, string> = {
-    regal: "👑 Regal",
-    playing: "🎾 Playing",
-    napping: "💤 Napping",
-    adventuring: "🏔️ Adventure",
-  };
-  const MOOD_LABELS: Record<string, string> = {
-    calm: "😌 Calm",
-    playful: "😄 Playful",
-    regal: "👑 Regal",
-    quirky: "🤪 Quirky",
-  };
+  const MOOD_OPTIONS: Array<{ key: string; label: string; emoji: string }> = [
+    { key: "calm",     label: "Calm",     emoji: "😌" },
+    { key: "playful",  label: "Playful",  emoji: "😄" },
+    { key: "regal",    label: "Regal",    emoji: "👑" },
+    { key: "quirky",   label: "Quirky",   emoji: "🤪" },
+  ];
+  const ACTIVITY_LABEL = (k: string) =>
+    ACTIVITY_OPTIONS.find((o) => o.key === k)
+      ? `${ACTIVITY_OPTIONS.find((o) => o.key === k)!.emoji} ${ACTIVITY_OPTIONS.find((o) => o.key === k)!.label}`
+      : k;
+  const MOOD_LABEL = (k: string) =>
+    MOOD_OPTIONS.find((o) => o.key === k)
+      ? `${MOOD_OPTIONS.find((o) => o.key === k)!.emoji} ${MOOD_OPTIONS.find((o) => o.key === k)!.label}`
+      : k;
+
+  type FacetKey = "style" | "artist" | "activity" | "mood";
+  type FacetOption = { key: string; label: string; emoji?: string };
+  type FacetGroup = { key: FacetKey; label: string; options: FacetOption[] };
+
+  // Build the four filter groups. Style + Artist combine as a UNION when
+  // matched against `item.style` (the field holds either vocabulary).
+  const FACETS: FacetGroup[] = [
+    {
+      key: "style",
+      label: "Style",
+      options: ALL_STYLES.map((s) => ({ key: s, label: STYLE_LABELS[s] })),
+    },
+    {
+      key: "artist",
+      label: "Artist",
+      options: ALL_ARTISTS.map((a) => ({ key: a, label: ARTIST_LABELS[a] })),
+    },
+    {
+      key: "activity",
+      label: "Activity",
+      options: ACTIVITY_OPTIONS.map((o) => ({ key: o.key, label: o.label, emoji: o.emoji })),
+    },
+    {
+      key: "mood",
+      label: "Mood",
+      options: MOOD_OPTIONS.map((o) => ({ key: o.key, label: o.label, emoji: o.emoji })),
+    },
+  ];
 
   const sessionId = getSessionId();
   const userScoped = isSignedIn();
-  // When signed in, every authed call (getUserGallery + useFromUserGallery)
-  // needs the JWT. Anonymous users keep using the un-authed read client.
   const client = userScoped ? makeAuthedClient() : makeClient();
 
   const grid = document.getElementById("grid")!;
   const empty = document.getElementById("empty")!;
+  const noresults = document.getElementById("noresults")!;
   const meta = document.getElementById("meta")!;
-  const filters = document.getElementById("filters")!;
+  const filterbar = document.getElementById("filterbar")!;
+  const filterChips = document.getElementById("filter-chips")!;
+  const mobileTrigger = document.getElementById("mobile-trigger")!;
+  const mobileBtn = document.getElementById("mobile-filter-btn") as HTMLButtonElement;
+  const mobileCount = document.getElementById("mobile-filter-count")!;
+  const activeChips = document.getElementById("active-chips")!;
   const ctaNew = document.getElementById("cta-new")!;
   const foot = document.querySelector(".g-foot") as HTMLElement;
+  const sheet = document.getElementById("filter-sheet")!;
+  const sheetBody = document.getElementById("sheet-body")!;
+  const sheetClearAll = document.getElementById("sheet-clear-all") as HTMLButtonElement;
+  const sheetReset = document.getElementById("sheet-reset") as HTMLButtonElement;
+  const sheetApply = document.getElementById("sheet-apply") as HTMLButtonElement;
+  const noresultsClear = document.getElementById("noresults-clear") as HTMLButtonElement;
 
   type Item = {
     style: string;
@@ -88,21 +176,21 @@ import Layout from "../layouts/Layout.astro";
     mood?: string;
     petName?: string;
     createdAt: number;
-    // For user-scoped items, track the source session + per-session index so
-    // useFromUserGallery can find them. _index is kept for the legacy
-    // session-only path.
     _index: number;
     sessionId?: string;
   };
 
   let allItems: Item[] = [];
-  let currentFilter: "all" | Style = "all";
+  // Selection state per facet. Empty set = no filter for that facet.
+  const selected: Record<FacetKey, Set<string>> = {
+    style: new Set(),
+    artist: new Set(),
+    activity: new Set(),
+    mood: new Set(),
+  };
+  let openFacet: FacetKey | null = null;
 
-  // Resolved currency for "From £X" / "From $X" labels on every card.
-  // The cheapest SKU in the catalog is the digital download, so we use
-  // its per-currency price as the "from" anchor across all cards.
-  // Fall back to "—" if the products query fails or returns nothing
-  // (e.g. seed never ran), rather than misleading customers with $0.
+  // ── Currency resolution (unchanged) ───────────────────────────
   let currency: Currency = "usd";
   let fromLabel: string = "";
   async function resolveFromLabel(c: Currency): Promise<string> {
@@ -116,10 +204,6 @@ import Layout from "../layouts/Layout.astro";
       return "";
     }
   }
-
-  // Resolve currency before kicking off the per-mode loaders so the first
-  // render shows the correct "From £…" labels rather than an empty string
-  // that flashes a moment later. Footer toggle re-fetches and re-renders.
   currency = await ensureCurrencyForSession(client, sessionId);
   fromLabel = await resolveFromLabel(currency);
   onCurrencyChange(async (next) => {
@@ -128,9 +212,8 @@ import Layout from "../layouts/Layout.astro";
     renderGrid();
   });
 
+  // ── Data load ─────────────────────────────────────────────────
   if (userScoped) {
-    // Cross-session view: every gallery item across every session this user
-    // owns. Already sorted newest-first server-side by getUserGallery.
     const userItems = await client.query(api.sessions.getUserGallery, {});
     if (!userItems || userItems.length === 0) {
       showEmpty();
@@ -147,7 +230,7 @@ import Layout from "../layouts/Layout.astro";
         _index: it.index,
       }));
       renderHeaderMeta(true);
-      renderFilters();
+      mountFilterUI();
       renderGrid();
     }
   } else if (!sessionId) {
@@ -162,77 +245,358 @@ import Layout from "../layouts/Layout.astro";
         .map((it: any, i: number) => ({ ...it, _index: i }))
         .reverse();
       renderHeaderMeta(false);
-      renderFilters();
+      mountFilterUI();
       renderGrid();
     }
   }
 
+  // ── Header / empty state ──────────────────────────────────────
   function renderHeaderMeta(isUserScoped: boolean) {
-    const activities = new Set(allItems.map((i) => i.activity).filter(Boolean));
-    const activityBits = [...activities]
-      .map((a) => ACTIVITY_LABELS[a as string] ?? a)
-      .join(" · ");
     const scope = isUserScoped ? "across your account" : "this session";
-    meta.innerHTML = activityBits
-      ? `${allItems.length} portraits ${scope} · <span class="g-sub__hl">${activityBits}</span>`
-      : `${allItems.length} portrait${allItems.length === 1 ? "" : "s"} ${scope}.`;
+    meta.textContent = `${allItems.length} portrait${allItems.length === 1 ? "" : "s"} ${scope}`;
   }
 
   function showEmpty() {
     empty.hidden = false;
     ctaNew.style.display = "none";
-    filters.style.display = "none";
+    filterbar.hidden = true;
+    mobileTrigger.hidden = true;
     foot.style.display = "none";
   }
 
-  function renderFilters() {
-    filters.innerHTML = "";
-    for (const f of STYLE_FILTERS) {
-      // Hide pills with no items
-      if (f.key !== "all" && !allItems.some((i) => i.style === f.key)) continue;
-      const btn = document.createElement("button");
-      btn.className = "g-pill" + (currentFilter === f.key ? " g-pill--active" : "");
-      btn.textContent = f.label;
-      btn.dataset.key = f.key;
-      btn.setAttribute("role", "tab");
-      btn.setAttribute("aria-selected", String(currentFilter === f.key));
-      btn.addEventListener("click", () => {
-        currentFilter = f.key as any;
-        // Only track explicit style picks — "All styles" is the default
-        // unfiltered view and would just create noise in GA.
-        if (f.key !== "all") {
-          track("gallery_filter_applied", { filter: f.key });
-        }
-        renderFilters();
-        renderGrid();
-      });
-      filters.appendChild(btn);
-    }
+  // ── Filter UI mount ───────────────────────────────────────────
+  // Hide options whose key has zero matches in the user's gallery, so the
+  // filter dropdowns only surface useful choices.
+  function visibleOptions(group: FacetGroup): FacetOption[] {
+    return group.options.filter((o) => {
+      if (group.key === "style" || group.key === "artist") {
+        return allItems.some((it) => it.style === o.key);
+      }
+      if (group.key === "activity") return allItems.some((it) => it.activity === o.key);
+      if (group.key === "mood") return allItems.some((it) => it.mood === o.key);
+      return false;
+    });
   }
 
+  function activeFacets(): FacetGroup[] {
+    return FACETS.map((g) => ({ ...g, options: visibleOptions(g) }))
+      .filter((g) => g.options.length > 0);
+  }
+
+  function mountFilterUI() {
+    filterbar.hidden = false;
+    mobileTrigger.hidden = false;
+    renderFilterBar();
+    renderActiveChips();
+    renderSheet();
+    wireSheet();
+
+    // One delegated click handler closes any open desktop popover when the
+    // user clicks outside it. Listen on mousedown so it fires before the
+    // chip's own click toggles the popover state back open.
+    document.addEventListener("mousedown", (e) => {
+      if (openFacet === null) return;
+      const target = e.target as Element;
+      if (target.closest(".g-fchip") || target.closest(".g-fpop")) return;
+      openFacet = null;
+      renderFilterBar();
+    });
+  }
+
+  // ── Desktop filter bar ────────────────────────────────────────
+  function escapeHtml(s: string) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]!));
+  }
+
+  function renderFilterBar() {
+    filterChips.innerHTML = "";
+    const facets = activeFacets();
+    for (const g of facets) {
+      const sel = selected[g.key];
+      const isActive = sel.size > 0;
+      const isOpen = openFacet === g.key;
+      const wrap = document.createElement("div");
+      wrap.className = "g-fchip-wrap";
+      wrap.innerHTML = `
+        <button type="button"
+                class="g-fchip${isActive ? " g-fchip--active" : ""}${isOpen ? " g-fchip--open" : ""}"
+                data-facet="${g.key}"
+                aria-haspopup="true"
+                aria-expanded="${isOpen}">
+          <span>${escapeHtml(g.label)}</span>
+          ${isActive ? `<span class="g-fchip__count">${sel.size}</span>` : ""}
+          <span class="g-fchip__caret" aria-hidden="true">${isOpen ? "▴" : "▾"}</span>
+        </button>
+        ${isOpen ? popoverHtml(g) : ""}
+      `;
+      filterChips.appendChild(wrap);
+    }
+    // Bind chip clicks
+    filterChips.querySelectorAll<HTMLButtonElement>(".g-fchip").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.facet as FacetKey;
+        openFacet = openFacet === key ? null : key;
+        renderFilterBar();
+      });
+    });
+    // Bind option toggles inside any open popover
+    filterChips.querySelectorAll<HTMLLabelElement>(".g-fopt").forEach((opt) => {
+      opt.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = opt.dataset.facet as FacetKey;
+        const val = opt.dataset.value!;
+        toggleFacet(key, val);
+      });
+    });
+    // Per-popover Clear button
+    filterChips.querySelectorAll<HTMLButtonElement>(".g-fpop__clear").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.facet as FacetKey;
+        clearFacet(key);
+      });
+    });
+  }
+
+  function popoverHtml(group: FacetGroup): string {
+    const sel = selected[group.key];
+    const opts = group.options.map((o) => {
+      const checked = sel.has(o.key);
+      return `
+        <label class="g-fopt${checked ? " g-fopt--checked" : ""}"
+               data-facet="${group.key}" data-value="${escapeHtml(o.key)}">
+          <span class="g-fopt__check">${checked ? "✓" : ""}</span>
+          ${o.emoji ? `<span class="g-fopt__emoji">${o.emoji}</span>` : ""}
+          <span class="g-fopt__label">${escapeHtml(o.label)}</span>
+        </label>
+      `;
+    }).join("");
+    return `
+      <div class="g-fpop" role="listbox">
+        <div class="g-fpop__head">
+          <span class="g-fpop__title">${escapeHtml(group.label)}</span>
+          ${sel.size > 0 ? `<button type="button" class="g-fpop__clear" data-facet="${group.key}">Clear</button>` : ""}
+        </div>
+        <div class="g-fpop__list">${opts}</div>
+      </div>
+    `;
+  }
+
+  // ── Active chips row ──────────────────────────────────────────
+  function totalSelected(): number {
+    return (Object.values(selected) as Set<string>[]).reduce((n, s) => n + s.size, 0);
+  }
+
+  function activeChipLabel(facet: FacetKey, value: string): { label: string; emoji?: string } {
+    if (facet === "style") return { label: STYLE_LABELS[value as Style] ?? value };
+    if (facet === "artist") return { label: ARTIST_LABELS[value as Artist] ?? value };
+    if (facet === "activity") {
+      const o = ACTIVITY_OPTIONS.find((x) => x.key === value);
+      return o ? { label: o.label, emoji: o.emoji } : { label: value };
+    }
+    if (facet === "mood") {
+      const o = MOOD_OPTIONS.find((x) => x.key === value);
+      return o ? { label: o.label, emoji: o.emoji } : { label: value };
+    }
+    return { label: value };
+  }
+
+  function renderActiveChips() {
+    const total = totalSelected();
+    activeChips.hidden = total === 0;
+    activeChips.innerHTML = "";
+    if (total === 0) {
+      mobileCount.hidden = true;
+      mobileBtn.classList.remove("g-mobiletrigger__btn--active");
+      return;
+    }
+    mobileCount.hidden = false;
+    mobileCount.textContent = String(total);
+    mobileBtn.classList.add("g-mobiletrigger__btn--active");
+    const counter = document.createElement("span");
+    counter.className = "g-activechips__counter";
+    counter.textContent = `${total} active`;
+    activeChips.appendChild(counter);
+    (Object.keys(selected) as FacetKey[]).forEach((k) => {
+      selected[k].forEach((v) => {
+        const meta = activeChipLabel(k, v);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "g-achip";
+        chip.dataset.facet = k;
+        chip.dataset.value = v;
+        chip.innerHTML = `
+          ${meta.emoji ? `<span class="g-achip__emoji">${meta.emoji}</span>` : ""}
+          <span class="g-achip__label">${escapeHtml(meta.label)}</span>
+          <span class="g-achip__x" aria-hidden="true">✕</span>
+          <span class="sr-only">Remove ${escapeHtml(meta.label)}</span>
+        `;
+        chip.addEventListener("click", () => toggleFacet(k, v));
+        activeChips.appendChild(chip);
+      });
+    });
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "g-activechips__clear";
+    clear.textContent = "Clear all";
+    clear.addEventListener("click", () => clearAll());
+    activeChips.appendChild(clear);
+  }
+
+  // ── Mobile bottom sheet ───────────────────────────────────────
+  function renderSheet() {
+    const total = totalSelected();
+    sheetClearAll.hidden = total === 0;
+    sheetApply.textContent = total > 0 ? "Show matching portraits" : "Show all portraits";
+    sheetBody.innerHTML = activeFacets().map(sheetGroupHtml).join("");
+    sheetBody.querySelectorAll<HTMLButtonElement>(".g-spill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.facet as FacetKey;
+        const val = btn.dataset.value!;
+        toggleFacet(key, val);
+      });
+    });
+  }
+
+  function sheetGroupHtml(group: FacetGroup): string {
+    const sel = selected[group.key];
+    const pills = group.options.map((o) => {
+      const checked = sel.has(o.key);
+      return `
+        <button type="button"
+                class="g-spill${checked ? " g-spill--checked" : ""}"
+                data-facet="${group.key}" data-value="${escapeHtml(o.key)}">
+          ${o.emoji ? `<span class="g-spill__emoji">${o.emoji}</span>` : ""}
+          <span>${escapeHtml(o.label)}</span>
+          ${checked ? `<span class="g-spill__check" aria-hidden="true">✓</span>` : ""}
+        </button>
+      `;
+    }).join("");
+    return `
+      <div class="g-sgroup">
+        <div class="g-sgroup__head">
+          <span class="g-sgroup__label">${escapeHtml(group.label)}</span>
+          ${sel.size > 0 ? `<span class="g-sgroup__count">${sel.size} selected</span>` : ""}
+        </div>
+        <div class="g-sgroup__pills">${pills}</div>
+      </div>
+    `;
+  }
+
+  function wireSheet() {
+    function openSheet() {
+      sheet.hidden = false;
+      // Keep body from scrolling underneath the sheet on mobile.
+      document.body.style.overflow = "hidden";
+    }
+    function closeSheet() {
+      sheet.hidden = true;
+      document.body.style.overflow = "";
+    }
+    mobileBtn.addEventListener("click", openSheet);
+    sheet.querySelectorAll<HTMLElement>("[data-sheet-close]").forEach((el) => {
+      el.addEventListener("click", closeSheet);
+    });
+    sheetReset.addEventListener("click", () => {
+      clearAll();
+    });
+    sheetApply.addEventListener("click", () => {
+      closeSheet();
+    });
+    sheetClearAll.addEventListener("click", () => {
+      clearAll();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !sheet.hidden) closeSheet();
+    });
+  }
+
+  // ── Selection mutators ────────────────────────────────────────
+  function toggleFacet(key: FacetKey, val: string) {
+    if (selected[key].has(val)) {
+      selected[key].delete(val);
+    } else {
+      selected[key].add(val);
+      track("gallery_filter_applied", { facet: key, value: val });
+    }
+    renderFilterBar();
+    renderActiveChips();
+    renderSheet();
+    renderGrid();
+  }
+
+  function clearFacet(key: FacetKey) {
+    selected[key].clear();
+    renderFilterBar();
+    renderActiveChips();
+    renderSheet();
+    renderGrid();
+  }
+
+  function clearAll() {
+    (Object.keys(selected) as FacetKey[]).forEach((k) => selected[k].clear());
+    renderFilterBar();
+    renderActiveChips();
+    renderSheet();
+    renderGrid();
+  }
+
+  noresultsClear.addEventListener("click", () => clearAll());
+
+  // ── Card label resolution ─────────────────────────────────────
+  // The `style` field on a gallery item holds either a style slug or an
+  // artist slug — never both. Resolve to the right human label and to a
+  // facet kind so analytics + UI can branch correctly.
+  function resolveAesthetic(slug: string): { label: string; kind: "style" | "artist" | "unknown" } {
+    if ((ALL_STYLES as readonly string[]).includes(slug)) {
+      return { label: STYLE_LABELS[slug as Style], kind: "style" };
+    }
+    if ((ALL_ARTISTS as readonly string[]).includes(slug)) {
+      return { label: ARTIST_LABELS[slug as Artist], kind: "artist" };
+    }
+    return { label: slug, kind: "unknown" };
+  }
+
+  // ── Filter logic ──────────────────────────────────────────────
+  // Style + Artist combine as a UNION against item.style. Activity and
+  // Mood each AND across groups. Within a group, multiple selections OR.
+  function matches(it: Item): boolean {
+    const aestheticPicks = new Set<string>([...selected.style, ...selected.artist]);
+    if (aestheticPicks.size > 0 && !aestheticPicks.has(it.style)) return false;
+    if (selected.activity.size > 0 && !(it.activity && selected.activity.has(it.activity))) return false;
+    if (selected.mood.size > 0 && !(it.mood && selected.mood.has(it.mood))) return false;
+    return true;
+  }
+
+  // ── Grid render ───────────────────────────────────────────────
   function renderGrid() {
-    const visible =
-      currentFilter === "all"
-        ? allItems
-        : allItems.filter((i) => i.style === currentFilter);
+    const visible = allItems.filter(matches);
+
+    if (visible.length === 0 && allItems.length > 0) {
+      grid.hidden = true;
+      noresults.hidden = false;
+      return;
+    }
+    grid.hidden = false;
+    noresults.hidden = true;
 
     grid.innerHTML = "";
     visible.forEach((it) => {
       const card = document.createElement("article");
       card.className = "g-card";
-      const styleLabel = STYLE_LABELS[it.style as Style] ?? it.style;
-      const titleText = it.petName ? `${it.petName} · ${styleLabel}` : styleLabel;
-      const activityLabel =
-        it.activity && ACTIVITY_LABELS[it.activity] ? ACTIVITY_LABELS[it.activity] : "";
-      const moodLabel =
-        it.mood && MOOD_LABELS[it.mood] ? MOOD_LABELS[it.mood] : "";
-      // Dedupe when both resolve to the same label (e.g. activity=regal + mood=regal).
+      const aesthetic = resolveAesthetic(it.style);
+      const titleText = it.petName ? `${it.petName} · ${aesthetic.label}` : aesthetic.label;
+      const activityLabel = it.activity ? ACTIVITY_LABEL(it.activity) : "";
+      const moodLabel = it.mood ? MOOD_LABEL(it.mood) : "";
       const showMood = moodLabel && moodLabel !== activityLabel;
       const tags =
         activityLabel || showMood
           ? `<div class="g-card__tags">
-               ${activityLabel ? `<span class="g-card__tag">${activityLabel}</span>` : ""}
-               ${showMood ? `<span class="g-card__tag">${moodLabel}</span>` : ""}
+               ${activityLabel ? `<span class="g-card__tag">${escapeHtml(activityLabel)}</span>` : ""}
+               ${showMood ? `<span class="g-card__tag">${escapeHtml(moodLabel)}</span>` : ""}
              </div>`
           : "";
       card.innerHTML = `
@@ -244,10 +608,10 @@ import Layout from "../layouts/Layout.astro";
         <div class="g-card__body">
           <div class="g-card__row">
             <div>
-              <p class="g-card__title">${titleText}</p>
+              <p class="g-card__title">${escapeHtml(titleText)}</p>
               <p class="g-card__sub">Pick your format</p>
             </div>
-            <p class="g-card__price">${fromLabel}</p>
+            <p class="g-card__price">${escapeHtml(fromLabel)}</p>
           </div>
           <button class="btn btn--primary g-card__buy" data-i="${it._index}">Buy this one</button>
         </div>
@@ -269,10 +633,6 @@ import Layout from "../layouts/Layout.astro";
         btn.textContent = "Loading…";
         try {
           if (userScoped && item?.sessionId) {
-            // Cross-session "buy this": ensure a local session exists (it
-            // may not on a fresh browser), then have the server copy the
-            // chosen item onto it. The result is indistinguishable from the
-            // original PDP flow downstream.
             const targetSessionId = await ensureSession(client);
             await client.mutation(api.sessions.useFromUserGallery, {
               targetSessionId: targetSessionId,
@@ -300,10 +660,8 @@ import Layout from "../layouts/Layout.astro";
 <style is:global>
   /* These styles target gallery markup that's injected dynamically via
      innerHTML; Astro's default scoping would silently miss those nodes
-     because they don't carry the per-component class hash. Marking the
-     block global is the simplest fix and keeps everything in one place. */
+     because they don't carry the per-component class hash. */
 
-  /* Make sure [hidden] wins over display:flex / display:grid below. */
   .g-empty[hidden] { display: none; }
 
   /* Header ----------------------------------------------------- */
@@ -313,30 +671,155 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-head h1 { font-size: clamp(2rem, 4.5vw, 2.6rem); }
   .g-sub { font-size: 14px; color: var(--c-light); margin-top: 4px; }
-  .g-sub__hl { color: var(--c-pink); font-weight: 500; }
   .g-cta { padding: 10px 22px; font-size: 15px; }
 
-  /* Filters ---------------------------------------------------- */
-  .g-filters {
-    display: flex; gap: 10px; margin-bottom: 22px;
-    overflow-x: auto; padding-bottom: 4px;
-    scrollbar-width: none;
+  /* Filter bar (desktop) --------------------------------------- */
+  .g-filterbar {
+    display: none;
+    align-items: center; gap: 12px;
+    margin-bottom: 14px;
   }
-  .g-filters::-webkit-scrollbar { display: none; }
   @media (min-width: 720px) {
-    .g-filters { flex-wrap: wrap; overflow-x: visible; padding-bottom: 0; }
+    .g-filterbar { display: flex; flex-wrap: wrap; }
   }
-  .g-pill {
-    padding: 7px 18px; border-radius: 100px;
-    background: transparent; border: 1px solid var(--c-stroke-light);
-    font-family: var(--font-body); font-size: 13px; color: var(--c-text);
-    cursor: pointer; white-space: nowrap; flex-shrink: 0;
-    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  .g-filterbar__label {
+    font-size: 11px; font-weight: 600; color: var(--c-light);
+    letter-spacing: 0.08em; text-transform: uppercase;
   }
-  .g-pill:hover { border-color: var(--c-stroke); }
-  .g-pill--active {
-    background: var(--c-dark); color: white; border-color: var(--c-dark);
-    font-weight: 500;
+  .g-filterbar__chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .g-fchip-wrap { position: relative; }
+  .g-fchip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 100px;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    font-family: var(--font-body); font-size: 13px; font-weight: 500;
+    color: var(--c-dark); cursor: pointer; white-space: nowrap;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .g-fchip:hover { border-color: var(--c-stroke); }
+  .g-fchip--open { border-color: var(--c-dark); background: var(--c-fill); }
+  .g-fchip--active {
+    border-color: var(--c-pink);
+    background: var(--c-pink-light);
+    color: var(--c-pink);
+  }
+  .g-fchip__count {
+    background: var(--c-pink); color: var(--c-white);
+    border-radius: 100px; padding: 1px 7px;
+    font-size: 11px; font-weight: 600; line-height: 1.4;
+  }
+  .g-fchip__caret { font-size: 10px; color: inherit; opacity: 0.7; }
+
+  /* Popover ---------------------------------------------------- */
+  .g-fpop {
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 30;
+    min-width: 240px; max-width: 320px;
+    background: var(--c-white);
+    border-radius: 14px;
+    border: 1px solid var(--c-stroke-light);
+    box-shadow: 0 8px 24px rgba(30,20,16,0.10), 0 2px 6px rgba(30,20,16,0.05);
+    padding: 12px;
+  }
+  .g-fpop__head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .g-fpop__title {
+    font-size: 11px; font-weight: 600; color: var(--c-light);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .g-fpop__clear {
+    font-size: 11px; color: var(--c-pink);
+    background: none; border: none; cursor: pointer; padding: 0;
+  }
+  .g-fpop__list {
+    display: flex; flex-direction: column; gap: 2px;
+    max-height: 280px; overflow-y: auto;
+  }
+  .g-fopt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: 8px; cursor: pointer;
+  }
+  .g-fopt:hover { background: var(--c-fill); }
+  .g-fopt--checked { background: var(--c-pink-light); }
+  .g-fopt__check {
+    width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+    border: 1.5px solid var(--c-stroke-light); background: var(--c-white);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--c-white); font-size: 11px; font-weight: 700; line-height: 1;
+  }
+  .g-fopt--checked .g-fopt__check {
+    background: var(--c-pink); border-color: var(--c-pink);
+  }
+  .g-fopt__emoji { font-size: 14px; line-height: 1; }
+  .g-fopt__label { font-size: 13px; color: var(--c-dark); flex: 1; }
+
+  /* Mobile filter trigger -------------------------------------- */
+  .g-mobiletrigger { display: block; margin-bottom: 12px; }
+  @media (min-width: 720px) { .g-mobiletrigger { display: none; } }
+  .g-mobiletrigger__btn {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px; border-radius: 100px;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    font-family: var(--font-body); font-size: 13px; color: var(--c-dark);
+    font-weight: 500; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .g-mobiletrigger__btn--active {
+    border-color: var(--c-pink); background: var(--c-pink-light); color: var(--c-pink);
+  }
+  .g-mobiletrigger__label {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .g-mobiletrigger__count {
+    background: var(--c-pink); color: var(--c-white);
+    border-radius: 100px; padding: 1px 8px;
+    font-size: 11px; font-weight: 600;
+  }
+  .g-mobiletrigger__caret { font-size: 10px; opacity: 0.7; }
+
+  /* Active chips row ------------------------------------------- */
+  .g-activechips {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .g-activechips[hidden] { display: none; }
+  .g-activechips__counter {
+    font-size: 11px; color: var(--c-light);
+  }
+  .g-achip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 6px 4px 11px;
+    border-radius: 100px;
+    background: var(--c-pink-light); border: 1px solid var(--c-pink);
+    font-size: 12px; color: var(--c-pink); font-weight: 500;
+    cursor: pointer; font-family: var(--font-body);
+    transition: background .15s ease;
+  }
+  .g-achip:hover { background: var(--c-pink); color: var(--c-white); }
+  .g-achip:hover .g-achip__x { background: var(--c-white); color: var(--c-pink); }
+  .g-achip__emoji { font-size: 12px; }
+  .g-achip__x {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--c-pink); color: var(--c-white);
+    font-size: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s ease, color .15s ease;
+  }
+  .g-activechips__clear {
+    font-size: 12px; color: var(--c-light);
+    background: none; border: none; cursor: pointer;
+    text-decoration: underline; padding: 4px 8px;
+  }
+  .g-activechips__clear:hover { color: var(--c-dark); }
+
+  /* No-results state ------------------------------------------- */
+  .g-empty--noresults {
+    background: var(--c-fill); padding: 48px 24px;
+    border-radius: var(--r-md);
+    margin-bottom: 24px;
   }
 
   /* Empty state ------------------------------------------------ */
@@ -347,20 +830,11 @@ import Layout from "../layouts/Layout.astro";
   }
   .g-empty__title { font-size: 26px; }
 
-  /* The gallery <main> is a flex item of Layout's flex-column body.
-     min-width:auto + width:auto lets a flex item's content blow past the
-     viewport — clamp explicitly so the grid actually respects its parent. */
   .page.container { width: 100%; min-width: 0; }
-
-  /* Outer container padding so cards don't go edge to edge on mobile */
-  @media (max-width: 767px) {
-    .page.container { padding: 0 16px; }
-  }
+  @media (max-width: 767px) { .page.container { padding: 0 16px; } }
 
   /* Grid ------------------------------------------------------- */
-  /* minmax(0, 1fr) — without it, the intrinsic width of the AI-generated
-     images (often 1024px+) sets each grid item's min-content size and the
-     grid blows out wider than the viewport on mobile. */
+  .g-grid[hidden] { display: none; }
   .g-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
@@ -389,7 +863,6 @@ import Layout from "../layouts/Layout.astro";
     pointer-events: none;
   }
   .g-card:hover .g-card__hover { opacity: 1; transform: translateX(-50%) translateY(0); }
-
   .g-card__tags {
     position: absolute; top: 8px; left: 8px; right: 8px;
     display: flex; gap: 5px; flex-wrap: nowrap;
@@ -402,7 +875,6 @@ import Layout from "../layouts/Layout.astro";
     min-width: 0; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-
   .g-card__body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .g-card__row {
     display: flex; justify-content: space-between; align-items: flex-start;
@@ -418,4 +890,106 @@ import Layout from "../layouts/Layout.astro";
   .g-foot { font-size: 12px; color: var(--c-light); margin-top: 28px; }
   .g-foot__link { color: var(--c-pink); }
   .g-foot__link:hover { text-decoration: underline; }
+
+  /* Mobile bottom sheet ---------------------------------------- */
+  .g-sheet[hidden] { display: none; }
+  .g-sheet {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; flex-direction: column;
+  }
+  .g-sheet__backdrop {
+    position: absolute; inset: 0;
+    background: rgba(30,20,16,0.45);
+  }
+  .g-sheet__panel {
+    position: relative; margin-top: auto;
+    background: var(--c-white);
+    border-top-left-radius: 20px; border-top-right-radius: 20px;
+    max-height: 85vh; display: flex; flex-direction: column;
+    box-shadow: 0 -8px 32px rgba(30,20,16,0.2);
+    animation: g-sheet-slide-up 0.22s ease-out;
+  }
+  @keyframes g-sheet-slide-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .g-sheet__handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: var(--c-stroke-light);
+    margin: 10px auto 6px;
+  }
+  .g-sheet__head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 18px 14px;
+  }
+  .g-sheet__title {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 700; color: var(--c-dark);
+    margin: 0;
+  }
+  .g-sheet__clear {
+    font-size: 13px; color: var(--c-pink);
+    background: none; border: none; cursor: pointer; padding: 0;
+  }
+  .g-sheet__body {
+    flex: 1; overflow-y: auto; padding: 0 18px 12px;
+  }
+  .g-sheet__foot {
+    display: flex; gap: 10px;
+    padding: 14px 18px calc(22px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--c-stroke-light);
+  }
+  .g-sheet__reset {
+    padding: 13px 20px; border-radius: 100px;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    font-size: 14px; color: var(--c-dark); font-weight: 500;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .g-sheet__apply {
+    flex: 1; padding: 13px 0; border-radius: 100px;
+    background: var(--c-pink); border: none;
+    font-size: 14px; color: var(--c-white); font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Sheet groups + pills --------------------------------------- */
+  .g-sgroup {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--c-stroke-light);
+  }
+  .g-sgroup:last-child { border-bottom: none; }
+  .g-sgroup__head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .g-sgroup__label {
+    font-size: 13px; font-weight: 600; color: var(--c-dark);
+  }
+  .g-sgroup__count {
+    font-size: 11px; color: var(--c-pink); font-weight: 500;
+  }
+  .g-sgroup__pills {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .g-spill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 12px; border-radius: 100px;
+    border: 1px solid var(--c-stroke-light); background: var(--c-white);
+    font-family: var(--font-body); font-size: 12px; color: var(--c-dark);
+    cursor: pointer;
+  }
+  .g-spill--checked {
+    border-color: var(--c-pink);
+    background: var(--c-pink-light);
+    color: var(--c-pink);
+    font-weight: 500;
+  }
+  .g-spill__emoji { font-size: 12px; }
+  .g-spill__check { font-size: 9px; margin-left: 2px; }
+
+  /* Visually-hidden helper for screen-reader-only chip text */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 </style>
