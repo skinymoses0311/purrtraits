@@ -737,9 +737,20 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     .sample-card__no    { font-size: 9px; }
   }
 
-  /* Ad bands — preserved from previous design so the slots reserve the
-     same vertical space they always did. */
-  .ad-band { display: flex; justify-content: center; padding: 16px 16px 0; }
+  /* Ad bands — preserved slot positions from the previous design, but
+     painted in the warm cream so they blend seamlessly with the hero
+     fade and the cream sections above/below instead of showing the
+     body's lighter cream as a visible stripe.
+     Note: the ad iframe itself (rendered by Google AdSense) brings its
+     own background — usually white. That's outside our control and is
+     also a policy expectation: ads should look like ads. The wrapper
+     blending matches the rest of the page when slots are unfilled or
+     during loading. */
+  .ad-band {
+    display: flex; justify-content: center;
+    padding: 16px 16px 0;
+    background: #FAF6EE;
+  }
   .ad-band--top { padding: 12px 16px 0; }
   .ad-band--mid { padding: 24px 16px; }
 </style>
