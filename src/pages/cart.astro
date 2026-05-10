@@ -74,6 +74,7 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
+  import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
   import {
     ensureCurrencyForSession,
     onCurrencyChange,
@@ -114,11 +115,6 @@ import Layout from "../layouts/Layout.astro";
     medium: '18 × 24"',
     large: '24 × 32"',
   };
-  const STYLE_LABEL: Record<string, string> = {
-    oil: "Oil Painting",
-    watercolour: "Watercolour",
-    pop: "Pop Art",
-  };
   const FRAME_LABEL: Record<string, string> = {
     "natural-wood": "Natural wood",
     "dark-wood": "Dark wood",
@@ -144,6 +140,11 @@ import Layout from "../layouts/Layout.astro";
   // Latest cart snapshot so the checkout handler can build begin_checkout
   // items without a separate query.
   let latestCart: any = null;
+  // Loaded once below so Tab 3 (Famous Art) compound style keys
+  // ("artwork:starry_night:hilltop") render as the artwork title and
+  // placement label instead of the raw key. Tab 1/2 keys resolve via
+  // STYLE_LABELS / ARTIST_LABELS inside getStyleDisplay regardless.
+  let artworkLookup: ArtworkLookup = {};
 
   if (!sessionId) {
     showEmpty(0);
@@ -181,7 +182,7 @@ import Layout from "../layouts/Layout.astro";
         const frameText = it.product.format === "framed" && it.product.frame
           ? ` · ${FRAME_LABEL[it.product.frame]}`
           : "";
-        const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const styleText = getStyleDisplay(it.style, artworkLookup);
         const titleText = it.petName ? `${it.petName} · ${styleText}` : styleText;
         const delivery = it.product.format === "digital"
           ? "Instant download after payment"
@@ -243,7 +244,7 @@ import Layout from "../layouts/Layout.astro";
 
       // Order summary lines
       summaryItemsEl.innerHTML = cart.items.map((it: any) => {
-        const styleText = STYLE_LABEL[it.style] ?? it.style;
+        const styleText = getStyleDisplay(it.style, artworkLookup);
         const titleText = it.petName ? `${it.petName} · ${styleText}` : styleText;
         const formatText = FORMAT_LABEL[it.product.format as Format];
         return `<div class="cart-summary__item">
@@ -272,6 +273,7 @@ import Layout from "../layouts/Layout.astro";
     // and reopen it with the new currency arg so prices update immediately
     // — otherwise we'd be looking at the cached subscription keyed off the
     // old arg and wouldn't see new totals until a full reload.
+    artworkLookup = (await client.query(api.artworks.getLookup, {})) ?? {};
     let currency: Currency = await ensureCurrencyForSession(client, sessionId);
     let cartUnsub = client.onUpdate(
       api.cart.getWithProducts,
