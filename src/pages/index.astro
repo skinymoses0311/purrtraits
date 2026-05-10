@@ -683,6 +683,10 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   @media (min-width: 700px) {
     .samples__panel { grid-template-columns: repeat(3, 1fr); gap: 36px; }
   }
+  /* Class-based selector beats [hidden]'s default display:none, so we
+     have to re-assert it here. Without this, all three tab panels render
+     at once and the tabs only toggle aria-selected. */
+  .samples__panel[hidden] { display: none; }
 
   .sample-card { display: flex; flex-direction: column; }
   .sample-card__frame {
