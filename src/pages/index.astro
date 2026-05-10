@@ -536,7 +536,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   .how {
     background: #FAF6EE;
     padding: 44px 24px 36px;
-    border-top: 1px solid #EADFC9;
   }
   @media (min-width: 768px) {
     .how { padding: 56px 40px; }
@@ -753,4 +752,10 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   }
   .ad-band--top { padding: 12px 16px 0; }
   .ad-band--mid { padding: 24px 16px; }
+  /* The top band only ever holds a mobile-only 320×50 ad. On desktop
+     the inner AdUnit is display:none, so the wrapper would draw an
+     empty cream stripe below the nav — hide it. */
+  @media (min-width: 1024px) {
+    .ad-band--top { display: none; }
+  }
 </style>
