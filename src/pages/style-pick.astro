@@ -119,6 +119,16 @@ const SKELETON_COUNT = 10;
     </div>
 
     <div class="pick__panel pick__panel--hidden" id="panel-artwork" data-panel="artwork" role="tabpanel" hidden>
+      <section class="pick__popular" id="popular-section" hidden aria-label="Popular artworks">
+        <span
+          class="pick__popular-chip"
+          title="The most-selected famous artworks across all Purrtraits users"
+        >
+          <span class="pick__popular-chip-spark" aria-hidden="true">✦</span>
+          Popular
+        </span>
+        <div class="pick__popular-row" id="popular-row"></div>
+      </section>
       <div class="pick__chips" id="era-chips" role="group" aria-label="Filter by era">
         <button class="pick__chip pick__chip--active" data-era="all" type="button">All</button>
         <button class="pick__chip" data-era="post-impressionist" type="button">Post-Impressionist</button>
@@ -130,10 +140,6 @@ const SKELETON_COUNT = 10;
         <button class="pick__chip" data-era="symbolist" type="button">Symbolist</button>
         <button class="pick__chip" data-era="art-nouveau" type="button">Art Nouveau</button>
       </div>
-      <section class="pick__popular" id="popular-section" hidden aria-label="Popular artworks">
-        <h2 class="pick__popular-title">Popular</h2>
-        <div class="pick__popular-row" id="popular-row"></div>
-      </section>
       <div class="pick__grid" id="grid-artwork" role="group" aria-label="Famous artworks" aria-busy="true">
         {Array.from({ length: SKELETON_COUNT }).map(() => (
           <div class="pcard pcard--skel" aria-hidden="true">
@@ -619,6 +625,11 @@ const SKELETON_COUNT = 10;
             if (active) p.removeAttribute("hidden");
             else p.setAttribute("hidden", "");
           });
+          // Tab 3 surfaces its "Popular" context inline (chip above the
+          // carousel), so hide the above-tabs recommended callout there.
+          // Tabs 1 & 2 keep it — their pre-selection messaging lives there.
+          const recEl = document.querySelector<HTMLDivElement>(".pick__rec");
+          if (recEl) recEl.classList.toggle("pick__rec--hidden", target === "artwork");
           setHeaderCopy(target);
           updateCounter();
           track("tab_switched", { to: target });
@@ -806,17 +817,18 @@ const SKELETON_COUNT = 10;
   /* ── Tab strip ────────────────────────────────────────── */
   .pick__tabs {
     display: inline-flex;
-    gap: 4px;
-    padding: 4px;
+    gap: 2px;
+    padding: 3px;
     margin-bottom: 14px;
-    background: var(--c-fill);
+    background: var(--c-white);
     border: 1px solid var(--c-stroke-light);
     border-radius: var(--r-pill);
   }
   .pick__tab {
-    padding: 7px 16px;
+    padding: 8px 18px;
+    font-family: var(--font-body);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--c-text);
     background: transparent;
     border: none;
@@ -826,15 +838,22 @@ const SKELETON_COUNT = 10;
   }
   .pick__tab:hover { color: var(--c-dark); }
   .pick__tab--active {
-    background: var(--c-white);
-    color: var(--c-dark);
-    box-shadow: 0 1px 3px rgba(30, 20, 16, 0.08);
+    background: var(--c-dark);
+    color: var(--c-white);
+    font-weight: 600;
   }
+  .pick__tab--active:hover { color: var(--c-white); }
   .pick__tab:focus-visible {
     outline: 3px solid var(--c-pink);
     outline-offset: 2px;
   }
+  @media (max-width: 699px) {
+    .pick__tab { padding: 7px 14px; font-size: 12px; }
+  }
   .pick__panel--hidden { display: none; }
+  /* Hide the above-tabs recommended callout on Tab 3 — its in-row
+     "Popular" chip carries the context for that tab. */
+  .pick__rec--hidden { display: none; }
 
   /* ── Era filter chips (Tab 3) ─────────────────────────── */
   .pick__chips {
@@ -859,10 +878,10 @@ const SKELETON_COUNT = 10;
   }
   .pick__chip {
     flex-shrink: 0;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--c-text);
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--c-dark);
     background: var(--c-white);
     border: 1px solid var(--c-stroke-light);
     border-radius: var(--r-pill);
@@ -874,9 +893,10 @@ const SKELETON_COUNT = 10;
     border-color: var(--c-stroke);
   }
   .pick__chip--active {
-    background: var(--c-pink);
-    color: var(--c-white);
+    background: var(--c-pink-light);
+    color: var(--c-pink);
     border-color: var(--c-pink);
+    font-weight: 600;
   }
   .pick__chip:focus-visible {
     outline: 3px solid var(--c-pink);
@@ -887,12 +907,29 @@ const SKELETON_COUNT = 10;
   .pick__popular {
     margin-bottom: 18px;
   }
-  .pick__popular-title {
-    font-family: var(--font-display);
-    font-size: 16px;
+  /* Pink-light pill that labels the popular carousel — same chip language
+     as the design's recommended chip, repurposed as a section label. */
+  .pick__popular-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin: 0 0 10px;
+    border-radius: var(--r-pill);
+    background: var(--c-pink-light);
+    border: 1px solid var(--c-pink);
+    font-family: var(--font-body);
+    font-size: 11px;
     font-weight: 700;
-    color: var(--c-dark);
-    margin: 0 0 8px;
+    color: var(--c-pink);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    line-height: 1.2;
+    cursor: help;
+  }
+  .pick__popular-chip-spark {
+    font-size: 11px;
+    line-height: 1;
   }
   .pick__popular-row {
     display: grid;
