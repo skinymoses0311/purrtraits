@@ -101,7 +101,11 @@ const ACTIVITY_PROMPTS: Record<string, string> = {
     "The pet is shown outdoors on an adventure, perched proudly atop a hill or rocky outcrop with mountains, trees, or open sky in the background. Heroic full-body composition.",
 };
 
-const MOOD_HINT: Record<string, string> = {
+// Exported so the Tab 3 (Seedream) pipeline can layer the same expression
+// flavour onto its medium-led placement prompts. Tab 1/2 reads it locally;
+// keeping a single source of truth means quiz copy stays consistent across
+// tabs without maintaining two parallel maps.
+export const MOOD_HINT: Record<string, string> = {
   calm: "The pet's expression should feel peaceful and content.",
   playful: "The pet's expression should feel bright and joyful.",
   regal: "The pet should look noble and dignified.",
@@ -114,7 +118,9 @@ export const IDENTITY_GUARD =
 // Q7 routes the user's chosen feature into the prompt as a creative-direction
 // nudge. "whole-vibe" intentionally has no fragment — when the user picks it
 // (or the field is missing on a legacy session) the block is omitted entirely.
-const FEATURE_EMPHASIS: Record<string, string> = {
+// Exported so Tab 3 (Seedream) can re-use the same feature-focus directives.
+// Same rationale as MOOD_HINT — single source of truth for quiz-driven copy.
+export const FEATURE_EMPHASIS: Record<string, string> = {
   eyes:
     "Pay particular attention to the eyes — render them with depth and clarity, capturing their colour, the soft catchlights, and the expressive quality that makes them the focal point of the portrait.",
   smile:
@@ -482,6 +488,9 @@ export const generatePortraits = action({
       // sessions.setSelectedArtwork / setSelectedStyles) we route through
       // the Seedream pipeline. Same regen, gallery, and post-purchase
       // upscale plumbing — only the inner generation step differs.
+      // The quiz's activity/mood/favouriteFeature flow through here so the
+      // pose-agnostic catalog placements can be layered with quiz-driven
+      // pose, expression, and feature-focus directives at runtime.
       const generations = session?.selectedArtworkSlug
         ? await generateAllArtworkPlacements(
             ctx,
@@ -489,6 +498,9 @@ export const generatePortraits = action({
             session?.petPhotoUrls ?? [],
             session?.quizAnswers?.breeds,
             session?.quizAnswers?.breed,
+            session?.quizAnswers?.activity,
+            session?.quizAnswers?.mood,
+            session?.quizAnswers?.favouriteFeature,
           )
         : await (async () => {
             const ranked = (session?.rankedStyles ?? []) as StyleOrArtist[];
@@ -566,7 +578,10 @@ export const regenerate = action({
       // Tab 3 (Famous Art) regen — re-runs the same artwork's three
       // placements. We don't accept caller-supplied overrides here because
       // a Tab 3 user isn't picking individual placement slugs; they're
-      // re-rolling the whole artwork.
+      // re-rolling the whole artwork. Quiz answers flow through fresh so
+      // a regen picks up any updates the user made between rolls — the
+      // generations are derived from the latest quizAnswers, not snapshotted
+      // at the original generate time.
       const generations = session.selectedArtworkSlug
         ? await generateAllArtworkPlacements(
             ctx,
@@ -574,6 +589,9 @@ export const regenerate = action({
             session.petPhotoUrls ?? [],
             session.quizAnswers?.breeds,
             session.quizAnswers?.breed,
+            session.quizAnswers?.activity,
+            session.quizAnswers?.mood,
+            session.quizAnswers?.favouriteFeature,
           )
         : await (async () => {
             // Re-paint the same styles the user just saw, unless caller overrides.

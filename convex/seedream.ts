@@ -21,6 +21,8 @@ import {
   FULL_BLEED_LEAD,
   buildBreedPrimacy,
   enforce3by4AndStore,
+  MOOD_HINT,
+  FEATURE_EMPHASIS,
 } from "./fal";
 import type { Id } from "./_generated/dataModel";
 
@@ -72,6 +74,30 @@ export type CatalogPlacement = {
   prompt: string;
 };
 
+// Tab-3-specific activity-to-pose-and-demeanour map. The Tab 1/2
+// ACTIVITY_PROMPTS in fal.ts can't be reused verbatim because they bake in a
+// scene/setting ("Set in a bright open outdoor scene — a sunlit garden lawn")
+// which conflicts with the artwork's existing composition. These strings
+// describe pose, action, and demeanour ONLY — they tell the model how the
+// pet should be posed at the location the catalog placement specifies, not
+// where the pet should be.
+//
+// The catalog's placement prompts are deliberately pose-agnostic ("on the
+// hilltop" rather than "standing on the hilltop") so this map can drive the
+// pose without conflicts. If a placement gets re-authored to bake in a
+// pose verb, this layer will quietly fight with it — the placement will
+// usually win because it comes earlier in the prompt.
+const ARTWORK_ACTIVITY_TONE: Record<string, string> = {
+  regal:
+    "The pet is posed regally — sitting upright in a dignified, noble bearing, head held high, alert eyes, composed and stately.",
+  playing:
+    "The pet is captured mid-play — an energetic, joyful posture with body language suggesting movement, ears forward, an engaged expression, full of life.",
+  napping:
+    "The pet is posed in restful repose — body relaxed, eyes softly closed or half-lidded, paws tucked, calm and peaceful.",
+  adventuring:
+    "The pet is posed in an exploratory, alert stance — body forward and confident, ears pricked, gaze outward into the scene as if taking it all in.",
+};
+
 type ArtworkContext = {
   slug: string;
   title: string;
@@ -87,6 +113,9 @@ function buildArtworkPrompt(
   breeds: string[] | undefined,
   breed: string | undefined,
   petPhotoCount: number,
+  activity: string | undefined,
+  mood: string | undefined,
+  favouriteFeature: string | undefined,
 ): string {
   const yearPart = artwork.year ? `, ${artwork.year}` : "";
   // Lead names every image slot explicitly. Pet photos occupy slots 1..N;
@@ -101,14 +130,32 @@ function buildArtworkPrompt(
   // Lead goes first so the framing rule is read before the placement-
   // specific instruction overrides any of the artwork's existing composition.
   const lead = `${FULL_BLEED_LEAD} ${photoSlot} ${artworkSlot}`;
-  // The hand-authored placement fragment. Already contains the medium-led
-  // "treat first images as likeness references only" guard, the preserved
-  // scene elements, the artist-specific brushwork callout, and the breed-
-  // recognisability clause. See convex/artworksCatalog.ts.
+  // The hand-authored placement fragment. Pose-agnostic — see
+  // convex/artworksCatalog.ts. Specifies LOCATION + medium + scene-
+  // preservation; pose comes from the activity-tone hint below.
   const placementPart = ` ${placement.prompt}`;
+  // Activity → pose and demeanour. Quiz-derived. Sits immediately after the
+  // placement so the location is read first, then how the pet is posed at
+  // that location.
+  const activityPart =
+    activity && ARTWORK_ACTIVITY_TONE[activity]
+      ? ` ${ARTWORK_ACTIVITY_TONE[activity]}`
+      : "";
+  // Mood → expression flavour. Layered onto the pose.
+  const moodPart =
+    mood && MOOD_HINT[mood] ? ` ${MOOD_HINT[mood]}` : "";
+  // Feature → which anatomical detail to render most carefully. Reinforces
+  // identity by directing the model's attention to a feature the user finds
+  // most distinctive about their pet.
+  const featurePart =
+    favouriteFeature && FEATURE_EMPHASIS[favouriteFeature]
+      ? ` ${FEATURE_EMPHASIS[favouriteFeature]}`
+      : "";
+  // Breed primacy + identity guard land last, where the model weighs them
+  // most heavily. Identity preservation always has the final word.
   const breedPrimacy = buildBreedPrimacy(breeds, breed);
   const breedPart = breedPrimacy ? ` ${breedPrimacy}` : "";
-  return `${lead}${placementPart}${breedPart} ${IDENTITY_GUARD_ARTWORK}`;
+  return `${lead}${placementPart}${activityPart}${moodPart}${featurePart}${breedPart} ${IDENTITY_GUARD_ARTWORK}`;
 }
 
 async function callSeedream(prompt: string, imageUrls: string[]): Promise<string> {
@@ -179,6 +226,9 @@ export async function generateAllArtworkPlacements(
   petPhotoUrls: string[],
   breeds: string[] | undefined,
   breed: string | undefined,
+  activity: string | undefined,
+  mood: string | undefined,
+  favouriteFeature: string | undefined,
 ): Promise<{ style: string; imageUrl: string; printFileUrl: string }[]> {
   const artwork = (await ctx.runQuery(internal.artworks.getBySlugInternal, {
     slug: artworkSlug,
@@ -194,7 +244,16 @@ export async function generateAllArtworkPlacements(
   const petPhotoCount = imageUrls.length - 1;
 
   const tasks = artwork.placements.map(async (p) => {
-    const prompt = buildArtworkPrompt(artwork, p, breeds, breed, petPhotoCount);
+    const prompt = buildArtworkPrompt(
+      artwork,
+      p,
+      breeds,
+      breed,
+      petPhotoCount,
+      activity,
+      mood,
+      favouriteFeature,
+    );
     const lowRes = await callSeedream(prompt, imageUrls);
     const display = await enforce3by4AndStore(ctx, lowRes);
     return {
