@@ -18,6 +18,76 @@ const homeJsonLd = {
     },
   ],
 };
+
+// Hero gallery wall — frame compositions for desktop (10) and mobile (6).
+// Widths are percentages of the wall so the layout scales with the hero
+// width; the inner image always renders at a 3:4 aspect ratio. Variants
+// 0–6 map to /public/hero-wall/portrait-0{1..7}.jpg.
+type Frame = {
+  x: number;          // left % within the wall
+  y: number;          // top % within the wall
+  w: number;          // width % within the wall
+  kind: "framed" | "canvas" | "poster";
+  wood?: "natural" | "dark" | "gold";
+  v: number;          // 0..6 → portrait variant
+};
+const heroDesktop: Frame[] = [
+  { x: 4,  y: 8,  w: 10.94, kind: "framed", wood: "natural", v: 0 },
+  { x: 18, y: 40, w: 8.59,  kind: "framed", wood: "dark",    v: 1 },
+  { x: 4,  y: 64, w: 7.81,  kind: "canvas",                  v: 4 },
+  { x: 28, y: 6,  w: 10.16, kind: "framed", wood: "gold",    v: 2 },
+  { x: 32, y: 36, w: 10.16, kind: "poster",                  v: 3 },
+  { x: 50, y: 60, w: 8.59,  kind: "framed", wood: "natural", v: 6 },
+  { x: 70, y: 2,  w: 7.42,  kind: "canvas",                  v: 5 },
+  { x: 67, y: 26, w: 10.16, kind: "framed", wood: "dark",    v: 0 },
+  { x: 84, y: 52, w: 7.81,  kind: "framed", wood: "natural", v: 4 },
+  { x: 73, y: 68, w: 7.42,  kind: "poster",                  v: 6 },
+];
+const heroMobile: Frame[] = [
+  { x: -4, y: 4,  w: 28.2, kind: "framed", wood: "natural", v: 0 },
+  { x: 60, y: 2,  w: 23.1, kind: "canvas",                  v: 5 },
+  { x: 68, y: 24, w: 26.9, kind: "framed", wood: "dark",    v: 1 },
+  { x: -6, y: 38, w: 24.6, kind: "framed", wood: "gold",    v: 2 },
+  { x: 64, y: 56, w: 23.1, kind: "poster",                  v: 4 },
+  { x: -2, y: 64, w: 23.1, kind: "canvas",                  v: 6 },
+];
+const portraitSrc = (v: number) =>
+  `/hero-wall/portrait-0${v + 1}.jpg`;
+
+// "How it works" — 5 steps; matches the live flow which routes through
+// /quiz between upload and style-pick.
+const steps = [
+  { n: 1, title: "Upload photo",  blurb: "Drop a clear shot of your pet — phone snaps welcome.", icon: "upload",  tint: "#A8BFD4" },
+  { n: 2, title: "Complete quiz", blurb: "A few quick questions help us paint the real them.",   icon: "quiz",    tint: "#FBEEF1" },
+  { n: 3, title: "Pick a style",  blurb: "Renaissance, watercolour, pop art and 30+ more.",      icon: "palette", tint: "#B8C9A8" },
+  { n: 4, title: "Generate",      blurb: "AI paints your portrait in under 60 seconds.",         icon: "sparkle", tint: "#E8D08A" },
+  { n: 5, title: "Buy & ship",    blurb: "Download, frame, or ship a canvas worldwide.",         icon: "box",     tint: "#E5A6B3" },
+];
+
+// Sample portraits — three tabs shown in segmented control.
+type Sample = { name: string; blurb: string; src: string };
+const samples: Record<"styles" | "artists" | "famous", Sample[]> = {
+  styles: [
+    { name: "Oil Painting", blurb: "Rich, textured, classical",   src: "/samples/oil.jpg" },
+    { name: "Watercolour",  blurb: "Soft, dreamy, gentle tones",  src: "/samples/watercolour.jpg" },
+    { name: "Pop Art",      blurb: "Bold colours, graphic style", src: "/samples/pop.jpg" },
+  ],
+  artists: [
+    { name: "Old Master",            blurb: "Dramatic chiaroscuro, baroque mood",   src: "/samples/artists/old-master.jpg" },
+    { name: "Post-Impressionist",    blurb: "Expressive brushwork, swirling colour", src: "/samples/artists/post-impressionist.jpg" },
+    { name: "Folk Portraitist",      blurb: "Bold flat fields, symbolic flora",     src: "/samples/artists/folk-portraitist.jpg" },
+  ],
+  famous: [
+    { name: "On the Riverbank", blurb: "Pointillist park scene · summer afternoon", src: "/samples/famous/on-the-riverbank.jpg" },
+    { name: "Candlelit Study",  blurb: "Dutch Golden Age, single light source",     src: "/samples/famous/candlelit-study.jpg" },
+    { name: "A Quiet Garden",   blurb: "Impressionist florals, dappled light",      src: "/samples/famous/a-quiet-garden.jpg" },
+  ],
+};
+const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
+  { key: "styles",  label: "Styles" },
+  { key: "artists", label: "Artists" },
+  { key: "famous",  label: "Famous Art" },
+];
 ---
 
 <Layout
@@ -25,6 +95,7 @@ const homeJsonLd = {
   description="Turn your pet's photo into museum-worthy art in under 60 seconds. Oil painting, watercolour, pop art and more — digital downloads, framed prints, and canvas, shipped worldwide."
 >
   <script type="application/ld+json" slot="jsonld" set:html={JSON.stringify(homeJsonLd)} />
+
   <!-- Mobile top banner — sits directly under the nav, above the hero. -->
   <div class="ad-band ad-band--top">
     <AdUnit
@@ -36,12 +107,49 @@ const homeJsonLd = {
     />
   </div>
 
-  <section class="hero">
-    <div class="container hero__inner">
-      <h1 class="hero__title">Turn your pet into<br />museum-worthy art</h1>
-      <p class="hero__sub muted">AI-generated portraits in seconds — digital downloads, framed prints, or canvas, shipped worldwide.</p>
-      <a href="/upload" class="btn btn--primary btn--lg">✨ Create My Portrait</a>
-      <p class="hero__note muted">No account needed · Results in under 60 seconds</p>
+  <!-- HERO · Gallery wall ============================================ -->
+  <section class="hero-wall" aria-label="Hero">
+    <!-- Two compositions: desktop (10 frames) and mobile (6 frames),
+         toggled by media query. They share the wall background gradient
+         which fades into the cream body below. -->
+    <div class="hero-wall__frames hero-wall__frames--desktop" aria-hidden="true">
+      {heroDesktop.map((f, i) => (
+        <div
+          class:list={[
+            "frame",
+            `frame--${f.kind}`,
+            f.wood ? `frame--wood-${f.wood}` : "",
+          ]}
+          style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.6}deg);`}
+        >
+          <span class="frame__pin" aria-hidden="true"></span>
+          <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
+        </div>
+      ))}
+    </div>
+
+    <div class="hero-wall__frames hero-wall__frames--mobile" aria-hidden="true">
+      {heroMobile.map((f, i) => (
+        <div
+          class:list={[
+            "frame",
+            `frame--${f.kind}`,
+            f.wood ? `frame--wood-${f.wood}` : "",
+          ]}
+          style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.7}deg);`}
+        >
+          <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
+        </div>
+      ))}
+    </div>
+
+    <div class="hero-wall__card">
+      <h1 class="hero-wall__title">Turn your pet into<br />museum-worthy art</h1>
+      <p class="hero-wall__sub">
+        AI-generated portraits in seconds — digital downloads, framed prints, or canvas, shipped worldwide.
+      </p>
+      <a href="/upload" class="hero-wall__cta" id="nav-create-cta-hero">✦ Create My Portrait</a>
+      <p class="hero-wall__note">Generate art for free · Results in under 60 seconds</p>
     </div>
   </section>
 
@@ -56,24 +164,115 @@ const homeJsonLd = {
     />
   </div>
 
+  <!-- HOW IT WORKS · V3 ============================================== -->
   <section class="how" id="how">
-    <div class="container">
+    <div class="how__inner">
       <p class="section-eyebrow">HOW IT WORKS</p>
-      <div class="steps">
-        <div class="step"><div class="step__dot">1</div><div class="step__label">Upload photo</div></div>
-        <div class="step-line"></div>
-        <div class="step"><div class="step__dot">2</div><div class="step__label">Pick a style</div></div>
-        <div class="step-line"></div>
-        <div class="step"><div class="step__dot">3</div><div class="step__label">Generate</div></div>
-        <div class="step-line"></div>
-        <div class="step"><div class="step__dot">4</div><div class="step__label">Buy &amp; ship</div></div>
+      <h2 class="display how__heading">Five taps to a tail-wagging masterpiece</h2>
+
+      <div class="how__row">
+        {steps.map((s, i) => (
+          <>
+            <a
+              href={s.icon === "quiz" ? "/quiz" : s.icon === "upload" ? "/upload" : "#"}
+              class="how-step"
+              data-step={s.n}
+              aria-label={`Step ${s.n}: ${s.title}`}
+            >
+              <span class="how-step__circle" style={`background:${s.tint}`}>
+                {s.icon === "upload" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 16V4M12 4l-4 4M12 4l4 4M4 18v2a1 1 0 001 1h14a1 1 0 001-1v-2"/>
+                  </svg>
+                )}
+                {s.icon === "quiz" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="3" width="14" height="18" rx="2"/>
+                    <path d="M9 8h6M9 12h6M9 16h3"/>
+                    <path d="M16.5 15.5l1.4 1.4L21 13.5"/>
+                  </svg>
+                )}
+                {s.icon === "palette" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3a9 9 0 100 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.9-.5-1.4 0-1.1.9-2 2-2h2a4 4 0 004-4c0-3.9-4-7-9-7z"/>
+                    <circle cx="7.5" cy="11" r="1" fill="#2B1F1A" stroke="none"/>
+                    <circle cx="11" cy="7" r="1" fill="#2B1F1A" stroke="none"/>
+                    <circle cx="15" cy="7.5" r="1" fill="#2B1F1A" stroke="none"/>
+                    <circle cx="17.5" cy="11" r="1" fill="#2B1F1A" stroke="none"/>
+                  </svg>
+                )}
+                {s.icon === "sparkle" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3l1.8 5L19 10l-5.2 2L12 17l-1.8-5L5 10l5.2-2L12 3z"/>
+                    <path d="M19 16l.7 1.8L21.5 18.5l-1.8.7L19 21l-.7-1.8L16.5 18.5l1.8-.7L19 16z"/>
+                  </svg>
+                )}
+                {s.icon === "box" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 8l9-4 9 4-9 4-9-4z"/>
+                    <path d="M3 8v8l9 4 9-4V8M12 12v8"/>
+                  </svg>
+                )}
+                <span class="how-step__num">{s.n}</span>
+              </span>
+              <span class="how-step__title">{s.title}</span>
+              <span class="how-step__blurb">{s.blurb}</span>
+            </a>
+            {i < steps.length - 1 && (
+              <svg class:list={["how__arrow", { "how__arrow--flip": i % 2 === 1 }]} viewBox="0 0 80 30" aria-hidden="true">
+                <path d="M 6 18 Q 24 4 44 14 T 72 14" fill="none" stroke="#D88A9A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M 65 8 L 73 14 L 65 20" fill="none" stroke="#D88A9A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            )}
+          </>
+        ))}
+      </div>
+
+      <!-- Mobile: vertical layout with vertical arrows between steps. -->
+      <div class="how__col">
+        {steps.map((s, i) => (
+          <>
+            <a
+              href={s.icon === "quiz" ? "/quiz" : s.icon === "upload" ? "/upload" : "#"}
+              class="how-step how-step--mobile"
+              aria-label={`Step ${s.n}: ${s.title}`}
+            >
+              <span class="how-step__circle" style={`background:${s.tint}`}>
+                {s.icon === "upload" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 18v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+                )}
+                {s.icon === "quiz" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/><path d="M16.5 15.5l1.4 1.4L21 13.5"/></svg>
+                )}
+                {s.icon === "palette" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.9-.5-1.4 0-1.1.9-2 2-2h2a4 4 0 004-4c0-3.9-4-7-9-7z"/><circle cx="7.5" cy="11" r="1" fill="#2B1F1A" stroke="none"/><circle cx="11" cy="7" r="1" fill="#2B1F1A" stroke="none"/><circle cx="15" cy="7.5" r="1" fill="#2B1F1A" stroke="none"/><circle cx="17.5" cy="11" r="1" fill="#2B1F1A" stroke="none"/></svg>
+                )}
+                {s.icon === "sparkle" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5L19 10l-5.2 2L12 17l-1.8-5L5 10l5.2-2L12 3z"/><path d="M19 16l.7 1.8L21.5 18.5l-1.8.7L19 21l-.7-1.8L16.5 18.5l1.8-.7L19 16z"/></svg>
+                )}
+                {s.icon === "box" && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2B1F1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4-9-4z"/><path d="M3 8v8l9 4 9-4V8M12 12v8"/></svg>
+                )}
+                <span class="how-step__num">{s.n}</span>
+              </span>
+              <span class="how-step__col-text">
+                <span class="how-step__title">{s.title}</span>
+                <span class="how-step__blurb">{s.blurb}</span>
+              </span>
+            </a>
+            {i < steps.length - 1 && (
+              <svg class:list={["how__arrow-v", { "how__arrow-v--flip": i % 2 === 1 }]} viewBox="0 0 30 60" aria-hidden="true">
+                <path d={i % 2 === 1 ? "M 18 4 Q 6 18 18 32 T 18 50" : "M 12 4 Q 24 18 12 32 T 12 50"} fill="none" stroke="#D88A9A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d={i % 2 === 1 ? "M 12 44 L 18 52 L 24 44" : "M 6 44 L 12 52 L 18 44"} fill="none" stroke="#D88A9A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            )}
+          </>
+        ))}
       </div>
     </div>
   </section>
 
-  <!-- Mid-content MPU — between How-it-works and Sample portraits. Same
-       slot lives in this place on both viewports; we just toggle which
-       AdUnit is shown via the breakpoint. -->
+  <!-- Mid-content MPU — between How-it-works and Sample portraits. -->
   <div class="ad-band ad-band--mid">
     <AdUnit
       viewport="desktop"
@@ -91,75 +290,451 @@ const homeJsonLd = {
     />
   </div>
 
-  <section class="gallery" id="samples">
+  <!-- SAMPLE PORTRAITS · V5 (museum plaque + tabs) ==================== -->
+  <section class="samples" id="samples">
     <div class="container">
-      <h2 class="display gallery__title">Sample portraits</h2>
-      <div class="gallery__grid">
-        {[
-          { name: "Oil Painting", src: "/samples/oil.jpg", blurb: "Rich, textured, classical" },
-          { name: "Watercolour", src: "/samples/watercolour.jpg", blurb: "Soft, dreamy, gentle tones" },
-          { name: "Pop Art", src: "/samples/pop.jpg", blurb: "Bold colours, graphic style" },
-        ].map((s) => (
-          <div class="gallery__card">
-            <img src={s.src} alt={`${s.name} sample portrait`} class="gallery__thumb" />
-            <p class="gallery__name display">{s.name}</p>
-            <p class="muted gallery__blurb">{s.blurb}</p>
-          </div>
+      <p class="section-eyebrow samples__eyebrow">— THE COLLECTION —</p>
+      <h2 class="display samples__title">Sample portraits</h2>
+
+      <div class="samples__tabs" role="tablist" aria-label="Sample portrait categories">
+        {tabs.map((t, i) => (
+          <button
+            type="button"
+            role="tab"
+            class="samples__tab"
+            data-tab={t.key}
+            aria-selected={i === 0 ? "true" : "false"}
+            aria-controls={`samples-panel-${t.key}`}
+            id={`samples-tab-${t.key}`}
+          >{t.label}</button>
         ))}
       </div>
-    </div>
-  </section>
 
-  <section class="social-proof">
-    <div class="container">
-      <p class="muted display social-proof__text">★★★★★ &nbsp; Loved by 10,000+ pet owners</p>
+      {tabs.map((t, i) => (
+        <div
+          class="samples__panel"
+          role="tabpanel"
+          id={`samples-panel-${t.key}`}
+          aria-labelledby={`samples-tab-${t.key}`}
+          data-panel={t.key}
+          hidden={i !== 0}
+        >
+          {samples[t.key].map((s, idx) => (
+            <div class="sample-card">
+              <div class="sample-card__frame">
+                <img src={s.src} alt={`${s.name} sample portrait`} loading="lazy" decoding="async" />
+              </div>
+              <div class="sample-card__plaque">
+                <div class="sample-card__no">NO. 0{idx + 1}</div>
+                <div class="sample-card__name">{s.name}</div>
+                <div class="sample-card__blurb">{s.blurb}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   </section>
 </Layout>
 
+<script>
+  // Sample-portraits tabs — vanilla, no React island. Toggle aria-selected
+  // on the buttons and hidden on the panels.
+  const tabs = document.querySelectorAll<HTMLButtonElement>(".samples__tab");
+  const panels = document.querySelectorAll<HTMLElement>(".samples__panel");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const key = tab.dataset.tab;
+      tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+      panels.forEach((p) => {
+        p.hidden = p.dataset.panel !== key;
+      });
+    });
+  });
+</script>
+
 <style>
-  .hero {
-    padding: 64px 0 48px;
+  /* Hero gallery wall ===================================================== */
+  /* Tokens local to this section so the design colours don't have to fight
+     the global tokens. */
+  .hero-wall {
+    --wall-a: #ECDCC2;
+    --wall-b: #E4D2B6;
+    --wall-c: #D6C09E;
+    --wall-cream: #FAF6EE;
+    --ink: #2B1F1A;
+    --ink-soft: #5C4A3F;
+    --ink-mute: #8A7766;
+    --pink: #E5A6B3;
+
+    position: relative;
+    width: 100%;
+    height: clamp(560px, 56vw, 720px);
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, transparent 0%, transparent 78%, var(--wall-cream) 100%),
+      radial-gradient(ellipse at 50% 38%, var(--wall-a) 0%, var(--wall-b) 50%, var(--wall-c) 100%);
+  }
+  .hero-wall::before {
+    content: "";
+    position: absolute; inset: 0;
+    opacity: .35;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,.18) 0px, transparent 2px),
+      radial-gradient(circle at 70% 60%, rgba(0,0,0,.06) 0px, transparent 3px);
+    background-size: 8px 8px, 12px 12px;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+
+  .hero-wall__frames { position: absolute; inset: 0; }
+  .hero-wall__frames--mobile  { display: block; }
+  .hero-wall__frames--desktop { display: none; }
+  @media (min-width: 768px) {
+    .hero-wall__frames--mobile  { display: none; }
+    .hero-wall__frames--desktop { display: block; }
+    .hero-wall { height: clamp(620px, 56vw, 760px); }
+  }
+
+  .frame {
+    position: absolute;
+    line-height: 0;       /* drop the inline-image baseline gap */
+    user-select: none;
+  }
+  .frame__pin {
+    position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; background: #3A2A1E; border-radius: 50%;
+    box-shadow: 0 1px 1px rgba(255,255,255,.5);
+  }
+  .frame img {
+    display: block; width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    background: #EFE7D5;  /* placeholder while image loads */
+  }
+
+  /* Poster — clean white border (no padding), drop shadow */
+  .frame--poster img {
+    background: #fff;
+    box-shadow:
+      0 14px 26px -8px rgba(40,28,16,.32),
+      0 4px 10px rgba(40,28,16,.18);
+  }
+
+  /* Canvas — image with a thin green side strip + faint canvas weave */
+  .frame--canvas {
+    box-shadow:
+      12px 16px 22px -6px rgba(40,28,16,.32),
+      4px 6px 10px rgba(40,28,16,.18);
+  }
+  .frame--canvas::after {
+    content: "";
+    position: absolute; top: 0; right: -9px;
+    width: 9px; height: 100%;
+    background: linear-gradient(90deg, #6F8C72 0%, #4D6650 100%);
+  }
+  .frame--canvas img {
+    background-image:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px);
+  }
+
+  /* Framed — wood gradient background, image inset by padding */
+  .frame--framed {
+    padding: 10px;
+    box-shadow:
+      0 14px 28px -10px rgba(80,50,20,.42),
+      0 6px 12px rgba(80,50,20,.22);
+  }
+  .frame--framed img {
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255,255,255,.16),
+      inset 0 0 6px rgba(120,80,40,.35);
+  }
+  .frame--wood-natural { background: linear-gradient(135deg, #d4b896 0%, #c19a6f 35%, #b8916a 70%, #a07d54 100%); }
+  .frame--wood-dark    {
+    background: linear-gradient(135deg, #2a1810 0%, #3d2418 35%, #2a1810 70%, #1a0e08 100%);
+    box-shadow:
+      0 16px 30px -10px rgba(20,10,4,.55),
+      0 6px 12px rgba(20,10,4,.30);
+  }
+  .frame--wood-gold    {
+    background: linear-gradient(135deg, #d4ad5e 0%, #b8893f 40%, #e6c684 70%, #9a7030 100%);
+    box-shadow:
+      0 16px 30px -10px rgba(120,80,20,.45),
+      0 6px 12px rgba(120,80,20,.25);
+  }
+  /* Tighter padding on mobile so the frames don't dwarf the artwork */
+  @media (max-width: 767.98px) {
+    .frame--framed { padding: 6px; }
+  }
+
+  /* Centre hero card */
+  .hero-wall__card {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 82%; max-width: 320px;
+    padding: 24px 22px 22px;
+    background: rgba(255, 253, 247, .96);
+    border: 1px solid rgba(40, 28, 16, .06);
+    backdrop-filter: blur(2px);
+    border-radius: 8px;
     text-align: center;
+    box-shadow:
+      0 20px 44px -10px rgba(40,28,16,.35),
+      0 6px 14px rgba(40,28,16,.18);
+    z-index: 2;
   }
-  .hero__inner { display: flex; flex-direction: column; align-items: center; gap: 18px; max-width: 720px; margin: 0 auto; }
-  .hero__title { font-size: clamp(2.4rem, 7vw, 4rem); }
-  .hero__sub { font-size: clamp(1.05rem, 2vw, 1.25rem); max-width: 520px; }
-  .hero__note { font-size: 14px; }
+  @media (min-width: 768px) {
+    .hero-wall__card {
+      top: 46%;
+      max-width: 520px; width: 60%;
+      padding: 40px 48px 36px;
+      box-shadow:
+        0 24px 60px -12px rgba(40,28,16,.35),
+        0 8px 18px rgba(40,28,16,.18);
+    }
+  }
+  .hero-wall__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.05;
+    font-size: clamp(2rem, 5.4vw, 3.4rem);
+  }
+  .hero-wall__sub {
+    font-family: var(--font-body);
+    color: var(--ink-soft);
+    margin: 12px auto 18px;
+    font-size: clamp(.78rem, 1.2vw, .95rem);
+    max-width: 380px;
+    line-height: 1.5;
+  }
+  .hero-wall__cta {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: clamp(1.05rem, 1.4vw, 1.4rem);
+    font-weight: 600;
+    color: #fff;
+    background: var(--pink);
+    border: none; border-radius: 999px;
+    padding: 13px 32px;
+    cursor: pointer;
+    box-shadow: 0 6px 14px -4px rgba(216,138,154,.55);
+    transition: transform .08s ease, background .15s ease;
+  }
+  .hero-wall__cta:hover { background: #db8aa3; transform: translateY(-1px); }
+  .hero-wall__note {
+    margin-top: 12px;
+    font-family: var(--font-body);
+    font-size: clamp(.65rem, 1vw, .78rem);
+    color: var(--ink-mute);
+  }
 
+  /* HOW IT WORKS · V3 ==================================================== */
+  .how {
+    background: #FAF6EE;
+    padding: 44px 24px 36px;
+    border-top: 1px solid #EADFC9;
+  }
+  @media (min-width: 768px) {
+    .how { padding: 56px 40px; }
+  }
+  .how__inner { max-width: 1180px; margin: 0 auto; text-align: center; }
   .section-eyebrow {
-    text-align: center; font-size: 13px; letter-spacing: 0.12em; color: var(--c-text);
-    text-transform: uppercase; font-weight: 600; margin-bottom: 16px;
+    font-family: var(--font-body);
+    font-size: 12px; letter-spacing: .2em;
+    color: #8A7766; text-transform: uppercase; font-weight: 600;
+    margin-bottom: 6px; text-align: center;
   }
-  .how { padding: 32px 0; border-top: 1px solid var(--c-stroke-light); }
-  .step-line { width: 32px; height: 2px; background: var(--c-stroke-light); margin-top: 14px; }
-  @media (max-width: 600px) { .step-line { width: 14px; } }
+  .how__heading {
+    font-family: var(--font-display);
+    font-weight: 700; color: #2B1F1A;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    margin-bottom: 28px;
+  }
 
-  .gallery { padding: 48px 0 32px; }
-  .gallery__title { text-align: center; margin-bottom: 28px; }
-  .gallery__grid {
-    display: grid; gap: 16px;
-    grid-template-columns: repeat(2, 1fr);
+  /* Desktop horizontal row & mobile vertical column — only one visible
+     at a time. Mobile is the default; the media query swaps to row at
+     ≥900px. */
+  .how__row {
+    display: none;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 8px;
   }
-  @media (min-width: 900px) { .gallery__grid { grid-template-columns: repeat(3, 1fr); } }
-  .gallery__card { display: flex; flex-direction: column; gap: 8px; }
-  .gallery__thumb {
-    width: 100%; aspect-ratio: 4/5; object-fit: cover;
-    background: var(--c-fill); border: 1.5px solid var(--c-stroke-light);
-    border-radius: var(--r-md); display: block;
+  .how__col {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
   }
-  .gallery__name { font-size: 22px; }
-  .gallery__blurb { font-size: 14px; }
+  @media (min-width: 900px) {
+    .how__row { display: flex; }
+    .how__col { display: none; }
+  }
+  .how__arrow { width: 80px; height: 30px; flex-shrink: 0; margin-top: 38px; }
+  .how__arrow--flip { transform: scaleX(-1); }
+  .how__arrow-v { width: 30px; height: 60px; display: block; }
 
-  .social-proof {
-    background: var(--c-fill); border-top: 1px solid var(--c-stroke-light);
-    padding: 18px 0; margin-top: 48px; text-align: center;
+  .how-step {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; flex: 0 0 auto;
+    text-decoration: none; color: inherit;
+    transition: transform .12s ease;
   }
-  .social-proof__text { font-size: 18px; }
+  .how-step:hover { transform: translateY(-2px); }
+  .how-step__circle {
+    width: 88px; height: 88px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px -6px rgba(40,28,16,.25);
+    position: relative;
+  }
+  .how-step__circle svg { width: 26px; height: 26px; }
+  .how-step__num {
+    font-family: var(--font-display); font-weight: 700; font-size: 22px;
+    color: #2B1F1A; margin-top: 2px; line-height: 1;
+  }
+  .how-step:nth-child(1) .how-step__circle { transform: rotate(-2deg); }
+  .how-step:nth-child(3) .how-step__circle { transform: rotate(2deg); }
+  .how-step:nth-child(5) .how-step__circle { transform: rotate(-1deg); }
+  .how-step:nth-child(7) .how-step__circle { transform: rotate(1deg); }
+  .how-step:nth-child(9) .how-step__circle { transform: rotate(-2deg); }
 
-  /* Reserve vertical space around ad bands so they breathe and don't
-     visually crash into the surrounding sections. The AdUnit itself
-     reserves its own width/height — these bands handle the gutter. */
+  .how-step__title {
+    font-family: var(--font-display); font-size: 19px; font-weight: 600;
+    color: #2B1F1A; margin-top: 10px;
+  }
+  .how-step__blurb {
+    font-family: var(--font-body); font-size: 12px; color: #5C4A3F;
+    margin-top: 4px; max-width: 150px; line-height: 1.4;
+  }
+
+  /* Mobile-only step layout (icon left, text right) */
+  .how-step--mobile {
+    flex-direction: row; align-items: center; gap: 14px; text-align: left;
+    width: 100%; max-width: 320px;
+  }
+  .how-step--mobile .how-step__circle { width: 64px; height: 64px; flex-shrink: 0; }
+  .how-step--mobile .how-step__circle svg { width: 22px; height: 22px; }
+  .how-step--mobile .how-step__num { font-size: 18px; }
+  .how-step__col-text { display: flex; flex-direction: column; gap: 2px; }
+  .how-step--mobile .how-step__title { margin-top: 0; font-size: 19px; }
+  .how-step--mobile .how-step__blurb { margin-top: 0; max-width: none; }
+
+  /* SAMPLE PORTRAITS · V5 ============================================== */
+  .samples {
+    background: #FAF6EE;
+    padding: 44px 0 56px;
+  }
+  @media (min-width: 768px) {
+    .samples { padding: 64px 0; }
+  }
+  .samples__eyebrow {
+    font-size: 11px; letter-spacing: .25em; color: #8A7766;
+    margin-bottom: 10px;
+  }
+  .samples__title {
+    text-align: center;
+    font-family: var(--font-display); font-weight: 700; color: #2B1F1A;
+    font-size: clamp(1.8rem, 3.6vw, 2.75rem);
+    margin-bottom: 24px;
+  }
+
+  .samples__tabs {
+    display: inline-flex;
+    padding: 3px; gap: 2px;
+    border-radius: 100px;
+    background: #fff;
+    border: 1px solid #EADFC9;
+    margin: 0 auto 32px;
+  }
+  .samples__tabs { display: flex; justify-content: center; }
+  .samples > .container > .samples__tabs { width: max-content; max-width: 100%; }
+  /* Override above to actually centre the pill — flexbox on a parent
+     wrapper handles centring. */
+  .samples > .container { display: flex; flex-direction: column; align-items: center; }
+  .samples > .container > .samples__panel,
+  .samples > .container > .samples__title,
+  .samples > .container > .samples__eyebrow {
+    align-self: stretch;
+  }
+  .samples__tab {
+    padding: 7px 16px;
+    border-radius: 100px;
+    background: transparent;
+    color: #5C4A3F;
+    font-family: var(--font-body); font-size: 13px; font-weight: 500;
+    border: none; cursor: pointer;
+    transition: background .12s ease, color .12s ease;
+  }
+  .samples__tab[aria-selected="true"] {
+    background: #2B1F1A; color: #fff; font-weight: 600;
+  }
+  @media (min-width: 768px) {
+    .samples__tab { padding: 9px 22px; font-size: 14px; }
+  }
+
+  .samples__panel {
+    display: grid;
+    gap: 28px;
+    grid-template-columns: 1fr;
+    max-width: 1100px; width: 100%;
+    margin: 0 auto;
+  }
+  @media (min-width: 700px) {
+    .samples__panel { grid-template-columns: repeat(3, 1fr); gap: 36px; }
+  }
+
+  .sample-card { display: flex; flex-direction: column; }
+  .sample-card__frame {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #2a1810 0%, #3d2418 35%, #2a1810 70%, #1a0e08 100%);
+    box-shadow:
+      0 14px 26px -10px rgba(20,10,4,.48),
+      0 4px 10px rgba(20,10,4,.28);
+  }
+  @media (max-width: 699.98px) {
+    .sample-card__frame { padding: 8px; }
+  }
+  .sample-card__frame img {
+    display: block; width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    background: #2a1810;
+  }
+  .sample-card__plaque {
+    align-self: center;
+    margin-top: 16px;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1px solid #EADFC9;
+    text-align: center;
+    max-width: 240px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.04);
+  }
+  @media (max-width: 699.98px) {
+    .sample-card__plaque { padding: 10px 12px; max-width: 200px; margin-top: 12px; }
+  }
+  .sample-card__no {
+    font-family: var(--font-body); font-size: 10px;
+    letter-spacing: .15em; color: #8A7766;
+  }
+  .sample-card__name {
+    font-family: var(--font-display); font-size: 22px; font-weight: 600;
+    color: #2B1F1A; margin-top: 2px;
+  }
+  .sample-card__blurb {
+    font-family: var(--font-body); font-size: 11px; font-style: italic;
+    color: #5C4A3F; margin-top: 4px;
+  }
+  @media (max-width: 699.98px) {
+    .sample-card__name  { font-size: 18px; }
+    .sample-card__blurb { font-size: 10px; }
+    .sample-card__no    { font-size: 9px; }
+  }
+
+  /* Ad bands — preserved from previous design so the slots reserve the
+     same vertical space they always did. */
   .ad-band { display: flex; justify-content: center; padding: 16px 16px 0; }
   .ad-band--top { padding: 12px 16px 0; }
   .ad-band--mid { padding: 24px 16px; }
