@@ -55,8 +55,15 @@ const SEEDREAM_MAX_IMAGES = 10;
 //   • References "the photograph" / "the artwork" by role rather than by
 //     image slot, since the placement prompts already assert which is which.
 //   • Keeps the 3:4 portrait + full-bleed + ignore-pet-environment guards.
+//
+// Identity language is intentionally repetitive and emphatic — Seedream
+// otherwise reads the placement prompts' "treat the photograph as a likeness
+// reference only — do not preserve any photographic texture from it" line as
+// permission to discard breed-specific features along with the photographic
+// rendering, drifting toward a breed-stereotypical pet. The repetition here
+// counter-balances that.
 const IDENTITY_GUARD_ARTWORK =
-  "Crucially, preserve the exact likeness of the pet shown in the photograph reference — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. The pet is rendered in the visual language of the artwork (its brushwork, palette, and medium) but the pet's identity must remain unmistakable. The output MUST be in 3:4 portrait orientation (taller than wide) — do not letterbox, pad, or add coloured bars. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin — the artwork must extend edge-to-edge to all four sides of the canvas. The pet photograph is for the pet's identity only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet in that photograph. The setting of the output is the artwork's existing scene, not the photograph's room.";
+  "CRUCIAL — PET IDENTITY. The painted pet in the output must specifically be the individual pet shown in the photograph reference(s), NOT a breed-typical or generic example of the breed. Preserve the pet's exact breed, fur colour and pattern, distinctive markings, eye colour, ear shape and set, head shape, build, and overall proportions as visible in the photographs. If the pet's appearance differs from what is typical for the breed in any way — fur colour, markings, build, ear shape, eye colour — follow the photographs and ignore the breed stereotype. Multiple photographs may be supplied; cross-reference them to triangulate the pet's appearance, but the rendered subject must be one consistent individual matching the photographs. The pet is rendered in the visual language of the artwork (its brushwork, palette, and medium) — but rendering style is the only thing that changes. The breed, markings, and individual features remain unmistakably this specific pet, recognisable through the painted strokes. The output MUST be in 3:4 portrait orientation (taller than wide) — do not letterbox, pad, or add coloured bars. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin — the artwork must extend edge-to-edge to all four sides of the canvas. The pet photographs are for the pet's identity only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet in those photographs. The setting of the output is the artwork's existing scene, not the photograph's room.";
 
 export type CatalogPlacement = {
   slug: string;
@@ -78,13 +85,22 @@ function buildArtworkPrompt(
   placement: CatalogPlacement,
   breeds: string[] | undefined,
   breed: string | undefined,
+  petPhotoCount: number,
 ): string {
   const yearPart = artwork.year ? `, ${artwork.year}` : "";
-  // Lead establishes the two image slots and the artwork's identity. Goes
-  // first so the model reads the framing rule before the placement-specific
+  // The lead adapts to the number of pet photos. The catalog's 90 placement
+  // prompts say "Add the pet from the second image" — singular — so when
+  // there are multiple photos we explicitly tell the model that all of slots
+  // 2..N are the pet, and the placement's "second image" reference should
+  // be read as "any of the pet reference photos".
+  const photoSlot = petPhotoCount > 1
+    ? `images 2 through ${petPhotoCount + 1} are reference photographs of the same pet for likeness reference only — cross-reference them to triangulate the pet's appearance. Where the placement instruction below refers to "the second image", interpret that as "the pet from the photograph references".`
+    : `the second image is a photograph of the pet for likeness reference only.`;
+  // Lead establishes the image slots and the artwork's identity. Goes first
+  // so the model reads the framing rule before the placement-specific
   // instruction overrides any of the artwork's existing composition.
   const lead =
-    `${FULL_BLEED_LEAD} The first image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}; the second image is a photograph of the pet for likeness reference only.`;
+    `${FULL_BLEED_LEAD} The first image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}; ${photoSlot}`;
   // The hand-authored placement fragment. Already contains the medium-led
   // "treat second image as likeness reference only" guard, the preserved
   // scene elements, the artist-specific brushwork callout, and the breed-
@@ -130,15 +146,19 @@ async function callSeedream(prompt: string, imageUrls: string[]): Promise<string
 }
 
 // Order-of-images contract documented at the top of this file. First slot
-// is the artwork, second slot is the pet photograph.
+// is the artwork, every subsequent slot is a pet photograph.
+//
+// Sending all pet photos (not just the first one) is the dominant lever
+// for Tab 3 likeness — Seedream cross-references multiple photos to
+// triangulate the pet's individual appearance. With only one photo the
+// model often falls back on breed-typical features. Capped to leave room
+// for the artwork in slot 0 and stay under SEEDREAM_MAX_IMAGES.
 function imagesForArtwork(referenceUrl: string, petPhotoUrls: string[]): string[] {
-  // Seedream input cap. We only ever send the most-relevant pet photo (the
-  // first one in the session list) for Tab 3 — the placements are already
-  // tightly scoped to one composition and extra refs hurt likeness more
-  // than they help.
-  const pet = petPhotoUrls[0];
-  if (!pet) throw new Error("seedream.imagesForArtwork: no pet photo available");
-  return [referenceUrl, pet].slice(0, SEEDREAM_MAX_IMAGES);
+  if (petPhotoUrls.length === 0) {
+    throw new Error("seedream.imagesForArtwork: no pet photo available");
+  }
+  const petPhotos = petPhotoUrls.slice(0, SEEDREAM_MAX_IMAGES - 1);
+  return [referenceUrl, ...petPhotos];
 }
 
 // One artwork × three placements. Mirrors generateAllStyles' partial-failure
@@ -166,9 +186,13 @@ export async function generateAllArtworkPlacements(
     throw new Error(`Artwork has no placements: ${artworkSlug}`);
   }
 
+  const imageUrls = imagesForArtwork(artwork.referenceUrl, petPhotoUrls);
+  // imageUrls[0] is the artwork; the rest are pet photos. petPhotoCount is
+  // used by the prompt builder to phrase the photo-slot description.
+  const petPhotoCount = imageUrls.length - 1;
+
   const tasks = artwork.placements.map(async (p) => {
-    const prompt = buildArtworkPrompt(artwork, p, breeds, breed);
-    const imageUrls = imagesForArtwork(artwork.referenceUrl, petPhotoUrls);
+    const prompt = buildArtworkPrompt(artwork, p, breeds, breed, petPhotoCount);
     const lowRes = await callSeedream(prompt, imageUrls);
     const display = await enforce3by4AndStore(ctx, lowRes);
     return {
