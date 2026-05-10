@@ -35,17 +35,18 @@ const SEEDREAM_MAX_IMAGES = 10;
 
 // ─── Image order ────────────────────────────────────────────────────────────
 //
-// All 90 hand-authored placement prompts were written assuming
-// [artworkRef, petPhoto] — the language is consistently "the pet from the
-// SECOND image" and "the FIRST image is the existing artwork". Sending in
-// the same order keeps prompt tokens and image slots aligned.
+// Pet-first ordering: image_urls = [...petPhotos, artworkRef]. Slots 1..N
+// are pet reference photographs; slot N+1 (the last image) is the artwork.
 //
-// Note: the operator's Q6 verification answer described image order as
-// "pet photo then artwork reference". That described the wire-level test;
-// the prompts (which are the runtime-load-bearing part) are written for
-// artwork-first. We honour the prompts. If this needs to flip, swap the
-// two slots in `imagesForArtwork` AND search-replace "first image"/"second
-// image" across all 90 placements in `convex/artworksCatalog.ts`.
+// All 90 placement prompts in convex/artworksCatalog.ts use "the pet from
+// the first images" / "treat the first images as likeness references only"
+// to match this order. The lead built below names every slot explicitly so
+// the model never has to infer which image is which.
+//
+// History: the original catalogue used "from the second image" with image
+// order [artworkRef, petPhoto]. We flipped both together in one pass after
+// observing weak likeness; pet-first matched the operator's hand-tested
+// configuration that produced ship-quality output during §5 verification.
 
 // Identity guard tuned for the artwork pipeline. Differs from the
 // Nano Banana IDENTITY_GUARD in three ways:
@@ -88,21 +89,20 @@ function buildArtworkPrompt(
   petPhotoCount: number,
 ): string {
   const yearPart = artwork.year ? `, ${artwork.year}` : "";
-  // The lead adapts to the number of pet photos. The catalog's 90 placement
-  // prompts say "Add the pet from the second image" — singular — so when
-  // there are multiple photos we explicitly tell the model that all of slots
-  // 2..N are the pet, and the placement's "second image" reference should
-  // be read as "any of the pet reference photos".
+  // Lead names every image slot explicitly. Pet photos occupy slots 1..N;
+  // the artwork is the last image. The catalog's placement prompts refer to
+  // "the first images" for the pet, which matches this order.
   const photoSlot = petPhotoCount > 1
-    ? `images 2 through ${petPhotoCount + 1} are reference photographs of the same pet for likeness reference only — cross-reference them to triangulate the pet's appearance. Where the placement instruction below refers to "the second image", interpret that as "the pet from the photograph references".`
-    : `the second image is a photograph of the pet for likeness reference only.`;
-  // Lead establishes the image slots and the artwork's identity. Goes first
-  // so the model reads the framing rule before the placement-specific
-  // instruction overrides any of the artwork's existing composition.
-  const lead =
-    `${FULL_BLEED_LEAD} The first image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}; ${photoSlot}`;
+    ? `Images 1 through ${petPhotoCount} are reference photographs of the same pet for likeness reference only — cross-reference them to triangulate the pet's appearance.`
+    : `The first image is a photograph of the pet for likeness reference only.`;
+  const artworkSlot = petPhotoCount > 1
+    ? `Image ${petPhotoCount + 1} (the last image) is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}.`
+    : `The second image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}.`;
+  // Lead goes first so the framing rule is read before the placement-
+  // specific instruction overrides any of the artwork's existing composition.
+  const lead = `${FULL_BLEED_LEAD} ${photoSlot} ${artworkSlot}`;
   // The hand-authored placement fragment. Already contains the medium-led
-  // "treat second image as likeness reference only" guard, the preserved
+  // "treat first images as likeness references only" guard, the preserved
   // scene elements, the artist-specific brushwork callout, and the breed-
   // recognisability clause. See convex/artworksCatalog.ts.
   const placementPart = ` ${placement.prompt}`;
@@ -145,20 +145,22 @@ async function callSeedream(prompt: string, imageUrls: string[]): Promise<string
   return url;
 }
 
-// Order-of-images contract documented at the top of this file. First slot
-// is the artwork, every subsequent slot is a pet photograph.
+// Order-of-images contract documented at the top of this file. Pet photos
+// occupy slots 1..N; the artwork is the last image. Pet-first matches the
+// catalog's "the pet from the first images" wording and the operator's
+// hand-tested configuration.
 //
-// Sending all pet photos (not just the first one) is the dominant lever
-// for Tab 3 likeness — Seedream cross-references multiple photos to
-// triangulate the pet's individual appearance. With only one photo the
-// model often falls back on breed-typical features. Capped to leave room
-// for the artwork in slot 0 and stay under SEEDREAM_MAX_IMAGES.
+// Sending all pet photos (not just the first one) is critical for likeness
+// — Seedream cross-references multiple photos to triangulate the pet's
+// individual appearance. With only one photo the model falls back on
+// breed-typical features. Capped to leave room for the artwork in the
+// final slot and stay under SEEDREAM_MAX_IMAGES.
 function imagesForArtwork(referenceUrl: string, petPhotoUrls: string[]): string[] {
   if (petPhotoUrls.length === 0) {
     throw new Error("seedream.imagesForArtwork: no pet photo available");
   }
   const petPhotos = petPhotoUrls.slice(0, SEEDREAM_MAX_IMAGES - 1);
-  return [referenceUrl, ...petPhotos];
+  return [...petPhotos, referenceUrl];
 }
 
 // One artwork × three placements. Mirrors generateAllStyles' partial-failure
@@ -187,8 +189,8 @@ export async function generateAllArtworkPlacements(
   }
 
   const imageUrls = imagesForArtwork(artwork.referenceUrl, petPhotoUrls);
-  // imageUrls[0] is the artwork; the rest are pet photos. petPhotoCount is
-  // used by the prompt builder to phrase the photo-slot description.
+  // imageUrls[0..N-1] are pet photos; imageUrls[N] is the artwork.
+  // petPhotoCount drives the lead's slot-by-slot description in the prompt.
   const petPhotoCount = imageUrls.length - 1;
 
   const tasks = artwork.placements.map(async (p) => {
