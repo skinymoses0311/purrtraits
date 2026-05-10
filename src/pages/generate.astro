@@ -121,6 +121,17 @@ try {
   import { track } from "../lib/analytics.ts";
   import { STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
 
+  type PickerArtwork = {
+    slug: string;
+    title: string;
+    artist: string;
+    year?: string;
+    era: string;
+    thumbUrl: string;
+    placements: { slug: string; label: string }[];
+    clickCount: number;
+  };
+
   const sessionId = getSessionId();
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
@@ -137,30 +148,29 @@ try {
     // load fast; the action call is the one that actually requires auth.
     const readClient = makeClient();
     const session = await readClient.query(api.sessions.get, { id: sessionId as any });
+    // Two valid commit shapes reach this page:
+    //   • Tabs 1 + 2 — `selectedStyles` is exactly 3 keys.
+    //   • Tab 3      — `selectedArtworkSlug` is set; selectedStyles is
+    //                  cleared by setSelectedArtwork (mutual exclusion).
+    // The fal action's `generatePortraits` reads the same field and routes
+    // to the Seedream pipeline when the slug is set, so the only thing the
+    // page has to do is let either shape through and skip the styles-only
+    // rendering path when in artwork mode.
+    const sessionAny = session as any;
+    const artworkSlug: string | null = sessionAny?.selectedArtworkSlug ?? null;
+    const stylesReady =
+      Array.isArray(session?.selectedStyles) && session!.selectedStyles!.length === 3;
     if (!session?.petPhotoUrls?.length || !session?.quizAnswers) {
       window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
-    } else if (!session.selectedStyles || session.selectedStyles.length !== 3) {
+    } else if (!artworkSlug && !stylesReady) {
       window.location.href = "/style-pick";
     } else {
       const preview = document.getElementById("pet-preview") as HTMLImageElement;
       attachImageLoading();
       preview.src = session.petPhotoUrls[0];
 
-      const chosen = session.selectedStyles as Style[];
-
       const petName = session.quizAnswers?.name?.trim();
       const petLabel = petName || "your pet";
-
-      // Build-time manifest of every file in public/samples/styles/. Same
-      // prefix-match approach as style-pick.astro — files can carry a
-      // trailing session-id suffix and still resolve.
-      const manifestEl = document.getElementById("sample-manifest");
-      const sampleFiles: string[] = manifestEl
-        ? JSON.parse(manifestEl.textContent || "[]")
-        : [];
-
-      const quizActivity = session.quizAnswers!.activity ?? "";
-      const quizMood = session.quizAnswers!.mood ?? "";
 
       function escapeHtml(s: string) {
         return s.replace(/[&<>"']/g, (c) => ({
@@ -168,95 +178,164 @@ try {
         }[c]!));
       }
 
-      function findSample(activity: string, mood: string, style: string): string | null {
-        const prefix = `${activity}_${mood}_${style}`;
-        const match = sampleFiles.find((f) => {
-          const base = f.replace(/\.[^.]+$/, "");
-          return base === prefix || base.startsWith(prefix + "_");
-        });
-        return match ? `/samples/styles/${match}` : null;
-      }
-
-      function sampleImg(style: Style, label: string): string {
-        const personalised = findSample(quizActivity, quizMood, style);
-        const fallback =
-          quizActivity === "adventuring" && quizMood === "playful"
-            ? null
-            : findSample("adventuring", "playful", style);
-        const src = personalised ?? fallback;
-        if (!src) return "";
-        return `<img class="gen__example-img"
-                     src="${src}"
-                     alt="${escapeHtml(label)} style example on another pet"
-                     loading="lazy">`;
-      }
-
-      // Render shimmer cards labelled with the styles the user actually picked,
-      // with a sample image of the style underneath the label.
+      const titleEl = document.getElementById("title")!;
+      const sub = document.getElementById("subtitle")!;
       const grid = document.getElementById("gen-grid")!;
-      grid.innerHTML = chosen
-        .map((s) => {
-          const label = STYLE_LABELS[s] ?? s;
-          const img = sampleImg(s, label);
-          // If we have no sample for this style, fall back to the loading
-          // shimmer so the slot doesn't collapse to empty.
-          const visual = img
-            ? `<div class="gen__example">
-                 ${img}
-                 <p class="gen__example-caption">Sample · not ${escapeHtml(petLabel)}</p>
-               </div>`
-            : `<div class="shimmer gen__shimmer"></div>`;
-          return `
-            <div class="gen__card">
-              <p class="display gen__label">${escapeHtml(label)}</p>
-              ${visual}
-            </div>`;
-        })
-        .join("");
 
-      if (petName) {
-        document.title = `Painting ${petName} · Purrtraits`;
-        const titleEl = document.getElementById("title")!;
-        titleEl.textContent = `Painting ${petName}…`;
-        const sub = document.getElementById("subtitle")!;
-        sub.textContent = `Our AI is brushing 3 unique styles for ${petName}. About 30 seconds.`;
+      if (artworkSlug) {
+        // ─── Tab 3 (Famous Art) loading state ────────────────────────────
+        // Three placement cards labelled with the artwork's placement labels,
+        // each showing the artwork thumbnail. We resolve the artwork via
+        // listForPicker rather than adding a one-off query — the catalog is
+        // bounded at 30 entries and the picker query is already warm in
+        // Convex's cache from the previous page.
+        const catalog = (await readClient.query(api.artworks.listForPicker, {})) as
+          | PickerArtwork[]
+          | null;
+        const artwork = (catalog ?? []).find((a) => a.slug === artworkSlug);
+        if (!artwork) {
+          // Disabled or deleted between picker commit and arriving here —
+          // bounce back so the user can pick a still-valid artwork.
+          window.location.href = "/style-pick";
+        } else {
+          if (petName) {
+            document.title = `Painting ${petName} · Purrtraits`;
+            titleEl.textContent = `Painting ${petName}…`;
+          }
+          sub.textContent =
+            `Placing ${petLabel} into "${artwork.title}" by ${artwork.artist}. ` +
+            `Three placements, about 30 seconds.`;
+          grid.innerHTML = artwork.placements
+            .map((p) => `
+              <div class="gen__card">
+                <p class="display gen__label">${escapeHtml(p.label)}</p>
+                <div class="gen__example">
+                  <img class="gen__example-img"
+                       src="${artwork.thumbUrl}"
+                       alt="${escapeHtml(artwork.title)} reference"
+                       loading="lazy">
+                  <p class="gen__example-caption">${escapeHtml(artwork.title)}</p>
+                </div>
+              </div>`)
+            .join("");
+
+          startTickerAndGenerate({
+            event: { artwork_slug: artwork.slug, placements: artwork.placements.map((p) => p.slug) },
+          });
+        }
+      } else {
+        // ─── Tabs 1 + 2 (Styles / Artists) loading state ─────────────────
+        const chosen = session.selectedStyles as Style[];
+
+        // Build-time manifest of every file in public/samples/styles/. Same
+        // prefix-match approach as style-pick.astro — files can carry a
+        // trailing session-id suffix and still resolve.
+        const manifestEl = document.getElementById("sample-manifest");
+        const sampleFiles: string[] = manifestEl
+          ? JSON.parse(manifestEl.textContent || "[]")
+          : [];
+
+        const quizActivity = session.quizAnswers!.activity ?? "";
+        const quizMood = session.quizAnswers!.mood ?? "";
+
+        function findSample(activity: string, mood: string, style: string): string | null {
+          const prefix = `${activity}_${mood}_${style}`;
+          const match = sampleFiles.find((f) => {
+            const base = f.replace(/\.[^.]+$/, "");
+            return base === prefix || base.startsWith(prefix + "_");
+          });
+          return match ? `/samples/styles/${match}` : null;
+        }
+
+        function sampleImg(style: Style, label: string): string {
+          const personalised = findSample(quizActivity, quizMood, style);
+          const fallback =
+            quizActivity === "adventuring" && quizMood === "playful"
+              ? null
+              : findSample("adventuring", "playful", style);
+          const src = personalised ?? fallback;
+          if (!src) return "";
+          return `<img class="gen__example-img"
+                       src="${src}"
+                       alt="${escapeHtml(label)} style example on another pet"
+                       loading="lazy">`;
+        }
+
+        grid.innerHTML = chosen
+          .map((s) => {
+            const label = STYLE_LABELS[s] ?? s;
+            const img = sampleImg(s, label);
+            // If we have no sample for this style, fall back to the loading
+            // shimmer so the slot doesn't collapse to empty.
+            const visual = img
+              ? `<div class="gen__example">
+                   ${img}
+                   <p class="gen__example-caption">Sample · not ${escapeHtml(petLabel)}</p>
+                 </div>`
+              : `<div class="shimmer gen__shimmer"></div>`;
+            return `
+              <div class="gen__card">
+                <p class="display gen__label">${escapeHtml(label)}</p>
+                ${visual}
+              </div>`;
+          })
+          .join("");
+
+        if (petName) {
+          document.title = `Painting ${petName} · Purrtraits`;
+          titleEl.textContent = `Painting ${petName}…`;
+          sub.textContent = `Our AI is brushing 3 unique styles for ${petName}. About 30 seconds.`;
+        }
+
+        startTickerAndGenerate({ event: { styles: chosen }, styles: chosen });
       }
 
-      // Friendly progress dots while we wait — Nano Banana usually finishes
-      // in 15–25s. We don't have streaming progress, so we just animate.
-      const dots = document.getElementById("dots")!;
-      let frame = 0;
-      const total = 5;
-      const renderDots = () => {
-        dots.innerHTML = "";
-        for (let i = 0; i < total; i++) {
-          const d = document.createElement("span");
-          d.className = "dot" + (i <= frame ? " dot--on" : "");
-          dots.appendChild(d);
-        }
-      };
-      renderDots();
-      const tick = setInterval(() => {
-        frame = (frame + 1) % total;
+      // Friendly progress dots + the actual fal call. Shared between both
+      // modes since the action's branching happens server-side based on
+      // `selectedArtworkSlug`.
+      function startTickerAndGenerate(opts: {
+        event: Record<string, unknown>;
+        styles?: Style[];
+      }) {
+        const dots = document.getElementById("dots")!;
+        let frame = 0;
+        const total = 5;
+        const renderDots = () => {
+          dots.innerHTML = "";
+          for (let i = 0; i < total; i++) {
+            const d = document.createElement("span");
+            d.className = "dot" + (i <= frame ? " dot--on" : "");
+            dots.appendChild(d);
+          }
+        };
         renderDots();
-      }, 400);
+        const tick = setInterval(() => {
+          frame = (frame + 1) % total;
+          renderDots();
+        }, 400);
 
-      try { track("generation_started", { styles: chosen }); } catch { /* noop */ }
+        try { track("generation_started", opts.event); } catch { /* noop */ }
 
-      try {
-        const result = await client.action(api.fal.generatePortraits, {
-          sessionId: sessionId as any,
-          styles: chosen,
-        });
-        clearInterval(tick);
-        if (result.count > 0) {
-          window.location.href = "/reveal";
-        } else {
-          showError("No portraits came back. Please try again.");
-        }
-      } catch (err) {
-        clearInterval(tick);
-        showError((err as Error).message ?? "Generation failed");
+        (async () => {
+          try {
+            // The action reads `session.selectedArtworkSlug` server-side and
+            // ignores `styles` when an artwork is committed. Passing
+            // `styles` only when we have them keeps the wire payload tight.
+            const result = await client.action(api.fal.generatePortraits, {
+              sessionId: sessionId as any,
+              ...(opts.styles ? { styles: opts.styles } : {}),
+            });
+            clearInterval(tick);
+            if (result.count > 0) {
+              window.location.href = "/reveal";
+            } else {
+              showError("No portraits came back. Please try again.");
+            }
+          } catch (err) {
+            clearInterval(tick);
+            showError((err as Error).message ?? "Generation failed");
+          }
+        })();
       }
     }
   }
