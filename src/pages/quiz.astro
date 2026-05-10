@@ -13,8 +13,8 @@ import Layout from "../layouts/Layout.astro";
     <div class="quiz" id="quiz" data-step="1">
       <div class="quiz__top">
         <div class="progress">
-          <div class="progress__track"><div class="progress__fill" id="progress-fill" style="width:14%"></div></div>
-          <span class="muted" id="progress-label">1 of 7</span>
+          <div class="progress__track"><div class="progress__fill" id="progress-fill" style="width:11%"></div></div>
+          <span class="muted" id="progress-label">1 of 9</span>
         </div>
       </div>
 
@@ -44,14 +44,16 @@ import Layout from "../layouts/Layout.astro";
     // call here is sufficient.
     track("quiz_start");
 
-    const TOTAL_STEPS = 7;
+    const TOTAL_STEPS = 9;
     const MAX_CROSSBREEDS = 4;
     const MIN_CROSSBREEDS = 2;
 
     type AnswerKey =
       | "name"
       | "breed"
+      | "gender"
       | "age"
+      | "size"
       | "lifestyle"
       | "activity"
       | "mood"
@@ -66,7 +68,9 @@ import Layout from "../layouts/Layout.astro";
       // Structured form, only set in crossbreed mode (length 2..4). Used by
       // the prompt builder to choose the right phrasing.
       breeds?: string[];
+      gender?: string;
       age?: string;
+      size?: string;
       lifestyle?: string;
       activity?: string;
       mood?: string;
@@ -117,6 +121,16 @@ import Layout from "../layouts/Layout.astro";
         },
         {
           kind: "choices",
+          key: "gender",
+          title: `Is ${name} a boy or a girl?`,
+          sub: "Just so we know.",
+          options: [
+            { v: "boy", e: "💙", t: "Boy", b: "He / him" },
+            { v: "girl", e: "💖", t: "Girl", b: "She / her" },
+          ],
+        },
+        {
+          kind: "choices",
           key: "age",
           title: `How old is ${name}?`,
           sub: "Roughly is fine.",
@@ -125,6 +139,19 @@ import Layout from "../layouts/Layout.astro";
             { v: "1-3", e: "🦴", t: "1–3", b: "Young & lively" },
             { v: "4-7", e: "🐕", t: "4–7", b: "In their prime" },
             { v: "8-plus", e: "🦮", t: "8+", b: "Distinguished senior" },
+          ],
+        },
+        {
+          kind: "choices",
+          key: "size",
+          title: `How big is ${name}?`,
+          sub: "Roughly — no need to weigh them.",
+          options: [
+            { v: "xs", e: "🐭", t: "Extra small", b: "Under 4 kg / under 9 lb" },
+            { v: "s", e: "🐰", t: "Small", b: "4–9 kg / 9–20 lb" },
+            { v: "m", e: "🐕", t: "Medium", b: "9–22 kg / 20–48 lb" },
+            { v: "l", e: "🐺", t: "Large", b: "22–40 kg / 48–88 lb" },
+            { v: "xl", e: "🐴", t: "Extra large", b: "40 kg+ / 88 lb+" },
           ],
         },
         {
@@ -144,9 +171,11 @@ import Layout from "../layouts/Layout.astro";
           sub: "Pick a vibe — we'll paint them this way in every style.",
           options: [
             { v: "regal", e: "👑", t: "Sitting regally", b: "Crown-on-head energy" },
-            { v: "playing", e: "🎾", t: "Playing with a toy", b: "Mid-zoomies action" },
+            { v: "playing", e: "🎾", t: "Playing with a toy", b: "Toy or ball in mouth" },
             { v: "napping", e: "💤", t: "Curled up napping", b: "Soft, cosy, dreaming" },
             { v: "adventuring", e: "🏔️", t: "On an adventure", b: "Outdoors, exploring" },
+            { v: "tongue-out", e: "👅", t: "Tongue out", b: "Full goofball energy" },
+            { v: "zoomies", e: "💨", t: "Mid-zoomies", b: "Action shot, running" },
           ],
         },
         {
@@ -159,6 +188,8 @@ import Layout from "../layouts/Layout.astro";
             { v: "playful", e: "😄", t: "Playful", b: "Permanent zoomies mode" },
             { v: "regal", e: "👑", t: "Regal", b: "Owns the household" },
             { v: "quirky", e: "🤪", t: "Quirky", b: "Has a weird side" },
+            { v: "cheeky", e: "😏", t: "Cheeky", b: "A bit naughty, knowing side-eye" },
+            { v: "brooding", e: "🌙", t: "Brooding", b: "Dramatic, soulful, Heathcliff" },
           ],
         },
         {
@@ -171,6 +202,7 @@ import Layout from "../layouts/Layout.astro";
             { v: "smile", e: "😁", t: "Their smile / mouth", b: "That happy face" },
             { v: "fur", e: "🧶", t: "Their fur / coat", b: "Markings and texture" },
             { v: "ears", e: "👂", t: "Their ears", b: "The defining frame" },
+            { v: "nose", e: "👃", t: "Their nose", b: "The boop-worthy focal point" },
             { v: "whole-vibe", e: "✨", t: "Their whole vibe", b: "All of it, honestly" },
           ],
         },
@@ -694,6 +726,8 @@ import Layout from "../layouts/Layout.astro";
 
       const breedSummary = breedAnalytics();
       track("quiz_complete", {
+        gender: answers.gender,
+        size: answers.size,
         activity: answers.activity,
         mood: answers.mood,
         lifestyle: answers.lifestyle,
@@ -709,7 +743,9 @@ import Layout from "../layouts/Layout.astro";
           name: answers.name,
           breed: answers.breed,
           breeds: answers.breeds,
+          gender: answers.gender!,
           age: answers.age,
+          size: answers.size!,
           lifestyle: answers.lifestyle,
           activity: answers.activity!,
           mood: answers.mood!,

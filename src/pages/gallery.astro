@@ -108,12 +108,16 @@ import Layout from "../layouts/Layout.astro";
     { key: "playing",      label: "Playing",    emoji: "🎾" },
     { key: "napping",      label: "Napping",    emoji: "💤" },
     { key: "adventuring",  label: "Adventure",  emoji: "🏔️" },
+    { key: "tongue-out",   label: "Tongue out", emoji: "👅" },
+    { key: "zoomies",      label: "Zoomies",    emoji: "💨" },
   ];
   const MOOD_OPTIONS: Array<{ key: string; label: string; emoji: string }> = [
-    { key: "calm",     label: "Calm",     emoji: "😌" },
-    { key: "playful",  label: "Playful",  emoji: "😄" },
-    { key: "regal",    label: "Regal",    emoji: "👑" },
-    { key: "quirky",   label: "Quirky",   emoji: "🤪" },
+    { key: "calm",      label: "Calm",     emoji: "😌" },
+    { key: "playful",   label: "Playful",  emoji: "😄" },
+    { key: "regal",     label: "Regal",    emoji: "👑" },
+    { key: "quirky",    label: "Quirky",   emoji: "🤪" },
+    { key: "cheeky",    label: "Cheeky",   emoji: "😏" },
+    { key: "brooding",  label: "Brooding", emoji: "🌙" },
   ];
   const ACTIVITY_LABEL = (k: string) =>
     ACTIVITY_OPTIONS.find((o) => o.key === k)

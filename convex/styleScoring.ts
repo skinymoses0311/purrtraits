@@ -63,6 +63,8 @@ const MOOD: ScoreTable = {
   playful: { pop: 2, comic: 2, geometric: 1 },
   calm: { watercolour: 2, impressionist: 2, sketch: 1 },
   quirky: { pop: 2, geometric: 1, ukiyo: 1 },
+  cheeky: { pop: 2, comic: 1, geometric: 1 },
+  brooding: { oil: 2, renaissance: 2, sketch: 1 },
 };
 
 const ACTIVITY: ScoreTable = {
@@ -70,6 +72,8 @@ const ACTIVITY: ScoreTable = {
   playing: { comic: 2, pop: 2, geometric: 1 },
   napping: { watercolour: 2, impressionist: 2, sketch: 1 },
   adventuring: { ukiyo: 2, impressionist: 1, geometric: 1 },
+  "tongue-out": { pop: 2, comic: 2, geometric: 1 },
+  zoomies: { impressionist: 2, ukiyo: 1, comic: 1 },
 };
 
 const AGE: ScoreTable = {

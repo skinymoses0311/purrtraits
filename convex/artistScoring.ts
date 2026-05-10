@@ -54,6 +54,8 @@ const MOOD: ArtistScoreTable = {
   playful: { vangogh: 2, hokusai: 2, mucha: 1 },
   calm: { monet: 2, cassatt: 2, vermeer: 1 },
   quirky: { klimt: 2, mucha: 1, hokusai: 1 },
+  cheeky: { hokusai: 1, klimt: 1, mucha: 1 },
+  brooding: { rembrandt: 2, davinci: 1, vermeer: 1 },
 };
 
 const ACTIVITY: ArtistScoreTable = {
@@ -61,6 +63,8 @@ const ACTIVITY: ArtistScoreTable = {
   playing: { vangogh: 2, hokusai: 1, seurat: 1 },
   napping: { cassatt: 2, monet: 2, vermeer: 1 },
   adventuring: { hokusai: 2, monet: 1, seurat: 1 },
+  "tongue-out": { vangogh: 2, hokusai: 1, mucha: 1 },
+  zoomies: { vangogh: 2, monet: 1, hokusai: 1 },
 };
 
 const AGE: ArtistScoreTable = {

@@ -99,6 +99,10 @@ const ACTIVITY_PROMPTS: Record<string, string> = {
     "The pet is curled up peacefully asleep on a soft cushion or blanket, eyes gently closed, paws tucked in. Cosy intimate composition.",
   adventuring:
     "The pet is shown outdoors on an adventure, perched proudly atop a hill or rocky outcrop with mountains, trees, or open sky in the background. Heroic full-body composition.",
+  "tongue-out":
+    "The pet is sitting upright, mouth open in a relaxed pant with the tongue lolling happily out to one side, eyes bright and full of personality. Centred head-and-shoulders composition with full goofball energy. Set against a clean, brightly-coloured backdrop that lets the joyful expression be the focal point.",
+  zoomies:
+    "The pet is captured mid-stride at full sprint, all four paws engaged in motion, ears streaming back, eyes locked forward, tail trailing. Energetic dynamic full-body action composition with motion suggested by the pose itself and a sense of speed in the surroundings. Set in a bright open outdoor scene — a sunlit meadow, beach, or grassy clearing — wide enough to show the run.",
 };
 
 // Exported so the Tab 3 (Seedream) pipeline can layer the same expression
@@ -110,6 +114,8 @@ export const MOOD_HINT: Record<string, string> = {
   playful: "The pet's expression should feel bright and joyful.",
   regal: "The pet should look noble and dignified.",
   quirky: "The pet should look charming with a hint of whimsy.",
+  cheeky: "The pet's expression should feel mischievous and knowing — a hint of side-eye, playful with attitude.",
+  brooding: "The pet should look soulful and dramatic — a deep, contemplative gaze with Heathcliff-like intensity.",
 };
 
 export const IDENTITY_GUARD =
@@ -129,6 +135,8 @@ export const FEATURE_EMPHASIS: Record<string, string> = {
     "Render the fur with particular care and texture — the patterns, markings, and tonal variations of the coat, with brushwork or linework that lets the texture sing.",
   ears:
     "Pay particular attention to the ears — their shape, set, and how they frame the face, rendered as a defining feature of this pet's character.",
+  nose:
+    "Pull the framing in slightly closer than a standard portrait crop and pay particular attention to the nose — render its texture, the soft highlight on the leather, and the gentle creases around it, making it the boop-worthy focal point of the portrait.",
 };
 
 // The breed name is included for vocabulary only — the reference photos are

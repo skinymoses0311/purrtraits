@@ -96,6 +96,10 @@ const ARTWORK_ACTIVITY_TONE: Record<string, string> = {
     "The pet is posed in restful repose — body relaxed, eyes softly closed or half-lidded, paws tucked, calm and peaceful.",
   adventuring:
     "The pet is posed in an exploratory, alert stance — body forward and confident, ears pricked, gaze outward into the scene as if taking it all in.",
+  "tongue-out":
+    "The pet is posed sitting alert with mouth open in a relaxed pant, tongue lolling out to one side, eyes bright and engaged — full of unguarded happy personality.",
+  zoomies:
+    "The pet is captured mid-run — all four paws engaged in a clear stride, ears streaming back, eyes forward, tail trailing — the pose itself carries the energy of full-tilt motion.",
 };
 
 type ArtworkContext = {

@@ -59,6 +59,11 @@ export default defineSchema({
         breed: v.optional(v.string()),
         breeds: v.optional(v.array(v.string())),
         age: v.optional(v.string()),       // "under-1" | "1-3" | "4-7" | "8-plus"
+        // Captured for data quality / future insurer partnerships. Not fed
+        // into the prompt — kept as plain string buckets so the validator
+        // doesn't churn if the bucket vocabulary expands later.
+        gender: v.optional(v.string()),    // "boy" | "girl"
+        size: v.optional(v.string()),      // "xs" | "s" | "m" | "l" | "xl"
         lifestyle: v.optional(v.string()), // "homebody" | "adventurer"
         // Portrait creative direction — these feed the AI prompt.
         activity: v.string(), // "regal" | "playing" | "napping" | "adventuring"

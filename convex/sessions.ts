@@ -163,6 +163,11 @@ export const saveQuiz = mutation({
       breed: v.optional(v.string()),
       breeds: v.optional(v.array(v.string())),
       age: v.optional(v.string()),
+      // Required from the v3 quiz. Optional in the schema validator so
+      // legacy sessions without these fields still validate; required here
+      // so every new submission carries them.
+      gender: v.string(),
+      size: v.string(),
       lifestyle: v.optional(v.string()),
       activity: v.string(),
       mood: v.string(),
