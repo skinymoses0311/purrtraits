@@ -1,0 +1,5 @@
+# Reference image binaries — sourced from Wikimedia Commons via MANIFEST.md.
+# Do not commit; the seed script uploads them to Convex storage.
+*.jpg
+*.jpeg
+*.png

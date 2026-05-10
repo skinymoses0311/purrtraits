@@ -28,11 +28,15 @@ import Layout from "../layouts/Layout.astro";
   import { getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
-  import { STYLE_LABELS } from "../../convex/styleScoring.ts";
+  import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
   import { track } from "../lib/analytics.ts";
 
+  // Lazily-loaded lookup keyed by artwork slug. Populated once per page load
+  // so Tab 3 keys ("artwork:starry_night:hilltop") render as
+  // "The Starry Night — On the hilltop". Tab 1/2 keys don't need it.
+  let artworkLookup: ArtworkLookup = {};
   function labelFor(style: string): string {
-    return (STYLE_LABELS as Record<string, string>)[style] ?? style;
+    return getStyleDisplay(style, artworkLookup);
   }
 
   // Dedupe portrait_viewed events: each style fires at most once per page
@@ -102,10 +106,12 @@ import Layout from "../layouts/Layout.astro";
       attachImageLoading(grid);
     }
 
-    const [session, regens] = await Promise.all([
+    const [session, regens, lookup] = await Promise.all([
       client.query(api.sessions.get, { id: sessionId as any }),
       client.query(api.sessions.getMyRegensRemaining, {}),
+      client.query(api.artworks.getLookup, {}),
     ]);
+    artworkLookup = lookup ?? {};
     if (!session?.generations) {
       window.location.href = "/generate";
     } else {

@@ -85,7 +85,15 @@ import Layout from "../layouts/Layout.astro";
   import type { Id } from "../../convex/_generated/dataModel";
   import { ALL_STYLES, STYLE_LABELS, type Style } from "../../convex/styleScoring.ts";
   import { ALL_ARTISTS, ARTIST_LABELS, type Artist } from "../../convex/artistScoring.ts";
+  import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
   import { track } from "../lib/analytics.ts";
+
+  // Loaded once per page (see ensureSession below). Populated for Tab 3
+  // gallery items so their compound style keys
+  // ("artwork:starry_night:hilltop") render as the artwork title and
+  // placement label. STYLE_LABELS / ARTIST_LABELS keep handling Tab 1/2 keys
+  // directly inside the filter UI because those vocabularies are static.
+  let artworkLookup: ArtworkLookup = {};
   import {
     ensureCurrencyForSession,
     onCurrencyChange,
@@ -213,6 +221,10 @@ import Layout from "../layouts/Layout.astro";
   });
 
   // ── Data load ─────────────────────────────────────────────────
+  // Pre-load the artwork title/placement lookup once so Tab 3 cards render
+  // their full label inline. Public query, harmless if empty.
+  artworkLookup = (await client.query(api.artworks.getLookup, {})) ?? {};
+
   if (userScoped) {
     const userItems = await client.query(api.sessions.getUserGallery, {});
     if (!userItems || userItems.length === 0) {
@@ -550,12 +562,19 @@ import Layout from "../layouts/Layout.astro";
   // The `style` field on a gallery item holds either a style slug or an
   // artist slug — never both. Resolve to the right human label and to a
   // facet kind so analytics + UI can branch correctly.
-  function resolveAesthetic(slug: string): { label: string; kind: "style" | "artist" | "unknown" } {
+  function resolveAesthetic(slug: string): { label: string; kind: "style" | "artist" | "artwork" | "unknown" } {
     if ((ALL_STYLES as readonly string[]).includes(slug)) {
       return { label: STYLE_LABELS[slug as Style], kind: "style" };
     }
     if ((ALL_ARTISTS as readonly string[]).includes(slug)) {
       return { label: ARTIST_LABELS[slug as Artist], kind: "artist" };
+    }
+    // Tab 3 (Famous Art) — compound key. getStyleDisplay falls back to a
+    // humanised slug when the lookup is empty (e.g. catalog row was
+    // disabled) so a missing artwork doesn't ship a raw `artwork:foo:bar`
+    // string to the user.
+    if (slug.startsWith("artwork:")) {
+      return { label: getStyleDisplay(slug, artworkLookup), kind: "artwork" };
     }
     return { label: slug, kind: "unknown" };
   }

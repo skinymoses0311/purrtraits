@@ -112,6 +112,12 @@ export default defineSchema({
     // The 3 styles the user actually picked to generate. Set on the picker
     // screen and consumed by the fal action.
     selectedStyles: v.optional(v.array(v.string())),
+    // Tab 3 (Famous Art) single-artwork selection. Mutually exclusive with
+    // selectedStyles — committing on Tab 3 clears selectedStyles, and
+    // committing on Tab 1/2 clears this. The Seedream pipeline reads this
+    // and fans out the artwork's three placement prompts. References a
+    // slug in the `artworks` table.
+    selectedArtworkSlug: v.optional(v.string()),
     // Legacy: regen budget used to live on the session. With auth in place
     // it lives on the user instead. Kept optional so existing rows still
     // validate; new code reads/writes from the users table.
@@ -181,6 +187,55 @@ export default defineSchema({
   })
     .index("by_format", ["format"])
     .index("by_active", ["active"]),
+
+  // Tab 3 (Famous Art) catalog. Source-of-truth lives in
+  // `convex/artworksCatalog.ts`; the seed script (scripts/upload-artwork-refs.ts)
+  // mirrors that file into this table, uploading both a small thumbnail (for
+  // the picker grid) and a higher-res reference image (sent to Seedream at
+  // generation time) to Convex storage. Re-running the script preserves
+  // `clickCount` so popularity is durable across re-seeds.
+  artworks: defineTable({
+    slug: v.string(),
+    title: v.string(),
+    artist: v.string(),
+    year: v.optional(v.string()),
+    era: v.union(
+      v.literal("post-impressionist"),
+      v.literal("impressionist"),
+      v.literal("japanese-woodblock"),
+      v.literal("romantic"),
+      v.literal("northern-renaissance"),
+      v.literal("symbolist"),
+      v.literal("art-nouveau"),
+      v.literal("dutch-golden-age"),
+      v.literal("renaissance"),
+    ),
+    // Small JPEG (~600px long edge, q70) shown on every catalog card. Keeps
+    // the Tab 3 panel weight under ~2MB across all 30 cards.
+    thumbStorageId: v.id("_storage"),
+    // Higher-res JPEG (~1600px long edge) sent to Seedream as the second
+    // image at generation time. Never fetched by the browser.
+    referenceStorageId: v.id("_storage"),
+    // Exactly three hand-authored placement prompts per artwork. The user
+    // picks the artwork; the system fans out all three. Stored inline because
+    // the array is small, bounded, and always written together — no churn risk.
+    placements: v.array(
+      v.object({
+        slug: v.string(),
+        label: v.string(),
+        prompt: v.string(),
+      }),
+    ),
+    // Atomic counter incremented on every catalog card click. Drives the
+    // "Popular" carousel.
+    clickCount: v.number(),
+    // Soft-disable flag. Toggled via the Convex dashboard if an artwork
+    // needs to be hidden without re-seeding.
+    active: v.boolean(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_active_era", ["active", "era"])
+    .index("by_active_clicks", ["active", "clickCount"]),
 
   orders: defineTable({
     userId: v.optional(v.id("users")),

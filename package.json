@@ -9,7 +9,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "seed:artworks": "tsx scripts/upload-artwork-refs.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.4",
@@ -29,6 +30,8 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/node": "^25.6.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

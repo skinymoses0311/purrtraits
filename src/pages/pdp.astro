@@ -79,7 +79,7 @@ import ProductPreview from "../components/ProductPreview.astro";
 <script>
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
-  import { STYLE_LABELS } from "../../convex/styleScoring.ts";
+  import { getStyleDisplay } from "../../convex/displayLabels.ts";
   import { formatProductDescription } from "../../convex/productCopy.ts";
   import { track, trackEcommerce } from "../lib/analytics.ts";
   import {
@@ -135,7 +135,13 @@ import ProductPreview from "../components/ProductPreview.astro";
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
   } else {
-    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    const [session, artworkLookup] = await Promise.all([
+      client.query(api.sessions.get, { id: sessionId as any }),
+      // Loaded eagerly so Tab 3 compound style keys render with their
+      // artwork title + placement label (e.g. "The Starry Night — On the
+      // hilltop") wherever PDP touches `style`.
+      client.query(api.artworks.getLookup, {}),
+    ]);
     if (!session?.selectedStyle || !session.generations) {
       window.location.href = "/reveal";
     } else {
@@ -152,7 +158,7 @@ import ProductPreview from "../components/ProductPreview.astro";
       });
 
       const selectedStyle = session.selectedStyle;
-      const styleLabel = (STYLE_LABELS as Record<string, string>)[selectedStyle] ?? selectedStyle;
+      const styleLabel = getStyleDisplay(selectedStyle, artworkLookup ?? {});
       const portrait = session.generations.find((g) => g.style === selectedStyle)!;
 
       // DOM refs

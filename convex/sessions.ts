@@ -186,11 +186,40 @@ export const selectStyle = mutation({
 // The 3 styles the user picked on the post-quiz picker. We keep them on the
 // session so the loading screen and the regenerate button can both fan out
 // the same set without re-passing them through every navigation.
+//
+// Tab 1/2 commit also clears any Tab 3 (Famous Art) selection so the two
+// modes can never both be "active" — the Seedream branch reads
+// selectedArtworkSlug and would otherwise fork to the wrong pipeline.
 export const setSelectedStyles = mutation({
   args: { id: v.id("sessions"), styles: v.array(v.string()) },
   handler: async (ctx, { id, styles }) => {
     if (styles.length !== 3) throw new Error("Pick exactly 3 styles");
-    await ctx.db.patch(id, { selectedStyles: styles });
+    await ctx.db.patch(id, {
+      selectedStyles: styles,
+      selectedArtworkSlug: undefined,
+    });
+  },
+});
+
+// Tab 3 (Famous Art) single-artwork commit. Symmetric to setSelectedStyles —
+// clears selectedStyles in the same patch so the generate action can branch
+// purely on `selectedArtworkSlug` without having to disambiguate when both
+// fields are set.
+export const setSelectedArtwork = mutation({
+  args: { id: v.id("sessions"), slug: v.string() },
+  handler: async (ctx, { id, slug }) => {
+    // Defensive — if the catalog is missing this slug something has gone
+    // wrong upstream and we'd rather fail loud than store a dead reference.
+    const artwork = await ctx.db
+      .query("artworks")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    if (!artwork) throw new Error(`Unknown artwork: ${slug}`);
+    if (!artwork.active) throw new Error(`Artwork is disabled: ${slug}`);
+    await ctx.db.patch(id, {
+      selectedArtworkSlug: slug,
+      selectedStyles: undefined,
+    });
   },
 });
 
@@ -403,6 +432,7 @@ export const clearCurrentFlow = mutation({
       rankedStyles: undefined,
       rankedArtists: undefined,
       selectedStyles: undefined,
+      selectedArtworkSlug: undefined,
       generationStatus: "idle",
       generationError: undefined,
     });

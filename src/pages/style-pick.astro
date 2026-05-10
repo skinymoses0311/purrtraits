@@ -80,6 +80,14 @@ const SKELETON_COUNT = 10;
         aria-controls="panel-artist"
         type="button"
       >Artist</button>
+      <button
+        class="pick__tab"
+        data-tab="artwork"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-artwork"
+        type="button"
+      >Famous Art</button>
     </div>
 
     <div class="pick__panel" id="panel-style" data-panel="style" role="tabpanel">
@@ -98,6 +106,35 @@ const SKELETON_COUNT = 10;
 
     <div class="pick__panel pick__panel--hidden" id="panel-artist" data-panel="artist" role="tabpanel" hidden>
       <div class="pick__grid" id="grid-artist" role="group" aria-label="Famous artists" aria-busy="true">
+        {Array.from({ length: SKELETON_COUNT }).map(() => (
+          <div class="pcard pcard--skel" aria-hidden="true">
+            <div class="pcard__media shimmer"></div>
+            <div class="pcard__body">
+              <div class="skel-line skel-line--title shimmer"></div>
+              <div class="skel-line skel-line--desc shimmer"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="pick__panel pick__panel--hidden" id="panel-artwork" data-panel="artwork" role="tabpanel" hidden>
+      <div class="pick__chips" id="era-chips" role="group" aria-label="Filter by era">
+        <button class="pick__chip pick__chip--active" data-era="all" type="button">All</button>
+        <button class="pick__chip" data-era="post-impressionist" type="button">Post-Impressionist</button>
+        <button class="pick__chip" data-era="impressionist" type="button">Impressionist</button>
+        <button class="pick__chip" data-era="romantic" type="button">Romantic</button>
+        <button class="pick__chip" data-era="japanese-woodblock" type="button">Japanese Woodblock</button>
+        <button class="pick__chip" data-era="northern-renaissance" type="button">Northern Renaissance</button>
+        <button class="pick__chip" data-era="dutch-golden-age" type="button">Dutch Golden Age</button>
+        <button class="pick__chip" data-era="symbolist" type="button">Symbolist</button>
+        <button class="pick__chip" data-era="art-nouveau" type="button">Art Nouveau</button>
+      </div>
+      <section class="pick__popular" id="popular-section" hidden aria-label="Popular artworks">
+        <h2 class="pick__popular-title">Popular</h2>
+        <div class="pick__popular-row" id="popular-row"></div>
+      </section>
+      <div class="pick__grid" id="grid-artwork" role="group" aria-label="Famous artworks" aria-busy="true">
         {Array.from({ length: SKELETON_COUNT }).map(() => (
           <div class="pcard pcard--skel" aria-hidden="true">
             <div class="pcard__media shimmer"></div>
@@ -153,7 +190,18 @@ const SKELETON_COUNT = 10;
   } from "../../convex/artistScoring.ts";
 
   type SelKey = Style | Artist;
-  type TabKind = "style" | "artist";
+  type TabKind = "style" | "artist" | "artwork";
+
+  type PickerArtwork = {
+    slug: string;
+    title: string;
+    artist: string;
+    year?: string;
+    era: string;
+    thumbUrl: string;
+    placements: { slug: string; label: string }[];
+    clickCount: number;
+  };
 
   const client = makeClient();
   const sessionId = getSessionId();
@@ -181,6 +229,18 @@ const SKELETON_COUNT = 10;
       const recTextEl = document.getElementById("pick-rec-text")!;
 
       function setHeaderCopy(kind: TabKind) {
+        if (kind === "artwork") {
+          // Tab 3 has different semantics: pick ONE artwork, system fans out
+          // three placements. The "we picked three for you" hook doesn't apply.
+          titleEl.textContent = `Place ${petLabel} inside a famous painting`;
+          subEl.innerHTML =
+            `Pick one artwork. We'll generate <strong>three placements</strong> of ` +
+            `${escapeHtml(petLabel)} inside it — different positions in the scene, ` +
+            `each painted in the artwork's own style.`;
+          recTextEl.textContent =
+            `Filter by era or scroll the catalogue. Tap an artwork to choose it.`;
+          return;
+        }
         const noun = kind === "style" ? "styles" : "artists";
         titleEl.textContent = `We've picked three ${noun} we think suit ${petLabel}`;
         subEl.innerHTML =
@@ -220,6 +280,17 @@ const SKELETON_COUNT = 10;
       // Tab 2's recommendations are surfaced through grid order only; no
       // artist is selected on initial load.
       const selected: SelKey[] = ranked.slice(0, 3);
+
+      // Tab 3 (Famous Art) selection — separate from the SelKey bucket above
+      // because it's single-select, not multi-select. Server-side these two
+      // states are mutually exclusive (setSelectedStyles clears the artwork
+      // and vice versa); client-side we keep both around so switching tabs
+      // doesn't lose the user's progress on the other side.
+      let selectedArtwork: string | null =
+        ((session as any).selectedArtworkSlug as string | null) ?? null;
+      let activeEra: string = "all";
+      let artworkCatalog: PickerArtwork[] = [];
+      let popularArtworks: PickerArtwork[] = [];
       // Remember the original pre-selected set so we can keep the "Our pick"
       // wording on cards the user kept, and switch to "Selected" on cards
       // they swapped in. Only the initial style pre-selection is captured —
@@ -378,9 +449,124 @@ const SKELETON_COUNT = 10;
       function renderAllTabs() {
         renderTab("style");
         renderTab("artist");
+        renderArtworkTab();
+      }
+
+      // Tab 3 — single-artwork picker. State lives in `selectedArtwork` /
+      // `activeEra` / `artworkCatalog`; not in the `selected[]` bucket above.
+      function artworkCardHtml(a: PickerArtwork, source: "grid" | "popular"): string {
+        const isSel = selectedArtwork === a.slug;
+        const yearPart = a.year ? `, ${a.year}` : "";
+        const eraLabel = ERA_LABELS[a.era] ?? a.era;
+        const topLeft = isSel
+          ? `<span class="pcard__pick">
+               <span class="pcard__pick-num">✓</span>
+               <span class="pcard__pick-label">Selected</span>
+             </span>`
+          : `<span class="pcard__empty" aria-hidden="true"></span>`;
+        return `
+          <button class="pcard${isSel ? " pcard--selected" : ""}"
+                  data-artwork="${a.slug}"
+                  data-source="${source}"
+                  data-kind="artwork"
+                  type="button"
+                  aria-pressed="${isSel}">
+            <span class="pcard__media">
+              <img class="pcard__media-img" src="${a.thumbUrl}"
+                   alt="${escapeHtml(a.title)} by ${escapeHtml(a.artist)}"
+                   loading="lazy">
+              ${topLeft}
+              <span class="pcard__era-badge">${escapeHtml(eraLabel)}</span>
+            </span>
+            <span class="pcard__body">
+              <span class="pcard__title-row">
+                <span class="pcard__title">${escapeHtml(a.title)}</span>
+              </span>
+              <span class="pcard__desc">${escapeHtml(a.artist + yearPart)}</span>
+            </span>
+          </button>`;
+      }
+
+      function renderArtworkTab() {
+        const grid = document.getElementById("grid-artwork")!;
+        if (artworkCatalog.length === 0) {
+          // Catalog hasn't loaded yet (or is empty post-seed).
+          grid.innerHTML = `<p class="pick__empty">No artworks available yet.</p>`;
+          grid.removeAttribute("aria-busy");
+        } else {
+          const filtered =
+            activeEra === "all"
+              ? artworkCatalog
+              : artworkCatalog.filter((a) => a.era === activeEra);
+          grid.innerHTML = filtered.map((a) => artworkCardHtml(a, "grid")).join("");
+          grid.removeAttribute("aria-busy");
+          grid.querySelectorAll<HTMLButtonElement>(".pcard").forEach((btn) => {
+            btn.addEventListener("click", () =>
+              toggleArtwork(btn.dataset.artwork!, "grid"),
+            );
+          });
+        }
+
+        const popularSection = document.getElementById("popular-section")!;
+        const popularRow = document.getElementById("popular-row")!;
+        if (popularArtworks.length === 0) {
+          popularSection.hidden = true;
+        } else {
+          popularSection.hidden = false;
+          popularRow.innerHTML = popularArtworks
+            .map((a) => artworkCardHtml(a, "popular"))
+            .join("");
+          popularRow.querySelectorAll<HTMLButtonElement>(".pcard").forEach((btn) => {
+            btn.addEventListener("click", () =>
+              toggleArtwork(btn.dataset.artwork!, "popular"),
+            );
+          });
+        }
+      }
+
+      const ERA_LABELS: Record<string, string> = {
+        "post-impressionist": "Post-Impressionist",
+        "impressionist": "Impressionist",
+        "japanese-woodblock": "Japanese Woodblock",
+        "romantic": "Romantic",
+        "northern-renaissance": "Northern Renaissance",
+        "symbolist": "Symbolist",
+        "art-nouveau": "Art Nouveau",
+        "dutch-golden-age": "Dutch Golden Age",
+        "renaissance": "Renaissance",
+      };
+
+      function toggleArtwork(slug: string, source: "grid" | "popular") {
+        const wasSelected = selectedArtwork === slug;
+        selectedArtwork = wasSelected ? null : slug;
+        // Click counter is best-effort; we don't await it so a slow click
+        // doesn't gate selection feedback.
+        if (!wasSelected) {
+          client
+            .mutation(api.artworks.incrementClick, { slug })
+            .catch(() => { /* noop */ });
+        }
+        track("artwork_selected", {
+          slug,
+          source,
+          action: wasSelected ? "deselected" : "selected",
+        });
+        renderArtworkTab();
+        updateCounter();
       }
 
       function updateCounter() {
+        if (activeTab === "artwork") {
+          if (selectedArtwork) {
+            counter.textContent =
+              `1 artwork selected — 3 placements ready to generate`;
+            go.disabled = false;
+          } else {
+            counter.textContent = `Pick an artwork to continue`;
+            go.disabled = true;
+          }
+          return;
+        }
         const n = selected.length;
         let suffix: string;
         if (n === 3) suffix = "ready to go";
@@ -434,14 +620,79 @@ const SKELETON_COUNT = 10;
             else p.setAttribute("hidden", "");
           });
           setHeaderCopy(target);
+          updateCounter();
           track("tab_switched", { to: target });
+          if (target === "artwork") {
+            // One-shot view event per page load. Used to measure tab-3
+            // engagement separately from selection events.
+            if (!artworkBrowsedFired) {
+              track("artwork_browsed", {});
+              artworkBrowsedFired = true;
+            }
+          }
         });
       });
+
+      let artworkBrowsedFired = false;
+
+      // Era chips — Tab 3. Filtering is purely client-side (catalog is
+      // bounded at 30 entries; no point round-tripping the server).
+      document.querySelectorAll<HTMLButtonElement>("#era-chips .pick__chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const era = chip.dataset.era ?? "all";
+          if (era === activeEra) return;
+          activeEra = era;
+          document.querySelectorAll<HTMLButtonElement>("#era-chips .pick__chip").forEach((c) => {
+            c.classList.toggle("pick__chip--active", c.dataset.era === era);
+          });
+          renderArtworkTab();
+          if (era !== "all") track("artwork_filtered", { era });
+        });
+      });
+
+      // Tab 3 catalog — fetched in parallel with the rest of page boot. Uses
+      // the picker query (returns thumb URLs only) and the popular query
+      // (top 6 by clickCount).
+      Promise.all([
+        client.query(api.artworks.listForPicker, {}),
+        client.query(api.artworks.popularForPicker, {}),
+      ])
+        .then(([list, popular]) => {
+          artworkCatalog = (list as PickerArtwork[]) ?? [];
+          popularArtworks = (popular as PickerArtwork[]) ?? [];
+          renderArtworkTab();
+        })
+        .catch((err) => {
+          console.warn("Failed to load artwork catalog:", err);
+        });
 
       renderAllTabs();
       updateCounter();
 
       go.addEventListener("click", async () => {
+        // Branch by active tab. The two server-side mutations are
+        // mutually-exclusive on the session so committing one always
+        // clears the other — frontend doesn't need a confirmation modal
+        // to enforce the contract.
+        if (activeTab === "artwork") {
+          if (!selectedArtwork) return;
+          go.disabled = true;
+          const original = go.textContent;
+          go.textContent = "Saving…";
+          track("artwork_confirmed", { slug: selectedArtwork });
+          try {
+            await client.mutation(api.sessions.setSelectedArtwork, {
+              id: sessionId as any,
+              slug: selectedArtwork,
+            });
+            window.location.href = isSignedIn() ? "/generate" : "/sign-up?next=/generate";
+          } catch (err) {
+            go.disabled = false;
+            go.textContent = original;
+            alert("Couldn't save artwork: " + (err as Error).message);
+          }
+          return;
+        }
         if (selected.length !== 3) return;
         go.disabled = true;
         const original = go.textContent;
@@ -584,6 +835,114 @@ const SKELETON_COUNT = 10;
     outline-offset: 2px;
   }
   .pick__panel--hidden { display: none; }
+
+  /* ── Era filter chips (Tab 3) ─────────────────────────── */
+  .pick__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 699px) {
+    .pick__chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+      margin-left: -20px;
+      margin-right: -20px;
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+    .pick__chips::-webkit-scrollbar { display: none; }
+  }
+  .pick__chip {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text);
+    background: var(--c-white);
+    border: 1px solid var(--c-stroke-light);
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease, border-color .2s ease;
+  }
+  .pick__chip:hover {
+    color: var(--c-dark);
+    border-color: var(--c-stroke);
+  }
+  .pick__chip--active {
+    background: var(--c-pink);
+    color: var(--c-white);
+    border-color: var(--c-pink);
+  }
+  .pick__chip:focus-visible {
+    outline: 3px solid var(--c-pink);
+    outline-offset: 2px;
+  }
+
+  /* ── Popular carousel (Tab 3) ─────────────────────────── */
+  .pick__popular {
+    margin-bottom: 18px;
+  }
+  .pick__popular-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--c-dark);
+    margin: 0 0 8px;
+  }
+  .pick__popular-row {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 999px) {
+    .pick__popular-row {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: 60%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      margin-left: -20px;
+      margin-right: -20px;
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+    .pick__popular-row::-webkit-scrollbar { display: none; }
+  }
+  @media (max-width: 699px) {
+    .pick__popular-row { grid-auto-columns: 70%; }
+  }
+
+  /* Era badge (top-right) on Tab 3 cards. Distinguishes from the Tab 1/2
+     "Sample · not <pet>" badge which doesn't apply to artwork cards. */
+  .pcard__era-badge {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(30, 20, 16, 0.62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--c-white);
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    font-size: 9.5px; font-weight: 600; line-height: 1.3;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    pointer-events: none;
+  }
+  @media (max-width: 699px) {
+    .pcard__era-badge { font-size: 8.5px; padding: 3px 7px; }
+  }
+
+  .pick__empty {
+    grid-column: 1 / -1;
+    padding: 24px;
+    text-align: center;
+    color: var(--c-light);
+    font-size: 13px;
+  }
 
   /* ── Grid ────────────────────────────────────────────── */
   .pick__grid {

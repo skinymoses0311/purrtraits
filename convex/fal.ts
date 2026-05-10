@@ -7,6 +7,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ALL_STYLES, type Style } from "./styleScoring";
 import { ALL_ARTISTS, type Artist } from "./artistScoring";
+import { generateAllArtworkPlacements } from "./seedream";
 
 // A picker selection is either a style key or an artist key. The fal
 // pipeline treats them uniformly — same prompt structure, same fan-out,
@@ -107,7 +108,7 @@ const MOOD_HINT: Record<string, string> = {
   quirky: "The pet should look charming with a hint of whimsy.",
 };
 
-const IDENTITY_GUARD =
+export const IDENTITY_GUARD =
   "Crucially, preserve the exact likeness of the pet shown in the reference photos — same breed, fur colour, markings, eye colour, ear shape, and overall proportions. Only change the artistic style, never the pet itself. The output MUST be in 3:4 portrait orientation (taller than wide), matching the aspect ratio of the reference photos exactly — do not crop, letterbox, or change the framing. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin around the artwork — the artwork must extend edge-to-edge to all four sides of the canvas. The reference photos are for the pet only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet. The portrait's setting must be the fresh environment described by the style and scene above, never the room from the reference photos. You may retain the lighting direction from the references where it helps preserve the pet's likeness, but no recognisable element of the original room or surroundings should appear in the output.";
 
 // Q7 routes the user's chosen feature into the prompt as a creative-direction
@@ -131,7 +132,7 @@ const FEATURE_EMPHASIS: Record<string, string> = {
 // breed with explicit primacy language for the photos prevents that drift.
 // Returns "" when the breed is unknown so the caller can simply concatenate
 // without a leading-space artefact.
-function buildBreedPrimacy(
+export function buildBreedPrimacy(
   breeds: string[] | undefined,
   breed: string | undefined,
 ): string {
@@ -159,7 +160,7 @@ function buildBreedPrimacy(
 // botanical, renaissance) implicitly carry "artwork-on-a-substrate" framing
 // that produces paper margins or silkscreen borders. Stating the rule first,
 // in capitals, gives it priority over those style cues.
-const FULL_BLEED_LEAD =
+export const FULL_BLEED_LEAD =
   "FULL-BLEED, EDGE-TO-EDGE ARTWORK. The artwork must completely fill the canvas with absolutely no border, frame, mat, paper margin, silkscreen edge, painted edge, ornate moulding, drawn rectangle, or unprinted area — every pixel up to the canvas edge is part of the artwork itself.";
 
 function buildPrompt(
@@ -282,7 +283,7 @@ async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
 const TARGET_ASPECT = 3 / 4; // width / height
 const ASPECT_TOLERANCE = 0.01;
 
-async function enforce3by4AndStore(ctx: any, url: string): Promise<string> {
+export async function enforce3by4AndStore(ctx: any, url: string): Promise<string> {
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -476,9 +477,24 @@ export const generatePortraits = action({
     });
     try {
       const session = await ctx.runQuery(internal.sessions.getInternal, { id: sessionId });
-      const ranked = (session?.rankedStyles ?? []) as StyleOrArtist[];
-      const chosen = resolveSelectedKeys(styles, ranked);
-      const generations = await generateAllStyles(ctx, sessionId, chosen);
+      // Tab 3 (Famous Art) branch — when the picker committed an artwork
+      // (mutually exclusive with selectedStyles, enforced in
+      // sessions.setSelectedArtwork / setSelectedStyles) we route through
+      // the Seedream pipeline. Same regen, gallery, and post-purchase
+      // upscale plumbing — only the inner generation step differs.
+      const generations = session?.selectedArtworkSlug
+        ? await generateAllArtworkPlacements(
+            ctx,
+            session.selectedArtworkSlug,
+            session?.petPhotoUrls ?? [],
+            session?.quizAnswers?.breeds,
+            session?.quizAnswers?.breed,
+          )
+        : await (async () => {
+            const ranked = (session?.rankedStyles ?? []) as StyleOrArtist[];
+            const chosen = resolveSelectedKeys(styles, ranked);
+            return await generateAllStyles(ctx, sessionId, chosen);
+          })();
       const generationsWithIdentity = generations.map((g) => ({
         ...g,
         petName: session?.quizAnswers?.name,
@@ -547,14 +563,28 @@ export const regenerate = action({
       status: "generating",
     });
     try {
-      // Re-paint the same styles the user just saw, unless caller overrides.
-      const fallback = (session.generations?.map((g) => g.style) ?? []) as StyleOrArtist[];
-      const ranked = (session.rankedStyles ?? []) as StyleOrArtist[];
-      const chosen = resolveSelectedKeys(
-        styles ?? fallback,
-        ranked,
-      );
-      const generations = await generateAllStyles(ctx, sessionId, chosen);
+      // Tab 3 (Famous Art) regen — re-runs the same artwork's three
+      // placements. We don't accept caller-supplied overrides here because
+      // a Tab 3 user isn't picking individual placement slugs; they're
+      // re-rolling the whole artwork.
+      const generations = session.selectedArtworkSlug
+        ? await generateAllArtworkPlacements(
+            ctx,
+            session.selectedArtworkSlug,
+            session.petPhotoUrls ?? [],
+            session.quizAnswers?.breeds,
+            session.quizAnswers?.breed,
+          )
+        : await (async () => {
+            // Re-paint the same styles the user just saw, unless caller overrides.
+            const fallback = (session.generations?.map((g) => g.style) ?? []) as StyleOrArtist[];
+            const ranked = (session.rankedStyles ?? []) as StyleOrArtist[];
+            const chosen = resolveSelectedKeys(
+              styles ?? fallback,
+              ranked,
+            );
+            return await generateAllStyles(ctx, sessionId, chosen);
+          })();
       const generationsWithIdentity = generations.map((g) => ({
         ...g,
         petName: session?.quizAnswers?.name,
