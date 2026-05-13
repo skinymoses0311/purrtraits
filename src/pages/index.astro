@@ -24,18 +24,18 @@ const homeJsonLd = {
 // width; the inner image always renders at a 3:4 aspect ratio. Variants
 // 0–6 map to /public/hero-wall/portrait-0{1..7}.jpg.
 type Frame = {
-  x: number;          // left % within the wall
-  y: number;          // top % within the wall
-  w: number;          // width % within the wall
+  x: number;          // left % within the stage
+  y: number;          // top % within the stage
+  w: number;          // width % of the stage
   kind: "framed" | "canvas" | "poster";
-  wood?: "natural" | "dark" | "gold";
+  wood?: "natural" | "dark"; // PDP only ships these two variants
   v: number;          // 0..6 → portrait variant
 };
 const heroDesktop: Frame[] = [
   { x: 4,  y: 8,  w: 10.94, kind: "framed", wood: "natural", v: 0 },
   { x: 18, y: 40, w: 8.59,  kind: "framed", wood: "dark",    v: 1 },
   { x: 4,  y: 64, w: 7.81,  kind: "canvas",                  v: 4 },
-  { x: 28, y: 6,  w: 10.16, kind: "framed", wood: "gold",    v: 2 },
+  { x: 28, y: 6,  w: 10.16, kind: "framed", wood: "natural", v: 2 },
   { x: 32, y: 36, w: 10.16, kind: "poster",                  v: 3 },
   { x: 50, y: 60, w: 8.59,  kind: "framed", wood: "natural", v: 6 },
   { x: 70, y: 2,  w: 7.42,  kind: "canvas",                  v: 5 },
@@ -47,7 +47,7 @@ const heroMobile: Frame[] = [
   { x: -4, y: 4,  w: 28.2, kind: "framed", wood: "natural", v: 0 },
   { x: 60, y: 2,  w: 23.1, kind: "canvas",                  v: 5 },
   { x: 68, y: 24, w: 26.9, kind: "framed", wood: "dark",    v: 1 },
-  { x: -6, y: 38, w: 24.6, kind: "framed", wood: "gold",    v: 2 },
+  { x: -6, y: 38, w: 24.6, kind: "framed", wood: "natural", v: 2 },
   { x: 64, y: 56, w: 23.1, kind: "poster",                  v: 4 },
   { x: -2, y: 64, w: 23.1, kind: "canvas",                  v: 6 },
 ];
@@ -108,48 +108,61 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   </div>
 
   <!-- HERO · Gallery wall ============================================ -->
+  <!-- The outer .hero-wall paints the full-bleed wall gradient. Inside,
+       .hero-wall__stage is a centred, aspect-ratio-locked box that holds
+       the frame compositions and hero card so percent-based positions
+       stay consistent across viewport sizes (which fixes the overlap at
+       ultra-wide or short viewports). -->
   <section class="hero-wall" aria-label="Hero">
-    <!-- Two compositions: desktop (10 frames) and mobile (6 frames),
-         toggled by media query. They share the wall background gradient
-         which fades into the cream body below. -->
-    <div class="hero-wall__frames hero-wall__frames--desktop" aria-hidden="true">
-      {heroDesktop.map((f, i) => (
-        <div
-          class:list={[
-            "frame",
-            `frame--${f.kind}`,
-            f.wood ? `frame--wood-${f.wood}` : "",
-          ]}
-          style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.6}deg);`}
-        >
-          <span class="frame__pin" aria-hidden="true"></span>
-          <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
-        </div>
-      ))}
-    </div>
+    <div class="hero-wall__stage">
+      <!-- Two compositions: desktop (10 frames) and mobile (6 frames),
+           toggled by media query at 900px. -->
+      <div class="hero-wall__frames hero-wall__frames--desktop" aria-hidden="true">
+        {heroDesktop.map((f, i) => (
+          <div
+            class:list={[
+              "frame",
+              `frame--${f.kind}`,
+              f.wood ? `frame--wood-${f.wood}` : "",
+            ]}
+            style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.6}deg);`}
+          >
+            <span class="frame__pin" aria-hidden="true"></span>
+            <div class="frame__art">
+              <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
+              {f.kind === "framed" && <span class="frame__glass" aria-hidden="true"></span>}
+            </div>
+          </div>
+        ))}
+      </div>
 
-    <div class="hero-wall__frames hero-wall__frames--mobile" aria-hidden="true">
-      {heroMobile.map((f, i) => (
-        <div
-          class:list={[
-            "frame",
-            `frame--${f.kind}`,
-            f.wood ? `frame--wood-${f.wood}` : "",
-          ]}
-          style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.7}deg);`}
-        >
-          <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
-        </div>
-      ))}
-    </div>
+      <div class="hero-wall__frames hero-wall__frames--mobile" aria-hidden="true">
+        {heroMobile.map((f, i) => (
+          <div
+            class:list={[
+              "frame",
+              `frame--${f.kind}`,
+              f.wood ? `frame--wood-${f.wood}` : "",
+            ]}
+            style={`left:${f.x}%; top:${f.y}%; width:${f.w}%; transform: rotate(${(i % 3 - 1) * 0.7}deg);`}
+          >
+            <span class="frame__pin" aria-hidden="true"></span>
+            <div class="frame__art">
+              <img src={portraitSrc(f.v)} alt="" loading="lazy" decoding="async" />
+              {f.kind === "framed" && <span class="frame__glass" aria-hidden="true"></span>}
+            </div>
+          </div>
+        ))}
+      </div>
 
-    <div class="hero-wall__card">
-      <h1 class="hero-wall__title">Turn your pet into<br />museum-worthy art</h1>
-      <p class="hero-wall__sub">
-        AI-generated portraits in seconds — digital downloads, framed prints, or canvas, shipped worldwide.
-      </p>
-      <a href="/upload" class="hero-wall__cta" id="nav-create-cta-hero">✦ Create My Portrait</a>
-      <p class="hero-wall__note">Generate art for free · Results in under 60 seconds</p>
+      <div class="hero-wall__card">
+        <h1 class="hero-wall__title">Turn your pet into<br />museum-worthy art</h1>
+        <p class="hero-wall__sub">
+          AI-generated portraits in seconds — digital downloads, framed prints, or canvas, shipped worldwide.
+        </p>
+        <a href="/upload" class="hero-wall__cta" id="nav-create-cta-hero">✦ Create My Portrait</a>
+        <p class="hero-wall__note">Generate art for free · Results in under 60 seconds</p>
+      </div>
     </div>
   </section>
 
@@ -369,7 +382,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
 
     position: relative;
     width: 100%;
-    height: clamp(560px, 56vw, 720px);
     overflow: hidden;
     background:
       linear-gradient(180deg, transparent 0%, transparent 78%, var(--wall-cream) 100%),
@@ -387,13 +399,30 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     pointer-events: none;
   }
 
+  /* The stage holds the frame compositions and hero card. Its aspect
+     ratio is locked so percent-based frame positions don't shift across
+     viewport sizes — that's what previously caused overlap on
+     wide-and-short or narrow-and-tall windows. */
+  .hero-wall__stage {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    aspect-ratio: 390 / 620;     /* mobile composition (default) */
+  }
+  @media (min-width: 900px) {
+    .hero-wall__stage {
+      max-width: 1500px;
+      aspect-ratio: 1280 / 720;  /* desktop composition */
+    }
+  }
+
   .hero-wall__frames { position: absolute; inset: 0; }
   .hero-wall__frames--mobile  { display: block; }
   .hero-wall__frames--desktop { display: none; }
-  @media (min-width: 768px) {
+  @media (min-width: 900px) {
     .hero-wall__frames--mobile  { display: none; }
     .hero-wall__frames--desktop { display: block; }
-    .hero-wall { height: clamp(620px, 56vw, 760px); }
   }
 
   .frame {
@@ -405,68 +434,103 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
     width: 4px; height: 4px; background: #3A2A1E; border-radius: 50%;
     box-shadow: 0 1px 1px rgba(255,255,255,.5);
+    z-index: 1;
   }
-  .frame img {
-    display: block; width: 100%;
+  /* Inner artwork wrapper holds the image + optional glass sheen so
+     the sheen can be overlaid without inheriting the frame's padding. */
+  .frame__art {
+    position: relative;
+    width: 100%;
     aspect-ratio: 3 / 4;
+    overflow: hidden;
+  }
+  .frame__art img {
+    display: block; width: 100%; height: 100%;
     object-fit: cover;
     background: #EFE7D5;  /* placeholder while image loads */
   }
+  /* Glass sheen — angled highlight matching PDP framed mockup. */
+  .frame__glass {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg,
+      rgba(255,255,255,0) 40%,
+      rgba(255,255,255,.18) 50%,
+      rgba(255,255,255,0) 60%);
+  }
 
-  /* Poster — clean white border (no padding), drop shadow */
-  .frame--poster img {
-    background: #fff;
+  /* ── Poster — clean print, no frame, light wall shadow ── */
+  .frame--poster .frame__art {
     box-shadow:
-      0 14px 26px -8px rgba(40,28,16,.32),
-      0 4px 10px rgba(40,28,16,.18);
+      6px 8px 14px -6px rgba(40,28,16,.18),
+      2px 3px 6px -2px rgba(40,28,16,.10);
   }
+  .frame--poster .frame__art img { background: #fff; }
 
-  /* Canvas — image with a thin green side strip + faint canvas weave */
-  .frame--canvas {
+  /* ── Canvas — gallery-wrapped 3D edge with inset side shadows
+     (matches PDP .pp__canvas-wrap). Light directional wall shadow on
+     the outside. ── */
+  .frame--canvas .frame__art {
     box-shadow:
-      12px 16px 22px -6px rgba(40,28,16,.32),
-      4px 6px 10px rgba(40,28,16,.18);
-  }
-  .frame--canvas::after {
-    content: "";
-    position: absolute; top: 0; right: -9px;
-    width: 9px; height: 100%;
-    background: linear-gradient(90deg, #6F8C72 0%, #4D6650 100%);
-  }
-  .frame--canvas img {
-    background-image:
-      repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px),
-      repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px);
+      inset 14px 0 12px -10px rgba(0,0,0,.20),
+      inset -14px 0 12px -10px rgba(0,0,0,.20),
+      inset 0 -10px 14px -10px rgba(0,0,0,.15),
+      8px 10px 16px -6px rgba(40,28,16,.18),
+      2px 4px 6px -2px rgba(40,28,16,.10);
   }
 
-  /* Framed — wood gradient background, image inset by padding */
+  /* ── Framed — wood gradient + grain striations, with the inset
+     rebate/chamfer shadows lifted directly from PDP ProductPreview. ── */
   .frame--framed {
-    padding: 10px;
+    padding: 6px;
     box-shadow:
-      0 14px 28px -10px rgba(80,50,20,.42),
-      0 6px 12px rgba(80,50,20,.22);
+      8px 12px 16px -6px rgba(40,28,16,.18),
+      2px 4px 8px -2px rgba(40,28,16,.10);
   }
-  .frame--framed img {
+  .frame--framed .frame__art {
     box-shadow:
       inset 0 0 0 1.5px rgba(255,255,255,.16),
       inset 0 0 6px rgba(120,80,40,.35);
   }
-  .frame--wood-natural { background: linear-gradient(135deg, #d4b896 0%, #c19a6f 35%, #b8916a 70%, #a07d54 100%); }
-  .frame--wood-dark    {
-    background: linear-gradient(135deg, #2a1810 0%, #3d2418 35%, #2a1810 70%, #1a0e08 100%);
+  /* Natural wood — warm tan/oak with visible vertical grain (PDP recipe) */
+  .frame--wood-natural {
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(165,135,90,0)   0px,
+        rgba(165,135,90,.10) 1px,
+        rgba(165,135,90,0)   3px,
+        rgba(115,85,50,.08)  5px,
+        rgba(165,135,90,0)   8px),
+      linear-gradient(135deg, #ead7b0 0%, #d8c498 40%, #e2cea3 70%, #c5b182 100%);
+    background-color: #d8c498;
     box-shadow:
-      0 16px 30px -10px rgba(20,10,4,.55),
-      0 6px 12px rgba(20,10,4,.30);
+      inset 0 0 0 1px rgba(90,65,35,.7),
+      inset 0 0 0 2px rgba(255,240,210,.15),
+      inset 0 0 5px rgba(120,90,55,.22),
+      8px 12px 16px -6px rgba(40,28,16,.18),
+      2px 4px 8px -2px rgba(40,28,16,.10);
   }
-  .frame--wood-gold    {
-    background: linear-gradient(135deg, #d4ad5e 0%, #b8893f 40%, #e6c684 70%, #9a7030 100%);
+  /* Dark wood — walnut/espresso with the same grain treatment (PDP recipe) */
+  .frame--wood-dark {
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(95,60,30,0)   0px,
+        rgba(95,60,30,.20) 1px,
+        rgba(95,60,30,0)   3px,
+        rgba(20,10,5,.18)  5px,
+        rgba(95,60,30,0)   8px),
+      linear-gradient(135deg, #3a2316 0%, #271610 40%, #3d2618 70%, #1d100a 100%);
+    background-color: #2a1810;
     box-shadow:
-      0 16px 30px -10px rgba(120,80,20,.45),
-      0 6px 12px rgba(120,80,20,.25);
+      inset 0 0 0 1px rgba(0,0,0,.9),
+      inset 0 0 0 2px rgba(120,80,50,.18),
+      inset 0 0 7px rgba(0,0,0,.5),
+      8px 12px 16px -6px rgba(40,28,16,.22),
+      2px 4px 8px -2px rgba(40,28,16,.12);
   }
-  /* Tighter padding on mobile so the frames don't dwarf the artwork */
-  @media (max-width: 767.98px) {
-    .frame--framed { padding: 6px; }
+  /* Slim frame on the small mobile composition so portraits keep
+     dominating the wood */
+  @media (max-width: 899.98px) {
+    .frame--framed { padding: 4px; }
   }
 
   /* Centre hero card */
@@ -486,7 +550,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       0 6px 14px rgba(40,28,16,.18);
     z-index: 2;
   }
-  @media (min-width: 768px) {
+  @media (min-width: 900px) {
     .hero-wall__card {
       top: 46%;
       max-width: 520px; width: 60%;
