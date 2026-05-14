@@ -312,4 +312,31 @@ export default defineSchema({
     .index("by_session", ["stripeSessionId"])
     .index("by_gelato", ["gelatoOrderId"])
     .index("by_userId", ["userId"]),
+
+  // Offline example-matrix output. Populated by the matrix test harness
+  // (convex/matrixRender.ts + scripts/matrix-render.ts) — NOT part of any
+  // user-facing flow. One row per rendered placement image. Grouped by
+  // `batchId` (one script run); kept separate from sessions/galleryItems so
+  // test renders never leak into a real user's gallery / PDP / cart.
+  // `clearMatrixBatch` deletes a batch's rows and their storage objects.
+  matrixRenders: defineTable({
+    batchId: v.string(),
+    artworkSlug: v.string(),
+    artworkTitle: v.string(),
+    placementSlug: v.string(),
+    placementLabel: v.string(),
+    activity: v.string(),
+    mood: v.string(),
+    favouriteFeature: v.optional(v.string()),
+    // Persisted Convex-storage URL of the rendered image, and its storage id
+    // for cleanup. storageId is null only if persistence fell back to the raw
+    // fal URL (see enforce3by4AndStore).
+    imageUrl: v.string(),
+    imageStorageId: v.union(v.id("_storage"), v.null()),
+    // The exact prompt sent to Seedream — kept for debugging the matrix.
+    prompt: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_batch", ["batchId"])
+    .index("by_batch_job", ["batchId", "artworkSlug", "activity", "mood"]),
 });

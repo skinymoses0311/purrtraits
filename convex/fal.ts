@@ -5,6 +5,7 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Id } from "./_generated/dataModel";
 import { ALL_STYLES, type Style } from "./styleScoring";
 import { ALL_ARTISTS, type Artist } from "./artistScoring";
 import { generateAllArtworkPlacements } from "./seedream";
@@ -297,12 +298,20 @@ async function persistToConvexStorage(ctx: any, url: string): Promise<string> {
 const TARGET_ASPECT = 3 / 4; // width / height
 const ASPECT_TOLERANCE = 0.01;
 
-export async function enforce3by4AndStore(ctx: any, url: string): Promise<string> {
+// Returns the persisted Convex-storage URL plus its storage id. On any
+// failure it falls back to the input URL with a null storage id (the caller
+// still gets a usable image; only the cleanup affordance is lost). The
+// storage id lets test/admin paths delete the persisted file later — the
+// production callers just read `.url`.
+export async function enforce3by4AndStore(
+  ctx: any,
+  url: string,
+): Promise<{ url: string; storageId: Id<"_storage"> | null }> {
   try {
     const res = await fetch(url);
     if (!res.ok) {
       console.warn(`enforce3by4AndStore: fetch failed ${res.status} for ${url}`);
-      return url;
+      return { url, storageId: null };
     }
     const inputBytes = Buffer.from(await res.arrayBuffer());
 
@@ -347,10 +356,10 @@ export async function enforce3by4AndStore(ctx: any, url: string): Promise<string
     const blob = new Blob([new Uint8Array(outBytes)], { type: contentType });
     const storageId = await ctx.storage.store(blob);
     const persisted = await ctx.storage.getUrl(storageId);
-    return persisted ?? url;
+    return { url: persisted ?? url, storageId };
   } catch (err) {
     console.warn("enforce3by4AndStore failed:", err);
-    return url;
+    return { url, storageId: null };
   }
 }
 
@@ -365,7 +374,7 @@ async function generateOnePortrait(
   imageUrls: string[],
 ): Promise<{ imageUrl: string; printFileUrl: string }> {
   const lowRes = await callNanoBanana(prompt, imageUrls);
-  const display = await enforce3by4AndStore(ctx, lowRes);
+  const { url: display } = await enforce3by4AndStore(ctx, lowRes);
   return { imageUrl: display, printFileUrl: display };
 }
 

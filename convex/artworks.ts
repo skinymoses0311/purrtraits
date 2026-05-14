@@ -142,7 +142,9 @@ export const getLookup = query({
 //
 // then mirror it into your local .env.local.
 
-function assertSeedToken(token: string): void {
+// Exported so the matrix test harness (convex/matrixRender.ts) can gate its
+// own seed-token-protected action against the same shared secret.
+export function assertSeedToken(token: string): void {
   const expected = process.env.ARTWORKS_SEED_TOKEN;
   if (!expected) {
     throw new Error(

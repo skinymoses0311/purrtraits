@@ -214,6 +214,39 @@ function imagesForArtwork(referenceUrl: string, petPhotoUrls: string[]): string[
   return [...petPhotos, referenceUrl];
 }
 
+// Render one placement: build the prompt, call Seedream, enforce 3:4 and
+// persist. Returns the persisted URL, its storage id (for cleanup paths),
+// and the exact prompt sent — production callers ignore the latter two, the
+// matrix test harness uses them. This is the single shared core both the
+// production fan-out and the matrix fan-out run through, so the test harness
+// exercises the exact same path users hit.
+async function renderOnePlacement(
+  ctx: any,
+  artwork: ArtworkContext,
+  placement: CatalogPlacement,
+  imageUrls: string[],
+  petPhotoCount: number,
+  breeds: string[] | undefined,
+  breed: string | undefined,
+  activity: string | undefined,
+  mood: string | undefined,
+  favouriteFeature: string | undefined,
+): Promise<{ imageUrl: string; storageId: Id<"_storage"> | null; prompt: string }> {
+  const prompt = buildArtworkPrompt(
+    artwork,
+    placement,
+    breeds,
+    breed,
+    petPhotoCount,
+    activity,
+    mood,
+    favouriteFeature,
+  );
+  const lowRes = await callSeedream(prompt, imageUrls);
+  const { url, storageId } = await enforce3by4AndStore(ctx, lowRes);
+  return { imageUrl: url, storageId, prompt };
+}
+
 // One artwork × three placements. Mirrors generateAllStyles' partial-failure
 // semantics: if 1 of 3 placements fails we still ship the rest (the user
 // expects three placements of the chosen artwork, but two outputs is a
@@ -248,22 +281,13 @@ export async function generateAllArtworkPlacements(
   const petPhotoCount = imageUrls.length - 1;
 
   const tasks = artwork.placements.map(async (p) => {
-    const prompt = buildArtworkPrompt(
-      artwork,
-      p,
-      breeds,
-      breed,
-      petPhotoCount,
-      activity,
-      mood,
-      favouriteFeature,
+    const { imageUrl } = await renderOnePlacement(
+      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature,
     );
-    const lowRes = await callSeedream(prompt, imageUrls);
-    const display = await enforce3by4AndStore(ctx, lowRes);
     return {
       style: `artwork:${artwork.slug}:${p.slug}`,
-      imageUrl: display,
-      printFileUrl: display,
+      imageUrl,
+      printFileUrl: imageUrl,
     };
   });
 
@@ -279,6 +303,70 @@ export async function generateAllArtworkPlacements(
     throw new Error(errors[0] ?? "All placements failed");
   }
   return generations;
+}
+
+// ─── Matrix test harness ───────────────────────────────────────────────────
+//
+// Parallel to generateAllArtworkPlacements but built for the offline
+// example-matrix script (scripts/matrix-render.ts). Differences:
+//   • Returns the exact prompt + placement metadata + storage id, so the
+//     matrix can persist rich rows and clean up storage later.
+//   • Does NOT throw when all placements fail — the matrix wants to record
+//     partial / empty results and keep going, not abort the batch.
+// It runs through the same renderOnePlacement core as production, so the
+// matrix exercises the real pipeline, not a copy of it.
+export type MatrixPlacementResult = {
+  placementSlug: string;
+  placementLabel: string;
+  artworkTitle: string;
+  imageUrl: string;
+  storageId: Id<"_storage"> | null;
+  prompt: string;
+};
+
+export async function generateArtworkPlacementsForMatrix(
+  ctx: any,
+  artworkSlug: string,
+  petPhotoUrls: string[],
+  breeds: string[] | undefined,
+  breed: string | undefined,
+  activity: string | undefined,
+  mood: string | undefined,
+  favouriteFeature: string | undefined,
+): Promise<{ results: MatrixPlacementResult[]; errors: string[] }> {
+  const artwork = (await ctx.runQuery(internal.artworks.getBySlugInternal, {
+    slug: artworkSlug,
+  })) as ArtworkContext | null;
+  if (!artwork) throw new Error(`Unknown artwork: ${artworkSlug}`);
+  if (artwork.placements.length === 0) {
+    throw new Error(`Artwork has no placements: ${artworkSlug}`);
+  }
+
+  const imageUrls = imagesForArtwork(artwork.referenceUrl, petPhotoUrls);
+  const petPhotoCount = imageUrls.length - 1;
+
+  const tasks = artwork.placements.map(async (p): Promise<MatrixPlacementResult> => {
+    const { imageUrl, storageId, prompt } = await renderOnePlacement(
+      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature,
+    );
+    return {
+      placementSlug: p.slug,
+      placementLabel: p.label,
+      artworkTitle: artwork.title,
+      imageUrl,
+      storageId,
+      prompt,
+    };
+  });
+
+  const settled = await Promise.allSettled(tasks);
+  const results: MatrixPlacementResult[] = [];
+  const errors: string[] = [];
+  for (const r of settled) {
+    if (r.status === "fulfilled") results.push(r.value);
+    else errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+  }
+  return { results, errors };
 }
 
 // Type marker — used by fal.ts to assert the shape of what gets returned.

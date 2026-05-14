@@ -21,6 +21,8 @@ import type * as files from "../files.js";
 import type * as galleryExport from "../galleryExport.js";
 import type * as gelato from "../gelato.js";
 import type * as http from "../http.js";
+import type * as matrix from "../matrix.js";
+import type * as matrixRender from "../matrixRender.js";
 import type * as migrations from "../migrations.js";
 import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
@@ -54,6 +56,8 @@ declare const fullApi: ApiFromModules<{
   galleryExport: typeof galleryExport;
   gelato: typeof gelato;
   http: typeof http;
+  matrix: typeof matrix;
+  matrixRender: typeof matrixRender;
   migrations: typeof migrations;
   orders: typeof orders;
   payments: typeof payments;

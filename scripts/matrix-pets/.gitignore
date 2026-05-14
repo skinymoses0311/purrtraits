@@ -1,0 +1,6 @@
+# Input photos for the example-matrix renderer (scripts/matrix-render.ts).
+# Local-only — don't commit your dog photos.
+*.jpg
+*.jpeg
+*.png
+*.webp

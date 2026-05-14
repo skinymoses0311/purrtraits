@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "seed:artworks": "tsx scripts/upload-artwork-refs.ts"
+    "seed:artworks": "tsx scripts/upload-artwork-refs.ts",
+    "matrix:render": "tsx scripts/matrix-render.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.4",
