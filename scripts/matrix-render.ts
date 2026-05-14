@@ -38,11 +38,48 @@
 import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import dns from "node:dns";
+import { promisify } from "node:util";
 import { ConvexHttpClient } from "convex/browser";
 import { config as loadEnv } from "dotenv";
 
 import { ARTWORKS_CATALOG } from "../convex/artworksCatalog.js";
 import { api } from "../convex/_generated/api.js";
+
+// ─── DNS resilience ────────────────────────────────────────────────────────
+// Some networks' OS resolver intermittently times out on *.convex.cloud
+// (the deployment host is IPv6-only behind Cloudflare). `dns.resolve*` uses
+// Node's bundled c-ares — it talks straight to the configured servers and
+// bypasses the OS resolver entirely. We point it at public resolvers and
+// override `dns.lookup` (which undici, and therefore Node's fetch, uses) to
+// go through it, falling back to the system resolver if that ever fails.
+dns.setServers(["1.1.1.1", "8.8.8.8", "1.0.0.1"]);
+const resolve4 = promisify(dns.resolve4.bind(dns));
+const resolve6 = promisify(dns.resolve6.bind(dns));
+const systemLookup = dns.lookup;
+// @ts-expect-error — deliberately overriding the built-in lookup.
+dns.lookup = (hostname: string, options: any, callback: any): void => {
+  const cb = typeof options === "function" ? options : callback;
+  const opts = (typeof options === "function" ? {} : options) ?? {};
+  (async () => {
+    try {
+      let v4: string[] = [];
+      let v6: string[] = [];
+      try { v4 = await resolve4(hostname); } catch { /* none */ }
+      try { v6 = await resolve6(hostname); } catch { /* none */ }
+      const all = [
+        ...v4.map((address) => ({ address, family: 4 })),
+        ...v6.map((address) => ({ address, family: 6 })),
+      ];
+      if (all.length === 0) throw new Error(`no DNS records for ${hostname}`);
+      if (opts.all) cb(null, all);
+      else cb(null, all[0].address, all[0].family);
+    } catch {
+      // c-ares path failed too — fall back to the OS resolver.
+      systemLookup(hostname, options, callback);
+    }
+  })();
+};
 
 // ─── MATRIX CONFIG — edit here ─────────────────────────────────────────────
 // Which quiz axes to vary. Every artwork is rendered against the full
@@ -143,15 +180,30 @@ async function runPool<T>(
   );
 }
 
-// Run once, retry once after a pause, then give up (the HTML shows the gap).
-async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    console.warn(`  ↻ retry ${label}: ${(err as Error).message}`);
-    await new Promise((r) => setTimeout(r, 5000));
-    return await fn();
+// Run with retries + linear backoff. Convex's HTTP client has a 10s connect
+// timeout; a transient network blip shouldn't sink a 30-minute run, so we
+// retry a few times before giving up (at which point the HTML shows a gap).
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  attempts = 4,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        const delay = 4000 * (i + 1);
+        console.warn(
+          `  ↻ retry ${label} (${i + 1}/${attempts - 1}) in ${delay / 1000}s: ${(err as Error).message}`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   }
+  throw lastErr;
 }
 
 // ─── Pet photo upload ──────────────────────────────────────────────────────
@@ -174,19 +226,26 @@ async function uploadPetPhotos(): Promise<string[]> {
       : /\.webp$/i.test(file)
         ? "image/webp"
         : "image/jpeg";
-    const uploadUrl: string = await client.mutation(api.artworks.seedGenerateUploadUrl, {
-      token: SEED_TOKEN!,
-    });
-    const res = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": contentType },
-      body: new Uint8Array(bytes),
-    });
-    if (!res.ok) {
-      throw new Error(`Upload failed for ${file} (${res.status})`);
-    }
-    const json = (await res.json()) as { storageId: string };
-    storageIds.push(json.storageId);
+    // Both the upload-URL mutation and the byte POST are retried — a
+    // connect timeout here would otherwise sink the whole run before it
+    // started.
+    const storageId = await withRetry(async () => {
+      const uploadUrl: string = await client.mutation(
+        api.artworks.seedGenerateUploadUrl,
+        { token: SEED_TOKEN! },
+      );
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body: new Uint8Array(bytes),
+      });
+      if (!res.ok) {
+        throw new Error(`Upload failed for ${file} (${res.status})`);
+      }
+      const json = (await res.json()) as { storageId: string };
+      return json.storageId;
+    }, `upload ${file}`);
+    storageIds.push(storageId);
   }
   return storageIds;
 }
