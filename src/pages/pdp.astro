@@ -78,6 +78,7 @@ import ProductPreview from "../components/ProductPreview.astro";
 
 <script>
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { isSignedIn } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { getStyleDisplay } from "../../convex/displayLabels.ts";
   import { formatProductDescription } from "../../convex/productCopy.ts";
@@ -365,6 +366,17 @@ import ProductPreview from "../components/ProductPreview.astro";
       buy.addEventListener("click", async () => {
         const productId = buy.dataset.productId;
         if (!productId) return;
+        // Cart is signed-in only — anonymous shoppers go through the auth
+        // page first, then come back to this PDP. We send them back to the
+        // current URL (not /cart) so they can choose to add again rather
+        // than landing on an empty cart.
+        if (!isSignedIn()) {
+          const next = encodeURIComponent(
+            window.location.pathname + window.location.search,
+          );
+          window.location.href = `/sign-up?next=${next}`;
+          return;
+        }
         if (addedFlashTimer) {
           clearTimeout(addedFlashTimer);
           addedFlashTimer = undefined;

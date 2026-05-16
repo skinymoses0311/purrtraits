@@ -72,6 +72,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { isSignedIn } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
   import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
@@ -81,6 +82,19 @@ import Layout from "../layouts/Layout.astro";
     formatMoney,
     type Currency,
   } from "../lib/currency.ts";
+
+  // Cart is signed-in only. Bounce anonymous visitors to the auth page with
+  // ?next=/cart so they land back here after signing in. `replace` keeps the
+  // cart URL out of history so back-button doesn't loop them through the gate.
+  if (!isSignedIn()) {
+    // `replace` keeps /cart out of history so the back button doesn't loop
+    // the user through the gate.
+    window.location.replace("/sign-up?next=" + encodeURIComponent("/cart"));
+    // Stop the rest of the script from running while the redirect kicks in,
+    // so we don't briefly render "Loading…" or fire view_cart for an
+    // anonymous user.
+    throw new Error("redirecting to sign-up");
+  }
 
   type Format = "digital" | "poster" | "framed" | "canvas";
 

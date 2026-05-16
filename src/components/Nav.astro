@@ -20,7 +20,7 @@ const path = Astro.url.pathname;
            Hidden until the script runs so we don't flash "Sign in" for a
            returning authed user, or "Account" for a fresh anonymous one. -->
       <div class="nav__auth" id="nav-auth" hidden></div>
-      <a href="/cart" class="nav__cart" aria-label="Cart">
+      <a href="/cart" class="nav__cart" id="nav-cart" aria-label="Cart" hidden>
         <span class="nav__cart-icon">🛒</span>
         <span class="nav__cart-badge" id="nav-cart-badge" hidden>0</span>
       </a>
@@ -78,6 +78,9 @@ const path = Astro.url.pathname;
     background: transparent; transition: border-color .15s ease, transform .08s ease;
     isolation: isolate;
   }
+  /* The explicit display: inline-flex above otherwise wins over [hidden]'s
+     default `display: none`, leaving the cart icon visible while signed out. */
+  .nav__cart[hidden] { display: none; }
   .nav__cart:hover { border-color: var(--c-stroke); transform: translateY(-1px); }
   .nav__cart-icon { position: relative; z-index: 1; font-size: 17px; line-height: 1; }
   .nav__cart-badge {
@@ -241,12 +244,16 @@ const path = Astro.url.pathname;
     });
   });
 
+  // Cart icon is only shown to signed-in users — reveal it here before
+  // wiring the live badge so the icon and its counter appear together.
+  const cartLink = document.getElementById('nav-cart') as HTMLAnchorElement | null;
+  if (cartLink && isSignedIn()) cartLink.hidden = false;
+
   // Live cart badge — subscribes to api.cart.count so add/remove on any tab
   // is reflected without a page reload.
   const badge = document.getElementById('nav-cart-badge') as HTMLElement | null;
-  const cartLink = document.querySelector('.nav__cart') as HTMLElement | null;
   const sessionId = getSessionId();
-  if (badge && sessionId) {
+  if (badge && sessionId && isSignedIn()) {
     const client = makeClient();
     // Sentinel — the first callback delivers the existing count on page
     // load and shouldn't animate; only subsequent increases should.
