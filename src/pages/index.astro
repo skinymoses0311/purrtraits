@@ -1068,8 +1068,8 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     transform: translateY(8px);
     transition: opacity 0.4s ease, transform 0.4s ease;
   }
-  .hero-wall__sub.is-visible,
-  .hero-wall__note.is-visible { opacity: 1; transform: translateY(0); }
+  body.js-anim .hero-wall__sub.is-visible,
+  body.js-anim .hero-wall__note.is-visible { opacity: 1; transform: translateY(0); }
 
   /* PART 2 — How it works (scroll-triggered) --------------------------- */
   /* Carry the existing per-step static rotation onto a CSS var so the
