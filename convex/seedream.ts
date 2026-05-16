@@ -66,7 +66,34 @@ const SEEDREAM_MAX_IMAGES = 10;
 // rendering, drifting toward a breed-stereotypical pet. The repetition here
 // counter-balances that.
 const IDENTITY_GUARD_ARTWORK =
-  "CRUCIAL — PET IDENTITY. The painted pet in the output must specifically be the individual pet shown in the photograph reference(s), NOT a breed-typical or generic example of the breed. Preserve the pet's exact breed, fur colour and pattern, distinctive markings, eye colour, ear shape and set, head shape, build, and overall proportions as visible in the photographs. If the pet's appearance differs from what is typical for the breed in any way — fur colour, markings, build, ear shape, eye colour — follow the photographs and ignore the breed stereotype. Multiple photographs may be supplied; cross-reference them to triangulate the pet's appearance, but the rendered subject must be one consistent individual matching the photographs. The pet is rendered in the visual language of the artwork (its brushwork, palette, and medium) — but rendering style is the only thing that changes. The breed, markings, and individual features remain unmistakably this specific pet, recognisable through the painted strokes. The output MUST be in 3:4 portrait orientation (taller than wide) — do not letterbox, pad, or add coloured bars. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin — the artwork must extend edge-to-edge to all four sides of the canvas. The pet photographs are for the pet's identity only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet in those photographs. The setting of the output is the artwork's existing scene, not the photograph's room.";
+  "CRUCIAL — PET IDENTITY. The painted pet in the output must specifically be the individual pet shown in the photograph reference(s), NOT a breed-typical or generic example of the breed. Preserve the pet's exact breed, fur colour and pattern, distinctive markings, eye colour, ear shape and set, head shape, build, and overall proportions as visible in the photographs. If the pet's appearance differs from what is typical for the breed in any way — fur colour, markings, build, ear shape, eye colour — follow the photographs and ignore the breed stereotype. Multiple photographs may be supplied; cross-reference them to triangulate the pet's appearance, but the rendered subject must be one consistent individual matching the photographs. CRITICAL — STYLE LOCK. The inserted pet must be painted in the IDENTICAL medium, brushwork, and palette as the rest of the artwork — never in a different, simplified, modern, low-poly, geometric, cel-shaded, cartoon, or contemporary digital style. If the artwork is an oil painting, the pet is an oil painting in the same hand; if it is a woodblock print, the pet is a woodblock print; if it is a pointillist canvas, the pet is built from the same dots. Rendering style is the only thing that changes from the photograph; the inserted pet shares the artwork's exact rendering language. The breed, markings, and individual features remain unmistakably this specific pet, recognisable through the painted strokes. The output MUST be in 3:4 portrait orientation (taller than wide) — do not letterbox, pad, or add coloured bars. The image must be a full-bleed artwork with absolutely no border, frame, mat, passe-partout, vignette, decorative edging, painted edge, drawn rectangle, or coloured/white margin — the artwork must extend edge-to-edge to all four sides of the canvas. The pet photographs are for the pet's identity only — completely ignore and discard the room, walls, floor, ceiling, furniture, household objects, and any indoor environment visible behind or around the pet in those photographs. The setting of the output is the artwork's existing scene, not the photograph's room.";
+
+// Per-era medium descriptor injected into the prompt lead. Anchors the
+// model on the artwork's actual medium up front, so a placement word like
+// "faceted" (correct art-historical Cézanne language) doesn't drag the
+// render toward modern low-poly. One descriptor per era covers all 30
+// artworks; if a specific artwork needs a more specific medium hint we'd
+// promote this to per-artwork data in the catalog.
+const ERA_MEDIUM: Record<string, string> = {
+  "post-impressionist":
+    "a Post-Impressionist oil painting with bold colour and thick visible painterly brushwork",
+  impressionist:
+    "an Impressionist oil painting with loose dappled brushwork and broken complementary colour",
+  "japanese-woodblock":
+    "a Japanese ukiyo-e woodblock print with flat areas of solid colour and confident black outlines",
+  romantic:
+    "a Romantic-era oil painting with atmospheric brushwork, dramatic light, and painterly washes",
+  "northern-renaissance":
+    "a Northern Renaissance oil panel painting with meticulous glazed detail and jewel-toned colour",
+  "dutch-golden-age":
+    "a Dutch Golden Age oil painting with precise tonal glazing and luminous restrained colour",
+  symbolist:
+    "a Symbolist painting with expressive thinned strokes, atmospheric tonal washes, and emotive colour",
+  "art-nouveau":
+    "an Art Nouveau decorative painting with mosaic-like stippling, ornamental pattern, and gold accents",
+  renaissance:
+    "a High Renaissance oil panel painting with sfumato modelling, restrained earth tones, and soft tonal transitions",
+};
 
 export type CatalogPlacement = {
   slug: string;
@@ -107,6 +134,7 @@ type ArtworkContext = {
   title: string;
   artist: string;
   year?: string;
+  era: string;
   placements: CatalogPlacement[];
   referenceUrl: string;
 };
@@ -122,6 +150,13 @@ function buildArtworkPrompt(
   favouriteFeature: string | undefined,
 ): string {
   const yearPart = artwork.year ? `, ${artwork.year}` : "";
+  // Per-era medium descriptor — the model reads this BEFORE the placement,
+  // so e.g. "a Post-Impressionist oil painting with thick visible painterly
+  // brushwork" anchors the render before the placement's "faceted
+  // constructive" wording can pull it toward low-poly. Falls back to a
+  // generic descriptor for unknown eras (shouldn't happen — the catalog
+  // restricts era to a literal union).
+  const mediumPart = ERA_MEDIUM[artwork.era] ?? "an oil painting";
   // Lead names every image slot explicitly. Pet photos occupy slots 1..N;
   // the artwork is the last image. The catalog's placement prompts refer to
   // "the first images" for the pet, which matches this order.
@@ -129,8 +164,8 @@ function buildArtworkPrompt(
     ? `Images 1 through ${petPhotoCount} are reference photographs of the same pet for likeness reference only — cross-reference them to triangulate the pet's appearance.`
     : `The first image is a photograph of the pet for likeness reference only.`;
   const artworkSlot = petPhotoCount > 1
-    ? `Image ${petPhotoCount + 1} (the last image) is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}.`
-    : `The second image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart}.`;
+    ? `Image ${petPhotoCount + 1} (the last image) is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart} — ${mediumPart}.`
+    : `The second image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart} — ${mediumPart}.`;
   // Lead goes first so the framing rule is read before the placement-
   // specific instruction overrides any of the artwork's existing composition.
   const lead = `${FULL_BLEED_LEAD} ${photoSlot} ${artworkSlot}`;

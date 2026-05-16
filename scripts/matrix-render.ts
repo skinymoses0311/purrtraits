@@ -21,6 +21,10 @@
  *       New batch, full run. Prints the plan + cost estimate; --confirm
  *       is required so you can't trigger a paid run by accident.
  *
+ *   npm run matrix:render -- --confirm --artworks slug1,slug2
+ *       Restrict the run to specific artwork slugs. Cheap way to validate
+ *       a prompt change on a representative subset before a full re-run.
+ *
  *   npm run matrix:render -- --confirm --batch <id>
  *       Resume an interrupted batch. Jobs already recorded are skipped
  *       (job granularity — see convex/matrix.ts jobAlreadyDone).
@@ -407,8 +411,28 @@ async function modeReport(batchId: string): Promise<void> {
 }
 
 async function modeRender(batchId: string): Promise<void> {
+  // Optional artwork filter — pass --artworks slug1,slug2 to restrict the
+  // run. Validates every slug against the catalog so a typo fails loud
+  // instead of silently rendering the wrong subset.
+  const filterRaw = flagValue("artworks");
+  const filterSlugs = filterRaw
+    ? filterRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
+  let artworksToRun = ARTWORKS_CATALOG;
+  if (filterSlugs) {
+    const knownSlugs = new Set(ARTWORKS_CATALOG.map((a) => a.slug));
+    const unknown = filterSlugs.filter((s) => !knownSlugs.has(s));
+    if (unknown.length > 0) {
+      console.error(`Unknown artwork slug(s): ${unknown.join(", ")}`);
+      console.error(`Known slugs: ${[...knownSlugs].join(", ")}`);
+      process.exit(1);
+    }
+    const wanted = new Set(filterSlugs);
+    artworksToRun = ARTWORKS_CATALOG.filter((a) => wanted.has(a.slug));
+  }
+
   const jobs: Job[] = [];
-  for (const art of ARTWORKS_CATALOG) {
+  for (const art of artworksToRun) {
     for (const activity of ACTIVITIES) {
       for (const mood of MOODS) {
         jobs.push({ artworkSlug: art.slug, activity, mood });
@@ -421,7 +445,10 @@ async function modeRender(batchId: string): Promise<void> {
 
   console.log("");
   console.log(`Matrix plan — batch ${batchId}`);
-  console.log(`  ${ARTWORKS_CATALOG.length} artworks × ${ACTIVITIES.length} activities × ${MOODS.length} moods = ${jobs.length} jobs`);
+  if (filterSlugs) {
+    console.log(`  Artwork filter: ${filterSlugs.join(", ")}`);
+  }
+  console.log(`  ${artworksToRun.length} artwork${artworksToRun.length === 1 ? "" : "s"} × ${ACTIVITIES.length} activities × ${MOODS.length} moods = ${jobs.length} jobs`);
   console.log(`  ${jobs.length} jobs × 3 placements = ${renderCount} renders`);
   console.log(`  Estimated cost: ~$${lo}–$${hi}`);
   console.log(`  Concurrency: ${CONCURRENCY} jobs at a time`);

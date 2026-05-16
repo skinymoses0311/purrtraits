@@ -250,6 +250,11 @@ export const getBySlugInternal = internalQuery({
       title: doc.title,
       artist: doc.artist,
       year: doc.year,
+      // Era is used by the Seedream pipeline to look up a per-era medium
+      // descriptor for the prompt lead (e.g. "a Post-Impressionist oil
+      // painting with thick visible brushwork"). Anchors the model on the
+      // actual medium up front to prevent stylistic drift.
+      era: doc.era,
       placements: doc.placements,
       referenceUrl,
     };

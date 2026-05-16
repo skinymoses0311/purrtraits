@@ -237,19 +237,19 @@ export const ARTWORKS_CATALOG: CatalogArtwork[] = [
         slug: "tabletop",
         label: "On the tabletop",
         prompt:
-          "Add the pet from the first images on the folded white cloth of the tabletop beside the tilted basket of apples. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet must be built from the same Cézanne faceted constructive brushstrokes as the cloth and apples, in the same red-ochre, deep green, cream and umber palette. The leaning wine bottle, stacked biscuits and tilted apple basket remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images on the folded white cloth of the tabletop beside the tilted basket of apples. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet must be built from the same Cézanne faceted constructive brushstrokes as the cloth and apples, in the same red-ochre, deep green, cream and umber palette. The leaning wine bottle, stacked biscuits and tilted apple basket remain unchanged. Render the pet at the natural scale of a small dog on a tabletop — comparable in size to the basket of apples beside it, fitting on the table without dominating the still life. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
       {
         slug: "behind_bottle",
         label: "Behind the bottle",
         prompt:
-          "Add the pet from the first images behind the dark wine bottle, head visible against the muted backdrop. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same Cézanne planar constructive brushwork as the bottle and table, in the same deep green, red-ochre, cream and slate palette. The basket of apples, folded cloth and stacked biscuits in the foreground remain untouched. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
+          "Add the pet from the first images behind the dark wine bottle, head visible against the muted backdrop. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same Cézanne planar constructive brushwork as the bottle and table, in the same deep green, red-ochre, cream and slate palette. The basket of apples, folded cloth and stacked biscuits in the foreground remain untouched. Render the pet sized so its head shows just above the wine bottle — naturally proportioned to the bottle's height, a small-to-medium dog at that distance. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
       },
       {
         slug: "front_apples",
         label: "Among the apples",
         prompt:
-          "Add the pet from the first images in front of the tabletop beside the loose apples that have rolled from the basket. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same Cézanne faceted constructive strokes as the apples and cloth, in the same red-ochre, deep green, cream and umber palette. The tilted basket, leaning wine bottle and biscuits remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images in front of the tabletop beside the loose apples that have rolled from the basket. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same Cézanne faceted constructive strokes as the apples and cloth, in the same red-ochre, deep green, cream and umber palette. The tilted basket, leaning wine bottle and biscuits remain unchanged. Render the pet at the natural size of a real dog beside the loose apples — comparable in scale to the basket above, fitting along the front edge of the tabletop. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
     ],
   },
@@ -635,19 +635,19 @@ export const ARTWORKS_CATALOG: CatalogArtwork[] = [
         slug: "foot_slope",
         label: "At the foot",
         prompt:
-          "Add the pet from the first images on the dark green forested slope at the very base of Mount Fuji. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet must be built from the same flat ukiyo-e woodblock outlines and gradient fills as the trees, in the same deep green, red-ochre and Prussian-blue palette. The red glowing Fuji, the mackerel-cloud sky and the blue summit shadow remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images on the dark green forested slope at the very base of Mount Fuji. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet must be built from the same flat ukiyo-e woodblock outlines and gradient fills as the trees, in the same deep green, red-ochre and Prussian-blue palette. The red glowing Fuji, the mackerel-cloud sky and the blue summit shadow remain unchanged. Render the pet small relative to the mountain — at the scale of a real dog among the forested base of Fuji, visible but tiny against the vast mountain rising above. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
       {
         slug: "ridge_line",
         label: "On the ridge",
         prompt:
-          "Add the pet from the first images on the dark ridge line halfway up the slope just beneath the red mountain. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same flat ukiyo-e woodblock outlines as the ridges and forest, in the same deep green, red-ochre and Prussian-blue palette. The simplified red Fuji, the flat blue sky and the rows of mackerel clouds remain untouched. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
+          "Add the pet from the first images on the dark ridge line halfway up the slope just beneath the red mountain. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same flat ukiyo-e woodblock outlines as the ridges and forest, in the same deep green, red-ochre and Prussian-blue palette. The simplified red Fuji, the flat blue sky and the rows of mackerel clouds remain untouched. Render the pet at the natural scale of a small figure on that ridge — dwarfed by the red Fuji rising behind, visible but small. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
       },
       {
         slug: "forest_edge",
         label: "By the forest",
         prompt:
-          "Add the pet from the first images at the dark green forest edge in the lower foreground beneath Fuji. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same flat ukiyo-e woodblock outlines and gradient fills as the trees, in the same deep green, red-ochre and Prussian-blue palette. The glowing red Fuji, the blue sky and the patterned mackerel clouds remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images at the dark green forest edge in the lower foreground beneath Fuji. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same flat ukiyo-e woodblock outlines and gradient fills as the trees, in the same deep green, red-ochre and Prussian-blue palette. The glowing red Fuji, the blue sky and the patterned mackerel clouds remain unchanged. Render the pet at the natural size of a real dog at the forest edge — small relative to the mountain but clearly visible in the foreground, comparable in scale to the trees beside it. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
     ],
   },
@@ -777,19 +777,19 @@ export const ARTWORKS_CATALOG: CatalogArtwork[] = [
         slug: "tower_base",
         label: "At the tower base",
         prompt:
-          "Add the pet from the first images on the masonry-strewn ground at the base of the spiralling tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is rendered in the same Bruegel meticulous Northern Renaissance oil glazing as the stonework and labourers, in the same warm ochre, terracotta, slate and pine-green palette. The spiralling tower rising into the clouds, the harbour ships and the tiny labourers remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images on the masonry-strewn ground at the base of the spiralling tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is rendered in the same Bruegel meticulous Northern Renaissance oil glazing as the stonework and labourers, in the same warm ochre, terracotta, slate and pine-green palette. The spiralling tower rising into the clouds, the harbour ships and the tiny labourers remain unchanged. Render the pet at the natural scale of a real dog at the tower's base — comparable in size to the labourers and stones around it, dwarfed by the spiralling tower above. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
       {
         slug: "harbour",
         label: "By the harbour",
         prompt:
-          "Add the pet from the first images on the dock among the small ships moored at the foot of the tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same Bruegel precise oil brushwork as the ships and quayside, in the same warm ochre, terracotta and pine-green palette. The colossal spiralling tower, the cranes hauling stone and the dwarfed labourers remain untouched. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
+          "Add the pet from the first images on the dock among the small ships moored at the foot of the tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet shares the same Bruegel precise oil brushwork as the ships and quayside, in the same warm ochre, terracotta and pine-green palette. The colossal spiralling tower, the cranes hauling stone and the dwarfed labourers remain untouched. Render the pet at the natural scale of a real dog on the dock — small relative to the colossal tower but comparable in size to the ships and dockworkers beside it. No photographic detail, no cut-out edges. Pet's breed and markings recognisable through the painted strokes.",
       },
       {
         slug: "ramp",
         label: "On the ramp",
         prompt:
-          "Add the pet from the first images on the broad spiral ramp on the lower tier of the unfinished tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same Bruegel meticulous Northern Renaissance glazing as the masonry and figures, in the same warm ochre, terracotta, slate and pine-green palette. The spiralling tower, the cloud-piercing summit and the tiny labourers and cranes remain unchanged. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
+          "Add the pet from the first images on the broad spiral ramp on the lower tier of the unfinished tower. Treat the first images as likeness references only — do not preserve any photographic texture from them. The pet is built from the same Bruegel meticulous Northern Renaissance glazing as the masonry and figures, in the same warm ochre, terracotta, slate and pine-green palette. The spiralling tower, the cloud-piercing summit and the tiny labourers and cranes remain unchanged. Render the pet at the natural scale of a real dog on the ramp — comparable to the labourers climbing the tower, not larger. No photographic detail, no cut-out edges. Pet's breed and markings recognisable.",
       },
     ],
   },
