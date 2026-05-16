@@ -87,12 +87,14 @@ import Layout from "../layouts/Layout.astro";
   // ?next=/cart so they land back here after signing in. `replace` keeps the
   // cart URL out of history so back-button doesn't loop them through the gate.
   if (!isSignedIn()) {
-    // `replace` keeps /cart out of history so the back button doesn't loop
-    // the user through the gate.
-    window.location.replace("/sign-up?next=" + encodeURIComponent("/cart"));
-    // Stop the rest of the script from running while the redirect kicks in,
-    // so we don't briefly render "Loading…" or fire view_cart for an
-    // anonymous user.
+    // Defer past the current task so we don't race with other init code on
+    // the cart page. Calling location.replace inline at module evaluation
+    // time caused the eventual /sign-up page to itself navigate to "/" — a
+    // dev-only timing quirk where some racing init outlived our redirect.
+    // A short timeout reliably wins the race in both dev and prod.
+    setTimeout(() => {
+      window.location.replace("/sign-up?next=" + encodeURIComponent("/cart"));
+    }, 250);
     throw new Error("redirecting to sign-up");
   }
 
