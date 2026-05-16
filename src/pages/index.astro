@@ -96,6 +96,11 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
 >
   <script type="application/ld+json" slot="jsonld" set:html={JSON.stringify(homeJsonLd)} />
 
+  <!-- Animation gate: sets .js-anim on body synchronously so opacity:0
+       initial states only apply when JS will actually animate them in.
+       Without JS this class never lands, so the page renders normally. -->
+  <script is:inline>document.body.classList.add('js-anim');</script>
+
   <!-- Mobile top banner — sits directly under the nav, above the hero. -->
   <div class="ad-band ad-band--top">
     <AdUnit
@@ -351,18 +356,181 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
 </Layout>
 
 <script>
-  // Sample-portraits tabs — vanilla, no React island. Toggle aria-selected
-  // on the buttons and hidden on the panels.
-  const tabs = document.querySelectorAll<HTMLButtonElement>(".samples__tab");
-  const panels = document.querySelectorAll<HTMLElement>(".samples__panel");
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const key = tab.dataset.tab;
-      tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
-      panels.forEach((p) => {
-        p.hidden = p.dataset.panel !== key;
+  // ───────────────────────────────────────────────────────────────────
+  // Homepage animation orchestration.
+  //   Part 1 — hero wall page-load sequence
+  //   Part 2 — how-it-works scroll trigger (with SVG arrow draw)
+  //   Part 3 — samples scroll trigger
+  //   Part 4 — samples tab crossfade with re-triggered card entrance
+  // ───────────────────────────────────────────────────────────────────
+
+  function initHero() {
+    const containers = document.querySelectorAll<HTMLElement>(
+      ".hero-wall__frames--desktop, .hero-wall__frames--mobile"
+    );
+    let maxFrameCount = 0;
+    containers.forEach((container) => {
+      const frames = container.querySelectorAll<HTMLElement>(".frame");
+      frames.forEach((frame, i) => {
+        frame.style.setProperty("--i", String(i));
+        // Lift the inline rotation onto a CSS var so the frame-enter
+        // keyframe can keep the rotation while animating translate/opacity.
+        const t = frame.style.transform || "";
+        const m = t.match(/rotate\(([^)]+)\)/);
+        if (m) frame.style.setProperty("--frame-rot", m[1]);
+        // Clear inline transform so the animation's transform wins.
+        frame.style.transform = "";
+        setTimeout(() => frame.classList.add("is-visible"), i * 90);
+      });
+      if (frames.length > maxFrameCount) maxFrameCount = frames.length;
+    });
+
+    const cardDelay = maxFrameCount * 90 + 120;
+    const card = document.querySelector<HTMLElement>(".hero-wall__card");
+    if (card) setTimeout(() => card.classList.add("is-visible"), cardDelay);
+
+    const title = document.querySelector<HTMLElement>(".hero-wall__title");
+    let wordCount = 0;
+    if (title) {
+      // Walk the h1's children and wrap each whitespace-separated word in
+      // a <span class="hw">, preserving the existing <br> separator.
+      const nodes = Array.from(title.childNodes);
+      nodes.forEach((node) => {
+        if (node.nodeType !== Node.TEXT_NODE) return;
+        const text = node.textContent || "";
+        const frag = document.createDocumentFragment();
+        text.split(/(\s+)/).forEach((part) => {
+          if (part === "") return;
+          if (/^\s+$/.test(part)) {
+            frag.appendChild(document.createTextNode(part));
+          } else {
+            const span = document.createElement("span");
+            span.className = "hw";
+            span.textContent = part;
+            frag.appendChild(span);
+          }
+        });
+        node.parentNode!.replaceChild(frag, node);
+      });
+      const words = title.querySelectorAll<HTMLElement>(".hw");
+      wordCount = words.length;
+      words.forEach((w, i) => {
+        setTimeout(() => w.classList.add("is-visible"), cardDelay + 100 + i * 60);
+      });
+    }
+
+    const subDelay = cardDelay + wordCount * 60 + 150;
+    const sub = document.querySelector<HTMLElement>(".hero-wall__sub");
+    if (sub) setTimeout(() => sub.classList.add("is-visible"), subDelay);
+    const note = document.querySelector<HTMLElement>(".hero-wall__note");
+    if (note) setTimeout(() => note.classList.add("is-visible"), subDelay + 100);
+  }
+
+  function initHow() {
+    const how = document.querySelector<HTMLElement>(".how");
+    if (!how) return;
+    // Prime each arrow path with its measured length so arrow-draw can
+    // animate dashoffset from that length down to 0.
+    const paths = how.querySelectorAll<SVGPathElement>(
+      ".how__arrow path, .how__arrow-v path"
+    );
+    paths.forEach((p) => {
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = String(len);
+      p.style.strokeDashoffset = String(len);
+      p.style.setProperty("--dash-len", String(len));
+    });
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            how.classList.add("how--visible");
+            obs.unobserve(how);
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+    obs.observe(how);
+  }
+
+  function initSamples() {
+    const samples = document.querySelector<HTMLElement>(".samples");
+    if (!samples) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            samples.classList.add("samples--visible");
+            // Card/plaque entrance is gated on the panel's .is-entering
+            // class — the same hook the tab crossfade uses. Wait for the
+            // eyebrow/title/tabs intro to settle, then trigger on the
+            // visible panel.
+            const firstPanel = samples.querySelector<HTMLElement>(
+              ".samples__panel:not([hidden])"
+            );
+            if (firstPanel) {
+              setTimeout(() => firstPanel.classList.add("is-entering"), 260);
+            }
+            obs.unobserve(samples);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    obs.observe(samples);
+  }
+
+  function initTabs() {
+    const allBtns = document.querySelectorAll<HTMLButtonElement>(".samples__tab");
+    const allPanels = document.querySelectorAll<HTMLElement>(".samples__panel");
+    if (!allBtns.length || !allPanels.length) return;
+
+    function switchTab(newPanel: HTMLElement, newBtn: HTMLButtonElement) {
+      const current = Array.from(allPanels).find((p) => !p.hidden);
+      if (!current || current === newPanel) return;
+
+      allBtns.forEach((b) => {
+        b.setAttribute("aria-selected", "false");
+        b.classList.remove("samples__tab--active");
+      });
+      newBtn.setAttribute("aria-selected", "true");
+      newBtn.classList.add("samples__tab--active");
+
+      // Outgoing: fade to 0 over 150ms (via .is-fading-out), then hide.
+      current.classList.add("is-fading-out");
+      setTimeout(() => {
+        current.hidden = true;
+        current.classList.remove("is-fading-out", "is-entering");
+
+        // Incoming: unhide, fade in (200ms via .is-fading-in), and replay
+        // the card/plaque entrance by toggling .is-entering. Force a
+        // reflow first so the keyframe restarts even if the panel had
+        // .is-entering from a prior visit.
+        newPanel.hidden = false;
+        newPanel.classList.remove("is-entering");
+        newPanel.classList.add("is-fading-in");
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        void newPanel.offsetHeight;
+        newPanel.classList.add("is-entering");
+        setTimeout(() => newPanel.classList.remove("is-fading-in"), 220);
+      }, 160);
+    }
+
+    allBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.tab;
+        const panel = Array.from(allPanels).find((p) => p.dataset.panel === key);
+        if (panel) switchTab(panel, btn);
       });
     });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initHero();
+    initHow();
+    initSamples();
+    initTabs();
   });
 </script>
 
@@ -821,5 +989,208 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
      empty cream stripe below the nav — hide it. */
   @media (min-width: 1024px) {
     .ad-band--top { display: none; }
+  }
+
+  /* ======================================================================
+     ANIMATIONS
+     ---------------------------------------------------------------------
+     Initial opacity:0 rules are gated by body.js-anim (set synchronously by
+     an inline script at the top of the body) so users without JS still
+     see the page rendered.
+     ====================================================================== */
+
+  /* Keyframes ---------------------------------------------------------- */
+  @keyframes frame-enter {
+    from { opacity: 0; transform: translateY(28px) rotate(var(--frame-rot, 0deg)); }
+    to   { opacity: 1; transform: translateY(0)    rotate(var(--frame-rot, 0deg)); }
+  }
+  @keyframes card-enter {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  }
+  @keyframes word-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes circle-bounce {
+    0%   { opacity: 0; transform: scale(0)    rotate(var(--rot, 0deg)); }
+    55%  { opacity: 1; transform: scale(1.18) rotate(var(--rot, 0deg)); }
+    75%  { transform: scale(0.92) rotate(var(--rot, 0deg)); }
+    100% { transform: scale(1)    rotate(var(--rot, 0deg)); }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes arrow-draw {
+    from { stroke-dashoffset: var(--dash-len, 300); }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes card-slide-up {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  @keyframes plaque-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes eyebrow-in {
+    from { opacity: 0; letter-spacing: 0.1em; }
+    to   { opacity: 1; letter-spacing: 0.25em; }
+  }
+  @keyframes panel-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* PART 1 — Hero wall (page-load) ------------------------------------- */
+  body.js-anim .hero-wall .frame { opacity: 0; }
+  .hero-wall .frame.is-visible {
+    animation: frame-enter 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation-delay: calc(var(--i, 0) * 90ms);
+  }
+
+  body.js-anim .hero-wall__card { opacity: 0; }
+  .hero-wall__card.is-visible {
+    animation: card-enter 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  }
+
+  .hero-wall__title .hw { display: inline-block; }
+  body.js-anim .hero-wall__title .hw { opacity: 0; }
+  .hero-wall__title .hw.is-visible {
+    animation: word-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  body.js-anim .hero-wall__sub,
+  body.js-anim .hero-wall__note {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .hero-wall__sub.is-visible,
+  .hero-wall__note.is-visible { opacity: 1; transform: translateY(0); }
+
+  /* PART 2 — How it works (scroll-triggered) --------------------------- */
+  /* Carry the existing per-step static rotation onto a CSS var so the
+     circle-bounce keyframe keeps it through the final state. */
+  .how-step:nth-child(1) .how-step__circle { --rot: -2deg; }
+  .how-step:nth-child(3) .how-step__circle { --rot:  2deg; }
+  .how-step:nth-child(5) .how-step__circle { --rot: -1deg; }
+  .how-step:nth-child(7) .how-step__circle { --rot:  1deg; }
+  .how-step:nth-child(9) .how-step__circle { --rot: -2deg; }
+
+  body.js-anim .how-step__circle { opacity: 0; }
+  .how--visible .how-step__circle {
+    animation: circle-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .how--visible .how-step:nth-child(1) .how-step__circle { animation-delay: 0ms; }
+  .how--visible .how-step:nth-child(3) .how-step__circle { animation-delay: 100ms; }
+  .how--visible .how-step:nth-child(5) .how-step__circle { animation-delay: 200ms; }
+  .how--visible .how-step:nth-child(7) .how-step__circle { animation-delay: 300ms; }
+  .how--visible .how-step:nth-child(9) .how-step__circle { animation-delay: 400ms; }
+
+  body.js-anim .how-step__title,
+  body.js-anim .how-step__blurb { opacity: 0; }
+  .how--visible .how-step__title { animation: fade-up 0.4s ease both; }
+  .how--visible .how-step__blurb { animation: fade-up 0.35s ease both; }
+  .how--visible .how-step:nth-child(1) .how-step__title { animation-delay: 80ms; }
+  .how--visible .how-step:nth-child(1) .how-step__blurb { animation-delay: 120ms; }
+  .how--visible .how-step:nth-child(3) .how-step__title { animation-delay: 180ms; }
+  .how--visible .how-step:nth-child(3) .how-step__blurb { animation-delay: 220ms; }
+  .how--visible .how-step:nth-child(5) .how-step__title { animation-delay: 280ms; }
+  .how--visible .how-step:nth-child(5) .how-step__blurb { animation-delay: 320ms; }
+  .how--visible .how-step:nth-child(7) .how-step__title { animation-delay: 380ms; }
+  .how--visible .how-step:nth-child(7) .how-step__blurb { animation-delay: 420ms; }
+  .how--visible .how-step:nth-child(9) .how-step__title { animation-delay: 480ms; }
+  .how--visible .how-step:nth-child(9) .how-step__blurb { animation-delay: 520ms; }
+
+  /* Arrows: each fires 50ms AFTER the preceding step lands.
+     Step i delay = i*100ms, duration 600ms ⇒ lands at i*100 + 600.
+     Arrow i (between step i and step i+1) delay = i*100 + 650. */
+  .how--visible .how__arrow path,
+  .how--visible .how__arrow-v path {
+    animation: arrow-draw 0.55s ease-out both;
+  }
+  .how--visible .how__arrow:nth-child(2) path,
+  .how--visible .how__arrow-v:nth-child(2) path { animation-delay: 650ms; }
+  .how--visible .how__arrow:nth-child(4) path,
+  .how--visible .how__arrow-v:nth-child(4) path { animation-delay: 750ms; }
+  .how--visible .how__arrow:nth-child(6) path,
+  .how--visible .how__arrow-v:nth-child(6) path { animation-delay: 850ms; }
+  .how--visible .how__arrow:nth-child(8) path,
+  .how--visible .how__arrow-v:nth-child(8) path { animation-delay: 950ms; }
+
+  /* PART 3 — Samples section intro (scroll-triggered, runs once) ------- */
+  body.js-anim .samples__eyebrow { opacity: 0; }
+  body.js-anim .samples__title,
+  body.js-anim .samples__tabs { opacity: 0; }
+  .samples--visible .samples__eyebrow { animation: eyebrow-in 0.55s ease both; }
+  .samples--visible .samples__title   { animation: fade-up 0.45s ease both 0.1s; }
+  .samples--visible .samples__tabs    { animation: fade-up 0.4s  ease both 0.2s; }
+
+  /* Card + plaque entrance is panel-scoped via .is-entering, so the
+     tab-switch can replay only the cards without re-running the section
+     intro. The initial reveal also uses .is-entering (added with a
+     ~260ms delay so it follows eyebrow/title/tabs). */
+  body.js-anim .sample-card { opacity: 0; }
+  body.js-anim .sample-card__plaque { opacity: 0; }
+  body.js-anim .samples__panel.is-entering .sample-card {
+    animation: card-slide-up 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(1) { animation-delay:   0ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) { animation-delay: 120ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) { animation-delay: 240ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(1) .sample-card__plaque { animation: plaque-up 0.4s ease both 100ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) .sample-card__plaque { animation: plaque-up 0.4s ease both 220ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) .sample-card__plaque { animation: plaque-up 0.4s ease both 340ms; }
+
+  /* PART 4 — Tab crossfade --------------------------------------------- */
+  body.js-anim .samples__panel.is-fading-out {
+    animation: panel-fade-in 150ms ease reverse forwards;
+  }
+  body.js-anim .samples__panel.is-fading-in {
+    animation: panel-fade-in 200ms ease both;
+  }
+
+  /* PART 5 — Respect prefers-reduced-motion --------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    body.js-anim .hero-wall .frame,
+    body.js-anim .hero-wall__card,
+    body.js-anim .hero-wall__title .hw,
+    body.js-anim .hero-wall__sub,
+    body.js-anim .hero-wall__note,
+    body.js-anim .how-step__circle,
+    body.js-anim .how-step__title,
+    body.js-anim .how-step__blurb,
+    body.js-anim .how__arrow path,
+    body.js-anim .how__arrow-v path,
+    body.js-anim .sample-card,
+    body.js-anim .sample-card__plaque,
+    body.js-anim .samples__eyebrow,
+    body.js-anim .samples__title,
+    body.js-anim .samples__tabs,
+    body.js-anim .samples__panel {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+      opacity: 1 !important;
+    }
+    /* Drop only the *animation* transform offsets — preserve layout-
+       essential transforms (frame rotation, card centring, circle
+       rotation) so reduced-motion users still see a correctly
+       composed page rather than a broken layout. */
+    body.js-anim .hero-wall__title .hw,
+    body.js-anim .hero-wall__sub,
+    body.js-anim .hero-wall__note,
+    body.js-anim .how-step__title,
+    body.js-anim .how-step__blurb,
+    body.js-anim .sample-card,
+    body.js-anim .sample-card__plaque,
+    body.js-anim .samples__title,
+    body.js-anim .samples__tabs {
+      transform: none !important;
+    }
   }
 </style>
