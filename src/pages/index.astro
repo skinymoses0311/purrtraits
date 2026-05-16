@@ -380,12 +380,12 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
         if (m) frame.style.setProperty("--frame-rot", m[1]);
         // Clear inline transform so the animation's transform wins.
         frame.style.transform = "";
-        setTimeout(() => frame.classList.add("is-visible"), i * 90);
+        setTimeout(() => frame.classList.add("is-visible"), i * 55);
       });
       if (frames.length > maxFrameCount) maxFrameCount = frames.length;
     });
 
-    const cardDelay = maxFrameCount * 90 + 120;
+    const cardDelay = maxFrameCount * 55 + 80;
     const card = document.querySelector<HTMLElement>(".hero-wall__card");
     if (card) setTimeout(() => card.classList.add("is-visible"), cardDelay);
 
@@ -415,15 +415,15 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       const words = title.querySelectorAll<HTMLElement>(".hw");
       wordCount = words.length;
       words.forEach((w, i) => {
-        setTimeout(() => w.classList.add("is-visible"), cardDelay + 100 + i * 60);
+        setTimeout(() => w.classList.add("is-visible"), cardDelay + 60 + i * 40);
       });
     }
 
-    const subDelay = cardDelay + wordCount * 60 + 150;
+    const subDelay = cardDelay + wordCount * 40 + 100;
     const sub = document.querySelector<HTMLElement>(".hero-wall__sub");
     if (sub) setTimeout(() => sub.classList.add("is-visible"), subDelay);
     const note = document.querySelector<HTMLElement>(".hero-wall__note");
-    if (note) setTimeout(() => note.classList.add("is-visible"), subDelay + 100);
+    if (note) setTimeout(() => note.classList.add("is-visible"), subDelay + 70);
   }
 
   function initHow() {
@@ -470,7 +470,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
               ".samples__panel:not([hidden])"
             );
             if (firstPanel) {
-              setTimeout(() => firstPanel.classList.add("is-entering"), 260);
+              setTimeout(() => firstPanel.classList.add("is-entering"), 180);
             }
             obs.unobserve(samples);
           }
@@ -1047,26 +1047,26 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   /* PART 1 — Hero wall (page-load) ------------------------------------- */
   body.js-anim .hero-wall .frame { opacity: 0; }
   .hero-wall .frame.is-visible {
-    animation: frame-enter 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-    animation-delay: calc(var(--i, 0) * 90ms);
+    animation: frame-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
   }
 
   body.js-anim .hero-wall__card { opacity: 0; }
   .hero-wall__card.is-visible {
-    animation: card-enter 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    animation: card-enter 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
   }
 
   .hero-wall__title .hw { display: inline-block; }
   body.js-anim .hero-wall__title .hw { opacity: 0; }
   .hero-wall__title .hw.is-visible {
-    animation: word-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: word-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
 
   body.js-anim .hero-wall__sub,
   body.js-anim .hero-wall__note {
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
   }
   body.js-anim .hero-wall__sub.is-visible,
   body.js-anim .hero-wall__note.is-visible { opacity: 1; transform: translateY(0); }
@@ -1082,52 +1082,52 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
 
   body.js-anim .how-step__circle { opacity: 0; }
   .how--visible .how-step__circle {
-    animation: circle-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: circle-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   .how--visible .how-step:nth-child(1) .how-step__circle { animation-delay: 0ms; }
-  .how--visible .how-step:nth-child(3) .how-step__circle { animation-delay: 100ms; }
-  .how--visible .how-step:nth-child(5) .how-step__circle { animation-delay: 200ms; }
-  .how--visible .how-step:nth-child(7) .how-step__circle { animation-delay: 300ms; }
-  .how--visible .how-step:nth-child(9) .how-step__circle { animation-delay: 400ms; }
+  .how--visible .how-step:nth-child(3) .how-step__circle { animation-delay: 70ms; }
+  .how--visible .how-step:nth-child(5) .how-step__circle { animation-delay: 140ms; }
+  .how--visible .how-step:nth-child(7) .how-step__circle { animation-delay: 210ms; }
+  .how--visible .how-step:nth-child(9) .how-step__circle { animation-delay: 280ms; }
 
   body.js-anim .how-step__title,
   body.js-anim .how-step__blurb { opacity: 0; }
-  .how--visible .how-step__title { animation: fade-up 0.4s ease both; }
-  .how--visible .how-step__blurb { animation: fade-up 0.35s ease both; }
-  .how--visible .how-step:nth-child(1) .how-step__title { animation-delay: 80ms; }
-  .how--visible .how-step:nth-child(1) .how-step__blurb { animation-delay: 120ms; }
-  .how--visible .how-step:nth-child(3) .how-step__title { animation-delay: 180ms; }
-  .how--visible .how-step:nth-child(3) .how-step__blurb { animation-delay: 220ms; }
-  .how--visible .how-step:nth-child(5) .how-step__title { animation-delay: 280ms; }
-  .how--visible .how-step:nth-child(5) .how-step__blurb { animation-delay: 320ms; }
-  .how--visible .how-step:nth-child(7) .how-step__title { animation-delay: 380ms; }
-  .how--visible .how-step:nth-child(7) .how-step__blurb { animation-delay: 420ms; }
-  .how--visible .how-step:nth-child(9) .how-step__title { animation-delay: 480ms; }
-  .how--visible .how-step:nth-child(9) .how-step__blurb { animation-delay: 520ms; }
+  .how--visible .how-step__title { animation: fade-up 0.3s ease both; }
+  .how--visible .how-step__blurb { animation: fade-up 0.28s ease both; }
+  .how--visible .how-step:nth-child(1) .how-step__title { animation-delay: 60ms; }
+  .how--visible .how-step:nth-child(1) .how-step__blurb { animation-delay: 90ms; }
+  .how--visible .how-step:nth-child(3) .how-step__title { animation-delay: 130ms; }
+  .how--visible .how-step:nth-child(3) .how-step__blurb { animation-delay: 160ms; }
+  .how--visible .how-step:nth-child(5) .how-step__title { animation-delay: 200ms; }
+  .how--visible .how-step:nth-child(5) .how-step__blurb { animation-delay: 230ms; }
+  .how--visible .how-step:nth-child(7) .how-step__title { animation-delay: 270ms; }
+  .how--visible .how-step:nth-child(7) .how-step__blurb { animation-delay: 300ms; }
+  .how--visible .how-step:nth-child(9) .how-step__title { animation-delay: 340ms; }
+  .how--visible .how-step:nth-child(9) .how-step__blurb { animation-delay: 370ms; }
 
-  /* Arrows: each fires 50ms AFTER the preceding step lands.
-     Step i delay = i*100ms, duration 600ms ⇒ lands at i*100 + 600.
-     Arrow i (between step i and step i+1) delay = i*100 + 650. */
+  /* Arrows: each fires shortly after the preceding step's circle lands.
+     Step i circle delay = i*70ms, duration 450ms ⇒ lands at i*70 + 450.
+     Arrow i delay ≈ i*70 + 470. */
   .how--visible .how__arrow path,
   .how--visible .how__arrow-v path {
-    animation: arrow-draw 0.55s ease-out both;
+    animation: arrow-draw 0.4s ease-out both;
   }
   .how--visible .how__arrow:nth-child(2) path,
-  .how--visible .how__arrow-v:nth-child(2) path { animation-delay: 650ms; }
+  .how--visible .how__arrow-v:nth-child(2) path { animation-delay: 470ms; }
   .how--visible .how__arrow:nth-child(4) path,
-  .how--visible .how__arrow-v:nth-child(4) path { animation-delay: 750ms; }
+  .how--visible .how__arrow-v:nth-child(4) path { animation-delay: 540ms; }
   .how--visible .how__arrow:nth-child(6) path,
-  .how--visible .how__arrow-v:nth-child(6) path { animation-delay: 850ms; }
+  .how--visible .how__arrow-v:nth-child(6) path { animation-delay: 610ms; }
   .how--visible .how__arrow:nth-child(8) path,
-  .how--visible .how__arrow-v:nth-child(8) path { animation-delay: 950ms; }
+  .how--visible .how__arrow-v:nth-child(8) path { animation-delay: 680ms; }
 
   /* PART 3 — Samples section intro (scroll-triggered, runs once) ------- */
   body.js-anim .samples__eyebrow { opacity: 0; }
   body.js-anim .samples__title,
   body.js-anim .samples__tabs { opacity: 0; }
-  .samples--visible .samples__eyebrow { animation: eyebrow-in 0.55s ease both; }
-  .samples--visible .samples__title   { animation: fade-up 0.45s ease both 0.1s; }
-  .samples--visible .samples__tabs    { animation: fade-up 0.4s  ease both 0.2s; }
+  .samples--visible .samples__eyebrow { animation: eyebrow-in 0.4s ease both; }
+  .samples--visible .samples__title   { animation: fade-up 0.32s ease both 0.07s; }
+  .samples--visible .samples__tabs    { animation: fade-up 0.3s  ease both 0.14s; }
 
   /* Card + plaque entrance is panel-scoped via .is-entering, so the
      tab-switch can replay only the cards without re-running the section
@@ -1136,14 +1136,14 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   body.js-anim .sample-card { opacity: 0; }
   body.js-anim .sample-card__plaque { opacity: 0; }
   body.js-anim .samples__panel.is-entering .sample-card {
-    animation: card-slide-up 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    animation: card-slide-up 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
   }
   body.js-anim .samples__panel.is-entering .sample-card:nth-child(1) { animation-delay:   0ms; }
-  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) { animation-delay: 120ms; }
-  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) { animation-delay: 240ms; }
-  body.js-anim .samples__panel.is-entering .sample-card:nth-child(1) .sample-card__plaque { animation: plaque-up 0.4s ease both 100ms; }
-  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) .sample-card__plaque { animation: plaque-up 0.4s ease both 220ms; }
-  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) .sample-card__plaque { animation: plaque-up 0.4s ease both 340ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) { animation-delay:  80ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) { animation-delay: 160ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(1) .sample-card__plaque { animation: plaque-up 0.3s ease both  70ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(2) .sample-card__plaque { animation: plaque-up 0.3s ease both 150ms; }
+  body.js-anim .samples__panel.is-entering .sample-card:nth-child(3) .sample-card__plaque { animation: plaque-up 0.3s ease both 230ms; }
 
   /* PART 4 — Tab crossfade --------------------------------------------- */
   body.js-anim .samples__panel.is-fading-out {
