@@ -202,35 +202,49 @@ import Layout from "../layouts/Layout.astro";
   };
   let openFacet: FacetKey | null = null;
 
-  // ── Currency resolution (unchanged) ───────────────────────────
+  // ── Currency resolution ───────────────────────────────────────
   let currency: Currency = "usd";
   let fromLabel: string = "";
-  async function resolveFromLabel(c: Currency): Promise<string> {
-    try {
-      const products = await client.query(api.products.list, {});
-      const digital = products.find((p: any) => p.format === "digital");
-      const cents = digital?.prices?.[c];
-      if (typeof cents !== "number") return "";
-      return `From ${formatMoney(cents, c)}`;
-    } catch {
-      return "";
-    }
+  // Cached products list so the currency-toggle callback doesn't refetch
+  // the SKUs just to update the "From £X" label.
+  let cachedProducts: any[] | null = null;
+  function computeFromLabel(products: any[] | null, c: Currency): string {
+    if (!products) return "";
+    const digital = products.find((p: any) => p.format === "digital");
+    const cents = digital?.prices?.[c];
+    if (typeof cents !== "number") return "";
+    return `From ${formatMoney(cents, c)}`;
   }
-  currency = await ensureCurrencyForSession(client, sessionId);
-  fromLabel = await resolveFromLabel(currency);
-  onCurrencyChange(async (next) => {
+
+  // ── Parallel data load ────────────────────────────────────────
+  // None of these four calls depend on each other — kick them off together
+  // and await as their results become needed. Previously they ran in series
+  // and blocked the first paint on ~4 RTTs.
+  const currencyPromise = ensureCurrencyForSession(client, sessionId);
+  const productsPromise = client.query(api.products.list, {}).catch(() => null);
+  const artworkLookupPromise = client.query(api.artworks.getLookup, {});
+  const galleryPromise: Promise<any> = userScoped
+    ? client.query(api.sessions.getUserGallery, {})
+    : sessionId
+      ? client.query(api.sessions.get, { id: sessionId as any })
+      : Promise.resolve(null);
+
+  currency = await currencyPromise;
+  cachedProducts = await productsPromise;
+  fromLabel = computeFromLabel(cachedProducts, currency);
+
+  onCurrencyChange((next) => {
     currency = next;
-    fromLabel = await resolveFromLabel(next);
+    fromLabel = computeFromLabel(cachedProducts, next);
     renderGrid();
   });
 
-  // ── Data load ─────────────────────────────────────────────────
   // Pre-load the artwork title/placement lookup once so Tab 3 cards render
   // their full label inline. Public query, harmless if empty.
-  artworkLookup = (await client.query(api.artworks.getLookup, {})) ?? {};
+  artworkLookup = (await artworkLookupPromise) ?? {};
 
   if (userScoped) {
-    const userItems = await client.query(api.sessions.getUserGallery, {});
+    const userItems = await galleryPromise;
     if (!userItems || userItems.length === 0) {
       showEmpty();
     } else {
@@ -252,7 +266,7 @@ import Layout from "../layouts/Layout.astro";
   } else if (!sessionId) {
     showEmpty();
   } else {
-    const session = await client.query(api.sessions.get, { id: sessionId as any });
+    const session = await galleryPromise;
     const items = session?.galleryItems ?? [];
     if (items.length === 0) {
       showEmpty();
