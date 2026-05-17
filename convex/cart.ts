@@ -1,5 +1,13 @@
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Doc } from "./_generated/dataModel";
 import {
   type Currency,
   SHIPPING_CENTS_BY_CURRENCY,
@@ -7,19 +15,38 @@ import {
 } from "./currency";
 
 // Resolve which currency a cart should be priced in. Order of precedence:
-//   1. The session's preferredCurrency (set by /api/geo or footer toggle).
+//   1. Explicit `currency` arg (passed by the cart page so toggling reprices live).
 //   2. USD as global fallback.
+// User-scoped carts no longer carry a preferredCurrency themselves; the
+// session record still owns that and the client passes it through.
 function resolveCurrency(preferred: Currency | undefined): Currency {
   return preferred ?? "usd";
 }
 
-// Add an item to the session cart.
+// Mutations look up the user's cart row, creating an empty one on first
+// write. Queries don't use this — they treat absence as "empty cart" so a
+// fresh user with no row doesn't pay an insert just to render zero items.
+async function getOrCreateCart(
+  ctx: MutationCtx,
+  userId: string,
+): Promise<Doc<"carts">> {
+  const existing = await ctx.db
+    .query("carts")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
+  if (existing) return existing;
+  const _id = await ctx.db.insert("carts", { userId, items: [] });
+  const inserted = await ctx.db.get(_id);
+  if (!inserted) throw new Error("Failed to create cart");
+  return inserted;
+}
+
+// Add an item to the signed-in user's cart.
 //   - merges duplicates by (productId + printFileUrl)
 //   - digital lines are pinned to quantity 1
 //   - quantity is clamped at >= 1
 export const addItem = mutation({
   args: {
-    sessionId: v.id("sessions"),
     productId: v.id("products"),
     printFileUrl: v.string(),
     displayUrl: v.optional(v.string()),
@@ -28,22 +55,23 @@ export const addItem = mutation({
     breed: v.optional(v.string()),
     quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { sessionId, productId, printFileUrl, displayUrl, style, petName, breed, quantity }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) throw new Error("Session not found");
+  handler: async (ctx, { productId, printFileUrl, displayUrl, style, petName, breed, quantity }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
     const product = await ctx.db.get(productId);
     if (!product || !product.active) throw new Error("Product unavailable");
 
+    const cartDoc = await getOrCreateCart(ctx, userId);
     const isDigital = product.format === "digital";
     const requested = Math.max(1, quantity ?? 1);
-    const cart = [...(session.cart ?? [])];
-    const existingIndex = cart.findIndex(
+    const items = [...cartDoc.items];
+    const existingIndex = items.findIndex(
       (l) => l.productId === productId && l.printFileUrl === printFileUrl,
     );
 
     if (existingIndex >= 0) {
-      const existing = cart[existingIndex];
-      cart[existingIndex] = {
+      const existing = items[existingIndex];
+      items[existingIndex] = {
         ...existing,
         // If the existing line had no name/breed/displayUrl (e.g. legacy add),
         // fold the newly-supplied values in so the cart UI improves on next view.
@@ -53,7 +81,7 @@ export const addItem = mutation({
         quantity: isDigital ? 1 : existing.quantity + requested,
       };
     } else {
-      cart.push({
+      items.push({
         productId,
         printFileUrl,
         displayUrl,
@@ -65,67 +93,73 @@ export const addItem = mutation({
       });
     }
 
-    await ctx.db.patch(sessionId, { cart });
+    await ctx.db.patch(cartDoc._id, { items });
   },
 });
 
 export const updateQuantity = mutation({
   args: {
-    sessionId: v.id("sessions"),
     index: v.number(),
     quantity: v.number(),
   },
-  handler: async (ctx, { sessionId, index, quantity }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) throw new Error("Session not found");
-    const cart = [...(session.cart ?? [])];
-    if (index < 0 || index >= cart.length) return;
+  handler: async (ctx, { index, quantity }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const cartDoc = await getOrCreateCart(ctx, userId);
+    const items = [...cartDoc.items];
+    if (index < 0 || index >= items.length) return;
 
-    const line = cart[index];
+    const line = items[index];
     const product = await ctx.db.get(line.productId);
     const isDigital = product?.format === "digital";
     if (isDigital) return; // qty is fixed at 1 for digital
 
     const next = Math.max(1, Math.floor(quantity));
-    cart[index] = { ...line, quantity: next };
-    await ctx.db.patch(sessionId, { cart });
+    items[index] = { ...line, quantity: next };
+    await ctx.db.patch(cartDoc._id, { items });
   },
 });
 
 export const removeItem = mutation({
-  args: { sessionId: v.id("sessions"), index: v.number() },
-  handler: async (ctx, { sessionId, index }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) throw new Error("Session not found");
-    const cart = [...(session.cart ?? [])];
-    if (index < 0 || index >= cart.length) return;
-    cart.splice(index, 1);
-    await ctx.db.patch(sessionId, { cart });
+  args: { index: v.number() },
+  handler: async (ctx, { index }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const cartDoc = await getOrCreateCart(ctx, userId);
+    const items = [...cartDoc.items];
+    if (index < 0 || index >= items.length) return;
+    items.splice(index, 1);
+    await ctx.db.patch(cartDoc._id, { items });
   },
 });
 
 export const clear = mutation({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
-    await ctx.db.patch(sessionId, { cart: [] });
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const cartDoc = await getOrCreateCart(ctx, userId);
+    await ctx.db.patch(cartDoc._id, { items: [] });
   },
 });
 
 // Cart joined with product info — what the cart UI and the count badge use.
 // Computes subtotal/shipping/total server-side so the UI never has to.
 //
-// Currency precedence: optional `currency` arg first (so the cart page can
-// reprice live when the user toggles), else the session's preferredCurrency,
-// else USD.
+// Returns null if the user isn't signed in (cart is user-scoped now), so the
+// caller can render the empty state without an auth check.
 export const getWithProducts = query({
   args: {
-    sessionId: v.id("sessions"),
     currency: v.optional(currencyValidator),
   },
-  handler: async (ctx, { sessionId, currency }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) return null;
-    const lines = session.cart ?? [];
+  handler: async (ctx, { currency }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const cartDoc = await ctx.db
+      .query("carts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const lines = cartDoc?.items ?? [];
 
     const items = await Promise.all(
       lines.map(async (line) => {
@@ -141,7 +175,7 @@ export const getWithProducts = query({
         Boolean(i.product && i.product.active),
     );
 
-    const resolved = resolveCurrency(currency ?? session.preferredCurrency);
+    const resolved = resolveCurrency(currency);
 
     // Defensive read against `prices`: if the products table hasn't been
     // re-seeded after the multi-currency migration, individual rows may be
@@ -190,12 +224,19 @@ export const getWithProducts = query({
 
 // Internal mirror of getWithProducts for the checkout action — same shape,
 // just callable from the server side without exposing it as a public query.
+// Takes userId + currency explicitly because the action context can resolve
+// both: userId via getAuthUserId, currency via the session record.
 export const getInternalForCheckout = internalQuery({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) return null;
-    const lines = session.cart ?? [];
+  args: {
+    userId: v.string(),
+    currency: v.optional(currencyValidator),
+  },
+  handler: async (ctx, { userId, currency }) => {
+    const cartDoc = await ctx.db
+      .query("carts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const lines = cartDoc?.items ?? [];
 
     const items = await Promise.all(
       lines.map(async (line) => {
@@ -209,7 +250,7 @@ export const getInternalForCheckout = internalQuery({
         Boolean(i.product && i.product.active),
     );
 
-    const resolved = resolveCurrency(session.preferredCurrency);
+    const resolved = resolveCurrency(currency);
 
     // Same defensive guard as in getWithProducts — see comment there.
     function unitPriceFor(product: { prices?: Record<string, number> }): number {
@@ -240,19 +281,34 @@ export const getInternalForCheckout = internalQuery({
 });
 
 // Internal: clear cart from the webhook after a successful payment.
+// Webhook passes the userId pulled from the Stripe session metadata. Noop
+// if no cart row exists yet for that user (e.g. already cleared, or never
+// created — which would indicate a checkout flow bug, but we don't want
+// the webhook to fail loudly over it).
 export const clearInternal = internalMutation({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
-    await ctx.db.patch(sessionId, { cart: [] });
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const cartDoc = await ctx.db
+      .query("carts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!cartDoc) return;
+    await ctx.db.patch(cartDoc._id, { items: [] });
   },
 });
 
 // Lightweight count for the nav cart badge — sums quantities, not lines.
+// Returns 0 for anonymous visitors so the badge stays at 0 instead of
+// throwing on the subscription.
 export const count = query({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) return 0;
-    return (session.cart ?? []).reduce((n, l) => n + l.quantity, 0);
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return 0;
+    const cartDoc = await ctx.db
+      .query("carts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    return (cartDoc?.items ?? []).reduce((n, l) => n + l.quantity, 0);
   },
 });

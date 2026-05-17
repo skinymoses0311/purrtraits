@@ -222,7 +222,6 @@ const path = Astro.url.pathname;
 </style>
 
 <script>
-  import { makeClient, getSessionId } from "../lib/client.ts";
   import {
     isSignedIn,
     makeAuthedClient,
@@ -250,11 +249,11 @@ const path = Astro.url.pathname;
   if (cartLink && isSignedIn()) cartLink.hidden = false;
 
   // Live cart badge — subscribes to api.cart.count so add/remove on any tab
-  // is reflected without a page reload.
+  // is reflected without a page reload. Cart is now user-scoped so we use
+  // an authed client; no sessionId needed.
   const badge = document.getElementById('nav-cart-badge') as HTMLElement | null;
-  const sessionId = getSessionId();
-  if (badge && sessionId && isSignedIn()) {
-    const client = makeClient();
+  if (badge && isSignedIn()) {
+    const cartClient = makeAuthedClient();
     // Sentinel — the first callback delivers the existing count on page
     // load and shouldn't animate; only subsequent increases should.
     let previousCount = -1;
@@ -263,7 +262,7 @@ const path = Astro.url.pathname;
         cartLink.classList.remove('is-bumping');
       });
     }
-    client.onUpdate(api.cart.count, { sessionId: sessionId as any }, (n: number) => {
+    cartClient.onUpdate(api.cart.count, {}, (n: number) => {
       if (n > 0) {
         badge.hidden = false;
         badge.textContent = String(n);

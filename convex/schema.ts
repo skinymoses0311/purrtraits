@@ -164,6 +164,30 @@ export default defineSchema({
     ),
   }).index("by_userId", ["userId"]),
 
+  // User-scoped cart — persists across browsers and sessions. One row per
+  // signed-in user; created lazily by cart.getOrCreateCart on first write.
+  // Anonymous shoppers cannot have a cart (the PDP gates Add-to-cart behind
+  // sign-in). Line shape mirrors the legacy session.cart array so PDP /
+  // checkout / order snapshots all keep the same structure.
+  carts: defineTable({
+    userId: v.string(),
+    items: v.array(
+      v.object({
+        productId: v.id("products"),
+        // printFileUrl: high-res, sent to Gelato + used for digital download.
+        // displayUrl: small display version for cart thumbs (avoids loading
+        // a multi-megabyte print file into a 64px tile).
+        printFileUrl: v.string(),
+        displayUrl: v.optional(v.string()),
+        style: v.string(),
+        petName: v.optional(v.string()),
+        breed: v.optional(v.string()),
+        quantity: v.number(),
+        addedAt: v.number(),
+      }),
+    ),
+  }).index("by_userId", ["userId"]),
+
   products: defineTable({
     name: v.string(),
     description: v.optional(v.string()),

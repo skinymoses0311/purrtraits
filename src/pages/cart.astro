@@ -72,7 +72,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
   import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
-  import { isSignedIn } from "../lib/authStorage.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
   import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
@@ -162,10 +162,11 @@ import Layout from "../layouts/Layout.astro";
   // STYLE_LABELS / ARTIST_LABELS inside getStyleDisplay regardless.
   let artworkLookup: ArtworkLookup = {};
 
-  if (!sessionId) {
-    showEmpty(0);
-  } else {
+  // Cart is user-scoped — always show it for signed-in users (auth gate above).
+  // sessionId is still needed for currency lookup and createCheckoutSession.
+  {
     const client = makeClient();
+    const authedClient = makeAuthedClient();
 
     function showEmptyOrItems(cart: any) {
       if (!cart || cart.items.length === 0) {
@@ -236,19 +237,16 @@ import Layout from "../layouts/Layout.astro";
           const act = target.dataset.act;
           if (!act) return;
           if (act === "remove") {
-            await client.mutation(api.cart.removeItem, {
-              sessionId: sessionId as any,
+            await authedClient.mutation(api.cart.removeItem, {
               index: it.index,
             });
           } else if (act === "inc") {
-            await client.mutation(api.cart.updateQuantity, {
-              sessionId: sessionId as any,
+            await authedClient.mutation(api.cart.updateQuantity, {
               index: it.index,
               quantity: it.quantity + 1,
             });
           } else if (act === "dec" && it.quantity > 1) {
-            await client.mutation(api.cart.updateQuantity, {
-              sessionId: sessionId as any,
+            await authedClient.mutation(api.cart.updateQuantity, {
               index: it.index,
               quantity: it.quantity - 1,
             });
@@ -290,10 +288,14 @@ import Layout from "../layouts/Layout.astro";
     // — otherwise we'd be looking at the cached subscription keyed off the
     // old arg and wouldn't see new totals until a full reload.
     artworkLookup = (await client.query(api.artworks.getLookup, {})) ?? {};
-    let currency: Currency = await ensureCurrencyForSession(client, sessionId);
-    let cartUnsub = client.onUpdate(
+    // Currency still lives on the session — use the session client for lookup.
+    let currency: Currency = sessionId
+      ? await ensureCurrencyForSession(client, sessionId)
+      : "usd";
+    // Cart queries are user-scoped — use the authed client, no sessionId arg.
+    let cartUnsub = authedClient.onUpdate(
       api.cart.getWithProducts,
-      { sessionId: sessionId as any, currency },
+      { currency },
       showEmptyOrItems,
     );
     onCurrencyChange((next) => {
@@ -302,9 +304,9 @@ import Layout from "../layouts/Layout.astro";
       // newly priced cart (totals are denominated in the new currency).
       viewCartFired = false;
       cartUnsub();
-      cartUnsub = client.onUpdate(
+      cartUnsub = authedClient.onUpdate(
         api.cart.getWithProducts,
-        { sessionId: sessionId as any, currency },
+        { currency },
         showEmptyOrItems,
       );
     });
@@ -323,7 +325,9 @@ import Layout from "../layouts/Layout.astro";
         });
       }
       try {
-        const url = await client.action(api.payments.createCheckoutSession, {
+        // createCheckoutSession resolves the buyer from auth; sessionId only
+        // carries the preferred currency forward. Must use the authed client.
+        const url = await authedClient.action(api.payments.createCheckoutSession, {
           sessionId: sessionId as any,
           successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: `${window.location.origin}/cart?canceled=1`,

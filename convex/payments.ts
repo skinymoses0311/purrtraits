@@ -7,6 +7,7 @@ import Stripe from "stripe";
 import type { Id } from "./_generated/dataModel";
 import { formatProductDescription } from "./productCopy";
 import { SHIPPING_CENTS_BY_CURRENCY } from "./currency";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Indexed-access type lookup: Stripe SDK 22.x re-exports SessionCreateParams
 // as a type alias in Checkout/index.d.ts, which strips the companion
@@ -46,8 +47,20 @@ export const createCheckoutSession = action({
     cancelUrl: v.string(),
   },
   handler: async (ctx, { sessionId, successUrl, cancelUrl }): Promise<string> => {
+    // Resolve the buyer's userId from auth — required for user-scoped cart lookup.
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Currency still comes from the session (footer toggle). The session row
+    // persists for anonymous → signed-in users and is still valid here.
+    const sessionDoc = await ctx.runQuery(internal.sessions.getInternal, {
+      id: sessionId,
+    });
+    const preferredCurrency = sessionDoc?.preferredCurrency;
+
     const cart = await ctx.runQuery(internal.cart.getInternalForCheckout, {
-      sessionId,
+      userId,
+      currency: preferredCurrency,
     });
     if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
@@ -82,7 +95,9 @@ export const createCheckoutSession = action({
       line_items: lineItems,
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { convexSessionId: sessionId },
+      // convexSessionId kept for legacy webhook compatibility; convexUserId is
+      // the authoritative key for clearing the user-scoped cart post-payment.
+      metadata: { convexSessionId: sessionId, convexUserId: userId },
     };
 
     if (hasPhysical) {
@@ -202,14 +217,12 @@ export const handleStripeWebhook = internalAction({
         });
       }
 
-      // Clear the cart on the originating Convex session so refreshing the
-      // app doesn't show stale lines.
-      const convexSessionId = session.metadata?.convexSessionId as
-        | Id<"sessions">
-        | undefined;
-      if (convexSessionId) {
+      // Clear the user-scoped cart after payment. convexUserId is stamped on
+      // new checkouts; gracefully skip if missing (e.g. very old sessions).
+      const convexUserId = session.metadata?.convexUserId as string | undefined;
+      if (convexUserId) {
         await ctx.runMutation(internal.cart.clearInternal, {
-          sessionId: convexSessionId,
+          userId: convexUserId,
         });
       }
 

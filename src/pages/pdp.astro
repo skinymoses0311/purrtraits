@@ -78,7 +78,7 @@ import ProductPreview from "../components/ProductPreview.astro";
 
 <script>
   import { makeClient, getSessionId, requireOrRedirect, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
-  import { isSignedIn } from "../lib/authStorage.ts";
+  import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { getStyleDisplay } from "../../convex/displayLabels.ts";
   import { formatProductDescription } from "../../convex/productCopy.ts";
@@ -385,8 +385,9 @@ import ProductPreview from "../components/ProductPreview.astro";
         buy.textContent = "Adding…";
         const product = findProduct();
         try {
-          await client.mutation(api.cart.addItem, {
-            sessionId: sessionId as any,
+          // Cart is user-scoped — must use authed client (no sessionId needed).
+          const authedClient = makeAuthedClient();
+          await authedClient.mutation(api.cart.addItem, {
             productId: productId as any,
             // printFileUrl is the high-res print version (or display fallback);
             // displayUrl is the small UI version used for cart thumbs.
