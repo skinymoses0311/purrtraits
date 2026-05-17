@@ -136,23 +136,51 @@ import ProductPreview from "../components/ProductPreview.astro";
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
   } else {
-    const [session, artworkLookup] = await Promise.all([
+    // All four fetches are independent — fire them together so PDP first
+    // paint waits on one RTT, not four. `ensureCurrencyForSession` only
+    // needs the sessionId (already in hand), not the session document, so
+    // it parallelises cleanly. Products are fetched per-format so the PDP
+    // only pulls the SKUs it'll actually render at load (digital — the
+    // default selected tab); other formats lazy-load on tab switch below.
+    const [session, artworkLookup, digitalProducts, initialCurrency] = await Promise.all([
       client.query(api.sessions.get, { id: sessionId as any }),
       // Loaded eagerly so Tab 3 compound style keys render with their
       // artwork title + placement label (e.g. "The Starry Night — On the
       // hilltop") wherever PDP touches `style`.
       client.query(api.artworks.getLookup, {}),
+      client.query(api.products.listByFormat, { format: "digital" }),
+      ensureCurrencyForSession(client, sessionId),
     ]);
     if (!session?.selectedStyle || !session.generations) {
       window.location.href = "/reveal";
     } else {
-      const products = await client.query(api.products.list, {});
+      // Per-format product cache. Digital arrived in the initial parallel
+      // batch above; the rest populate on first tab click and stick around
+      // for the remainder of the page.
+      const productsByFormat: Partial<Record<Format, any[]>> = {
+        digital: digitalProducts as any[],
+      };
+      const formatLoaders: Partial<Record<Format, Promise<any[]>>> = {};
+      function loadFormat(f: Format): Promise<any[]> {
+        const cached = productsByFormat[f];
+        if (cached) return Promise.resolve(cached);
+        if (!formatLoaders[f]) {
+          formatLoaders[f] = (async () => {
+            const ps = (await client.query(api.products.listByFormat, {
+              format: f,
+            })) as any[];
+            productsByFormat[f] = ps;
+            return ps;
+          })();
+        }
+        return formatLoaders[f]!;
+      }
 
       // Resolve buyer's currency once (auto-detect on first visit, sticky
       // afterwards), then keep `currency` in scope so render() and the
       // ecommerce events all read the same value. Currency-change events
       // from the footer toggle re-run render().
-      let currency: Currency = await ensureCurrencyForSession(client, sessionId);
+      let currency: Currency = initialCurrency;
       onCurrencyChange((next) => {
         currency = next;
         render();
@@ -230,9 +258,10 @@ import ProductPreview from "../components/ProductPreview.astro";
       let frame: Frame = "natural-wood";
 
       function findProduct() {
-        return products.find(
+        const ps = productsByFormat[format];
+        if (!ps) return null;
+        return ps.find(
           (p: any) =>
-            p.format === format &&
             (format === "digital" || p.size === size) &&
             (format !== "framed" || p.frame === frame),
         ) as any;
@@ -258,6 +287,14 @@ import ProductPreview from "../components/ProductPreview.astro";
           tab.textContent = FORMAT_LABELS[f];
           tab.addEventListener("click", () => {
             format = f;
+            // Kick off the fetch for this format if we haven't loaded it
+            // yet, and re-render once it lands (only if the user hasn't
+            // moved on to another tab in the meantime).
+            if (!productsByFormat[f]) {
+              loadFormat(f).then(() => {
+                if (format === f) render();
+              });
+            }
             render();
           });
           formats.appendChild(tab);
@@ -309,8 +346,15 @@ import ProductPreview from "../components/ProductPreview.astro";
           format === "digital" ? "✓ Instant download" : "✓ Worldwide shipping";
 
         // Price + buy state
+        const formatLoading = !productsByFormat[format];
         const cents = product ? unitPriceCents(product) : null;
-        if (product && cents !== null) {
+        if (formatLoading) {
+          // Lazy-loading this format's SKUs — show a placeholder rather
+          // than flashing "Out of stock" before the data arrives.
+          price.textContent = "—";
+          buy.disabled = true;
+          buy.textContent = "Loading…";
+        } else if (product && cents !== null) {
           price.textContent = formatMoney(cents, currency);
           buy.disabled = false;
           buy.textContent = "Add to cart";

@@ -12,6 +12,24 @@ export const list = query({
   },
 });
 
+export const listByFormat = query({
+  args: {
+    format: v.union(
+      v.literal("digital"),
+      v.literal("poster"),
+      v.literal("framed"),
+      v.literal("canvas"),
+    ),
+  },
+  handler: async (ctx, { format }) => {
+    return await ctx.db
+      .query("products")
+      .withIndex("by_format", (q) => q.eq("format", format))
+      .filter((q) => q.eq(q.field("active"), true))
+      .collect();
+  },
+});
+
 export const getInternal = internalQuery({
   args: { id: v.id("products") },
   handler: async (ctx, { id }) => {

@@ -287,11 +287,17 @@ import Layout from "../layouts/Layout.astro";
     // and reopen it with the new currency arg so prices update immediately
     // — otherwise we'd be looking at the cached subscription keyed off the
     // old arg and wouldn't see new totals until a full reload.
-    artworkLookup = (await client.query(api.artworks.getLookup, {})) ?? {};
-    // Currency still lives on the session — use the session client for lookup.
-    let currency: Currency = sessionId
-      ? await ensureCurrencyForSession(client, sessionId)
-      : "usd";
+    // artworks.getLookup and ensureCurrencyForSession are independent —
+    // fire them together so cart first paint waits on one RTT, not two.
+    const [lookup, resolvedCurrency] = await Promise.all([
+      client.query(api.artworks.getLookup, {}),
+      // Currency still lives on the session — use the session client for lookup.
+      sessionId
+        ? ensureCurrencyForSession(client, sessionId)
+        : Promise.resolve("usd" as Currency),
+    ]);
+    artworkLookup = lookup ?? {};
+    let currency: Currency = resolvedCurrency;
     // Cart queries are user-scoped — use the authed client, no sessionId arg.
     let cartUnsub = authedClient.onUpdate(
       api.cart.getWithProducts,

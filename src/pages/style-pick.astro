@@ -215,6 +215,16 @@ const SKELETON_COUNT = 10;
   if (!requireOrRedirect(sessionId, "/upload")) {
     // redirected
   } else {
+    // Tab 3 catalog queries are independent of session.get — kick them off
+    // in parallel so the listForPicker / popularForPicker round-trips
+    // overlap with the session fetch instead of waiting for it to settle.
+    // The consumer below still patches into the artwork tab when these
+    // resolve; awaiting the session first only blocks the styles/artists
+    // grids, which don't need this data.
+    const artworkCatalogPromise = Promise.all([
+      client.query(api.artworks.listForPicker, {}),
+      client.query(api.artworks.popularForPicker, {}),
+    ]);
     const session = await client.query(api.sessions.get, { id: sessionId as any });
     if (!session?.quizAnswers) {
       window.location.href = session?.petPhotoUrls?.length ? "/quiz" : "/upload";
@@ -661,13 +671,10 @@ const SKELETON_COUNT = 10;
         });
       });
 
-      // Tab 3 catalog — fetched in parallel with the rest of page boot. Uses
-      // the picker query (returns thumb URLs only) and the popular query
-      // (top 6 by clickCount).
-      Promise.all([
-        client.query(api.artworks.listForPicker, {}),
-        client.query(api.artworks.popularForPicker, {}),
-      ])
+      // Tab 3 catalog — kicked off above in parallel with session.get so
+      // the picker + popular round-trips overlap with the session fetch.
+      // Patches into the artwork tab here once both resolve.
+      artworkCatalogPromise
         .then(([list, popular]) => {
           artworkCatalog = (list as PickerArtwork[]) ?? [];
           popularArtworks = (popular as PickerArtwork[]) ?? [];
