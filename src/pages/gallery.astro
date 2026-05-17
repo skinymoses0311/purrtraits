@@ -641,49 +641,64 @@ import Layout from "../layouts/Layout.astro";
     noresults.hidden = true;
 
     grid.innerHTML = "";
+    let renderFailures = 0;
     visible.forEach((it, index) => {
-      const card = document.createElement("article");
-      card.className = "g-card";
-      const aesthetic = resolveAesthetic(it.style);
-      const titleText = it.petName ? `${it.petName} · ${aesthetic.label}` : aesthetic.label;
-      const activityLabel = it.activity ? ACTIVITY_LABEL(it.activity) : "";
-      const moodLabel = it.mood ? MOOD_LABEL(it.mood) : "";
-      const showMood = moodLabel && moodLabel !== activityLabel;
-      const tags =
-        activityLabel || showMood
-          ? `<div class="g-card__tags">
-               ${activityLabel ? `<span class="g-card__tag">${escapeHtml(activityLabel)}</span>` : ""}
-               ${showMood ? `<span class="g-card__tag">${escapeHtml(moodLabel)}</span>` : ""}
-             </div>`
-          : "";
-      // Don't set width/height attrs — the CSS on .g-card__img already
-      // enforces `aspect-ratio: 3/4` so the browser reserves card height
-      // before the image loads. An explicit `height` attribute would win
-      // over the CSS aspect-ratio and stretch every card to 800px tall.
-      const isAboveFold = index < ABOVE_FOLD_COUNT;
-      const fetchPriority = isAboveFold ? "high" : "low";
-      // Non-breaking space placeholder keeps the price row height stable
-      // while products + currency are still resolving in the background.
-      const priceHtml = fromLabel ? escapeHtml(fromLabel) : "&nbsp;";
-      card.innerHTML = `
-        <div class="g-card__media protected-wrap is-loading is-loading--hero">
-          <img src="${it.imageUrl}" alt="" class="g-card__img protected-img is-loading-img" decoding="async" fetchpriority="${fetchPriority}" />
-          <div class="g-card__hover">🔍 Preview</div>
-          ${tags}
-        </div>
-        <div class="g-card__body">
-          <div class="g-card__row">
-            <div>
-              <p class="g-card__title">${escapeHtml(titleText)}</p>
-              <p class="g-card__sub">Pick your format</p>
-            </div>
-            <p class="g-card__price">${priceHtml}</p>
+      try {
+        const card = document.createElement("article");
+        card.className = "g-card";
+        const aesthetic = resolveAesthetic(it.style);
+        const titleText = it.petName ? `${it.petName} · ${aesthetic.label}` : aesthetic.label;
+        const activityLabel = it.activity ? ACTIVITY_LABEL(it.activity) : "";
+        const moodLabel = it.mood ? MOOD_LABEL(it.mood) : "";
+        const showMood = moodLabel && moodLabel !== activityLabel;
+        const tags =
+          activityLabel || showMood
+            ? `<div class="g-card__tags">
+                 ${activityLabel ? `<span class="g-card__tag">${escapeHtml(activityLabel)}</span>` : ""}
+                 ${showMood ? `<span class="g-card__tag">${escapeHtml(moodLabel)}</span>` : ""}
+               </div>`
+            : "";
+        // Don't set width/height attrs — the CSS on .g-card__img already
+        // enforces `aspect-ratio: 3/4` so the browser reserves card height
+        // before the image loads. An explicit `height` attribute would win
+        // over the CSS aspect-ratio and stretch every card to 800px tall.
+        const isAboveFold = index < ABOVE_FOLD_COUNT;
+        const fetchPriority = isAboveFold ? "high" : "low";
+        // Non-breaking space placeholder keeps the price row height stable
+        // while products + currency are still resolving in the background.
+        const priceHtml = fromLabel ? escapeHtml(fromLabel) : "&nbsp;";
+        // Image URL goes inside an HTML attribute — escape it so a stray
+        // quote / ampersand in a Convex storage URL can't truncate the src
+        // (or, worse, break the entire forEach loop on a single bad row).
+        const safeImageUrl = escapeHtml(it.imageUrl ?? "");
+        card.innerHTML = `
+          <div class="g-card__media protected-wrap is-loading is-loading--hero">
+            <img src="${safeImageUrl}" alt="" class="g-card__img protected-img is-loading-img" decoding="async" fetchpriority="${fetchPriority}" />
+            <div class="g-card__hover">🔍 Preview</div>
+            ${tags}
           </div>
-          <button class="btn btn--primary g-card__buy" data-i="${it._index}">Buy this one</button>
-        </div>
-      `;
-      grid.appendChild(card);
+          <div class="g-card__body">
+            <div class="g-card__row">
+              <div>
+                <p class="g-card__title">${escapeHtml(titleText)}</p>
+                <p class="g-card__sub">Pick your format</p>
+              </div>
+              <p class="g-card__price">${priceHtml}</p>
+            </div>
+            <button class="btn btn--primary g-card__buy" data-i="${it._index}">Buy this one</button>
+          </div>
+        `;
+        grid.appendChild(card);
+      } catch (err) {
+        // One malformed item shouldn't blank the entire gallery — log it
+        // and continue so the other 124 cards still render.
+        renderFailures++;
+        console.error("[gallery] failed to render card", { index, item: it, err });
+      }
     });
+    if (renderFailures > 0) {
+      console.warn(`[gallery] ${renderFailures} card(s) failed to render`);
+    }
 
     disableImageGrabbers(grid);
     attachImageLoading(grid);
