@@ -25,12 +25,46 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import dns from "node:dns";
+import { promisify } from "node:util";
 import sharp from "sharp";
 import { ConvexHttpClient } from "convex/browser";
 import { config as loadEnv } from "dotenv";
 
 import { ARTWORKS_CATALOG, type CatalogArtwork } from "../convex/artworksCatalog.js";
 import { api } from "../convex/_generated/api.js";
+
+// ─── DNS resilience ────────────────────────────────────────────────────────
+// Some networks' OS resolver intermittently times out on *.convex.cloud
+// (IPv6-only host behind Cloudflare). `dns.resolve*` uses Node's bundled
+// c-ares — it talks straight to the configured servers and bypasses the OS
+// resolver entirely. Mirrors the override in scripts/matrix-render.ts.
+dns.setServers(["1.1.1.1", "8.8.8.8", "1.0.0.1"]);
+const resolve4 = promisify(dns.resolve4.bind(dns));
+const resolve6 = promisify(dns.resolve6.bind(dns));
+const systemLookup = dns.lookup;
+// @ts-expect-error — deliberately overriding the built-in lookup.
+dns.lookup = (hostname: string, options: any, callback: any): void => {
+  const cb = typeof options === "function" ? options : callback;
+  const opts = (typeof options === "function" ? {} : options) ?? {};
+  (async () => {
+    try {
+      let v4: string[] = [];
+      let v6: string[] = [];
+      try { v4 = await resolve4(hostname); } catch { /* none */ }
+      try { v6 = await resolve6(hostname); } catch { /* none */ }
+      const all = [
+        ...v4.map((address) => ({ address, family: 4 })),
+        ...v6.map((address) => ({ address, family: 6 })),
+      ];
+      if (all.length === 0) throw new Error(`no DNS records for ${hostname}`);
+      if (opts.all) cb(null, all);
+      else cb(null, all[0].address, all[0].family);
+    } catch {
+      systemLookup(hostname, options, callback);
+    }
+  })();
+};
 
 // ─── Tunables ───────────────────────────────────────────────────────────────
 const THUMB_LONG_EDGE = 600;
