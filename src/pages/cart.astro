@@ -71,13 +71,14 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { makeClient, getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
+  import { getSessionId, disableImageGrabbers, attachImageLoading } from "../lib/client.ts";
   import { isSignedIn, makeAuthedClient } from "../lib/authStorage.ts";
   import { api } from "../../convex/_generated/api.js";
   import { track, trackEcommerce } from "../lib/analytics.ts";
   import { getStyleDisplay, type ArtworkLookup } from "../../convex/displayLabels.ts";
   import {
     ensureCurrencyForSession,
+    getCachedCurrency,
     onCurrencyChange,
     formatMoney,
     type Currency,
@@ -164,8 +165,9 @@ import Layout from "../layouts/Layout.astro";
 
   // Cart is user-scoped — always show it for signed-in users (auth gate above).
   // sessionId is still needed for currency lookup and createCheckoutSession.
+  // One authed client for everything: avoids a second WebSocket (the unauthed
+  // queries — artworks, currency mutation — don't mind a token being attached).
   {
-    const client = makeClient();
     const authedClient = makeAuthedClient();
 
     function showEmptyOrItems(cart: any) {
@@ -281,29 +283,52 @@ import Layout from "../layouts/Layout.astro";
       attachImageLoading();
     }
 
-    // Pass the buyer's currency along with the cart query so the server
-    // reprices subtotal/shipping/total in the resolved currency. When the
-    // user toggles currency in the footer, tear down the live subscription
-    // and reopen it with the new currency arg so prices update immediately
-    // — otherwise we'd be looking at the cached subscription keyed off the
-    // old arg and wouldn't see new totals until a full reload.
-    // artworks.getLookup and ensureCurrencyForSession are independent —
-    // fire them together so cart first paint waits on one RTT, not two.
-    const [lookup, resolvedCurrency] = await Promise.all([
-      client.query(api.artworks.getLookup, {}),
-      // Currency still lives on the session — use the session client for lookup.
-      sessionId
-        ? ensureCurrencyForSession(client, sessionId)
-        : Promise.resolve("usd" as Currency),
-    ]);
-    artworkLookup = lookup ?? {};
-    let currency: Currency = resolvedCurrency;
-    // Cart queries are user-scoped — use the authed client, no sessionId arg.
+    // Open the cart subscription IMMEDIATELY using the cached currency, so the
+    // first paint of the cart waits on one RTT (the cart query) rather than
+    // being chained behind artwork lookup + geo/currency resolution.
+    //
+    // Artworks load in parallel and only affect Tab 3 (Famous Art) label
+    // rendering — built-in label maps cover the other tabs, so the brief
+    // window where artworkLookup is empty is invisible for most carts.
+    //
+    // Currency: we open with whatever is cached locally (defaulting to USD)
+    // and only re-subscribe if the authoritative session-resolved currency
+    // turns out to differ — a fresh visitor whose /api/geo picks a non-USD
+    // currency on first cart visit.
+    let currency: Currency = getCachedCurrency() ?? "usd";
     let cartUnsub = authedClient.onUpdate(
       api.cart.getWithProducts,
       { currency },
       showEmptyOrItems,
     );
+
+    // Artwork lookup → re-render if a cart already arrived so Tab 3 rows
+    // pick up their nicer labels without waiting for the next mutation.
+    authedClient
+      .query(api.artworks.getLookup, {})
+      .then((lookup) => {
+        artworkLookup = lookup ?? {};
+        if (latestCart) showEmptyOrItems(latestCart);
+      })
+      .catch(() => { /* leave lookup empty — labels fall back to raw keys */ });
+
+    // Currency resolution in parallel. If the authoritative value differs
+    // from what we opened with, swap the subscription so totals reprice.
+    (sessionId
+      ? ensureCurrencyForSession(authedClient, sessionId)
+      : Promise.resolve("usd" as Currency)
+    ).then((resolved) => {
+      if (resolved === currency) return;
+      currency = resolved;
+      viewCartFired = false;
+      cartUnsub();
+      cartUnsub = authedClient.onUpdate(
+        api.cart.getWithProducts,
+        { currency },
+        showEmptyOrItems,
+      );
+    });
+
     onCurrencyChange((next) => {
       currency = next;
       // Reset the once-per-page latch so we re-emit view_cart with the
