@@ -424,6 +424,10 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
     align-items: start;
   }
   .ed-article { min-width: 0; }
+  /* The sidebar must stretch to the full row height (overriding the grid's
+     align-items: start) so the sticky child has room to travel as the long
+     article column scrolls past. */
+  .ed-aside { align-self: stretch; }
 
   .ed-intro {
     font-family: var(--blog-serif);
@@ -902,4 +906,78 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
     .ed-next__box { padding: 18px; }
     .ed-next__title { font-size: 24px; }
   }
+
 </style>
+
+<!-- Reveal rules are global on purpose: the .in class is added by JS at
+     runtime, and Astro's scoped-style hashing wouldn't match a class that
+     isn't present in the static markup. The .ed-* names are unique to this
+     template, so leaking is not a concern. -->
+<style is:global>
+  /* ── Scroll reveal — mirrors the design's IntersectionObserver ──
+     Structural blocks fade up; portraits (the framed/plate images) rise
+     with a faint scale, slightly delayed, so the image reads as settling
+     after its block arrives. The JS adds .in as each element enters.
+     Gated behind no-preference so reduced-motion users see everything at
+     rest immediately. */
+  @media (prefers-reduced-motion: no-preference) {
+    .ed-hero,
+    .ed-title,
+    .ed-article > *,
+    .ed-related,
+    .ed-next__box {
+      opacity: 0;
+      transform: translateY(28px);
+      transition:
+        opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: opacity, transform;
+    }
+    .ed-hero.in,
+    .ed-title.in,
+    .ed-article > .in,
+    .ed-related.in,
+    .ed-next__box.in {
+      opacity: 1;
+      transform: none;
+    }
+
+    .ed-hero__art,
+    .ed-plate__art,
+    .ed-rel__art {
+      opacity: 0;
+      transform: translateY(36px) scale(1.015);
+      transition:
+        opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.08s,
+        transform 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+    }
+    .ed-hero__art.in,
+    .ed-plate__art.in,
+    .ed-rel__art.in {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+</style>
+
+<script>
+  // Reveal-on-scroll, ported from the design host's IntersectionObserver.
+  // Initial hidden state lives in CSS (server-rendered) so there's no flash;
+  // here we just toggle .in as each target enters the viewport. Elements
+  // already in view on load fire immediately, giving the page its load-in.
+  const targets = document.querySelectorAll(
+    ".ed-hero, .ed-title, .ed-related, .ed-next__box, .ed-article > *, .ed-hero__art, .ed-plate__art, .ed-rel__art",
+  );
+  const obs = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          obs.unobserve(e.target);
+        }
+      }
+    },
+    { threshold: 0.08, rootMargin: "0px 0px -6% 0px" },
+  );
+  targets.forEach((el) => obs.observe(el));
+</script>
