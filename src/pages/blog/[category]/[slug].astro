@@ -1,6 +1,7 @@
 ---
 import Layout from "../../../layouts/Layout.astro";
 import PetArt from "../../../components/blog/PetArt.astro";
+import PlateArt from "../../../components/blog/PlateArt.astro";
 import { getCollection, getEntry, render } from "astro:content";
 
 // Only the "breeds" category has a full article template (the Editorial
@@ -42,7 +43,14 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
       </div>
       <div class="ed-hero__plate">
         <div class="ed-hero__art">
-          <PetArt id="ed-hero" variant={d.heroVariant} breed={d.heroBreed} />
+          <PlateArt
+            image={d.heroImage}
+            alt={d.heroAlt ?? `${d.title} ${d.subtitle}`}
+            id="ed-hero"
+            variant={d.heroVariant}
+            breed={d.heroBreed}
+            eager
+          />
         </div>
         <div class="ed-hero__ribbon">VOL. {d.volume} · NO. {d.issueNo}</div>
       </div>
@@ -106,7 +114,13 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
             d.plateTrial.plates.map((pl, i) => (
               <figure class="ed-plate">
                 <div class="ed-plate__art">
-                  <PetArt id={`ed-st${i}`} variant={pl.variant} breed={pl.breed} />
+                  <PlateArt
+                    image={pl.image}
+                    alt={pl.alt ?? `${pl.title} — ${pl.style}`}
+                    id={`ed-st${i}`}
+                    variant={pl.variant}
+                    breed={pl.breed}
+                  />
                 </div>
                 <figcaption class="ed-plate__cap">
                   <span>Plate {pl.no} · {pl.title}</span>
@@ -125,7 +139,13 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
         <div class="ed-fourth">
           <figure class="ed-plate">
             <div class="ed-plate__art ed-plate__art--45">
-              <PetArt id="ed-st-mem" variant={d.plateTrial.fourthPlate.plate.variant} breed={d.plateTrial.fourthPlate.plate.breed} />
+              <PlateArt
+                image={d.plateTrial.fourthPlate.plate.image}
+                alt={d.plateTrial.fourthPlate.plate.alt ?? d.plateTrial.fourthPlate.title}
+                id="ed-st-mem"
+                variant={d.plateTrial.fourthPlate.plate.variant}
+                breed={d.plateTrial.fourthPlate.plate.breed}
+              />
             </div>
             <figcaption class="ed-plate__cap">
               <span>Plate {d.plateTrial.fourthPlate.plate.no} · {d.plateTrial.fourthPlate.plate.title}</span>
@@ -157,7 +177,13 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
         <div class="ed-split">
           <figure class="ed-plate">
             <div class="ed-plate__art ed-plate__art--45">
-              <PetArt id="ed-pt1" variant={d.photoTips.plate.variant} breed={d.photoTips.plate.breed} />
+              <PlateArt
+                image={d.photoTips.plate.image}
+                alt={d.photoTips.plate.alt ?? d.photoTips.title}
+                id="ed-pt1"
+                variant={d.photoTips.plate.variant}
+                breed={d.photoTips.plate.breed}
+              />
             </div>
             <figcaption class="ed-plate__cap">
               <span>Plate {d.photoTips.plate.no} · {d.photoTips.plate.title}</span>
@@ -255,7 +281,12 @@ const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right 
             {d.related.map((r, i) => (
               <a class="ed-rel" href={r.href}>
                 <div class="ed-rel__art">
-                  <PetArt id={`ed-rel${i}`} variant={r.variant} />
+                  <PlateArt
+                    image={r.image}
+                    alt={r.alt ?? r.title}
+                    id={`ed-rel${i}`}
+                    variant={r.variant}
+                  />
                 </div>
                 <div class="ed-rel__kicker" style={`color:${colourMap[r.colour]};`}>{r.kicker}</div>
                 <div class="ed-rel__title">{r.title}</div>

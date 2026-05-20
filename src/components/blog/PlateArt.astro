@@ -1,0 +1,36 @@
+---
+// Renders a portrait for a blog plate. If the post supplies a real `image`
+// (an optimized asset resolved via the content collection's image() helper),
+// it renders an <Image>; otherwise it falls back to the generated PetArt SVG.
+// Either way it fills its aspect-ratio container with object-fit: cover.
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+import PetArt from "./PetArt.astro";
+
+interface Props {
+  image?: ImageMetadata;
+  alt?: string;
+  id: string;
+  variant?: number;
+  breed?: "pointy" | "floppy";
+  eager?: boolean; // hero passes true so it isn't lazy-loaded (LCP)
+}
+const { image, alt = "", id, variant = 0, breed, eager = false } = Astro.props;
+---
+
+{
+  image ? (
+    <Image src={image} alt={alt} class="plate-img" loading={eager ? "eager" : "lazy"} />
+  ) : (
+    <PetArt id={id} variant={variant} breed={breed} />
+  )
+}
+
+<style>
+  .plate-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+</style>

@@ -1,4 +1,4 @@
-import { defineCollection, reference, z } from "astro:content";
+import { defineCollection, reference, z, type SchemaContext } from "astro:content";
 import { glob } from "astro/loaders";
 
 // The five blog categories. Only "breeds" has a full article template for
@@ -13,19 +13,25 @@ export const BLOG_CATEGORIES = [
 ] as const;
 
 // A "plate" is one of the framed portraits shown in the plate-trial grid and
-// elsewhere. `variant` (0-6) selects a PetArt palette; `breed` nudges the ear
-// silhouette.
-const plate = z.object({
-  no: z.string(), // e.g. "14c"
-  title: z.string(), // e.g. "Oil on Canvas"
-  style: z.string(), // caption right-hand side, e.g. "heavy impasto · the recommendation"
-  variant: z.number().int().min(0).max(6).default(0),
-  breed: z.enum(["pointy", "floppy"]).optional(),
-});
+// elsewhere. Supply `image` to use a real (optimized) portrait; if omitted, the
+// template falls back to a generated PetArt SVG where `variant` (0-6) selects a
+// palette and `breed` nudges the ear silhouette. `alt` is the image's alt text.
+// A factory so the schema's `image()` helper (which resolves paths relative to
+// the post file and enables Astro's image optimization) is in scope.
+const plateSchema = (image: SchemaContext["image"]) =>
+  z.object({
+    no: z.string(), // e.g. "14c"
+    title: z.string(), // e.g. "Oil on Canvas"
+    style: z.string(), // caption right-hand side, e.g. "heavy impasto · the recommendation"
+    variant: z.number().int().min(0).max(6).default(0),
+    breed: z.enum(["pointy", "floppy"]).optional(),
+    image: image().optional(),
+    alt: z.string().optional(),
+  });
 
 const blog = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/blog" }),
-  schema: () =>
+  schema: ({ image }) =>
     z.object({
       // ── identity / meta ──────────────────────────────────────────
       category: z.enum(BLOG_CATEGORIES),
@@ -40,6 +46,10 @@ const blog = defineCollection({
       filedUnder: z.string().default("Breeds · Working dogs"),
 
       // ── hero ─────────────────────────────────────────────────────
+      // Supply heroImage for a real portrait; otherwise heroVariant/heroBreed
+      // drive the generated PetArt fallback.
+      heroImage: image().optional(),
+      heroAlt: z.string().optional(),
       heroVariant: z.number().int().min(0).max(6).default(5),
       heroBreed: z.enum(["pointy", "floppy"]).optional(),
       heroStyleCaption: z.string(), // "Painted in our Renaissance style"
@@ -63,13 +73,13 @@ const blog = defineCollection({
         kicker: z.string().default("THE PLATE TRIAL"),
         title: z.string(),
         intro: z.string(),
-        plates: z.array(plate),
+        plates: z.array(plateSchema(image)),
         analysis: z.array(z.string()),
         fourthPlate: z.object({
           kicker: z.string().default("THE FOURTH PLATE"),
           title: z.string(),
           body: z.string(),
-          plate: plate,
+          plate: plateSchema(image),
         }),
       }),
 
@@ -77,7 +87,7 @@ const blog = defineCollection({
       photoTips: z.object({
         kicker: z.string().default("PHOTOGRAPHY"),
         title: z.string(),
-        plate: plate,
+        plate: plateSchema(image),
         paragraphs: z.array(z.string()),
         relatedLabel: z.string(), // "Photographing a working dog →"
         relatedMeta: z.string(), // "(Photo Tips · 8 min)"
@@ -108,6 +118,8 @@ const blog = defineCollection({
             desc: z.string(),
             readTime: z.string(),
             variant: z.number().int().min(0).max(6).default(0),
+            image: image().optional(),
+            alt: z.string().optional(),
             colour: z.enum(["pinkDeep", "sage", "ochre"]).default("pinkDeep"),
             href: z.string().default("#"),
           }),
