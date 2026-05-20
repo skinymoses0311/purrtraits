@@ -1,0 +1,905 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import PetArt from "../../../components/blog/PetArt.astro";
+import { getCollection, getEntry, render } from "astro:content";
+
+// Only the "breeds" category has a full article template (the Editorial
+// Profile). Generate a page per breed post; other categories come later.
+export async function getStaticPaths() {
+  const posts = await getCollection("blog", (p) => p.data.category === "breeds");
+  return posts.map((post) => ({
+    params: { category: post.data.category, slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const d = post.data;
+
+const next = d.nextPost ? await getEntry(d.nextPost) : undefined;
+
+const colourMap = { pinkDeep: "#D88A9A", sage: "#9FB39A", ochre: "#D9A867" };
+
+// ToC is the five chapter titles in order.
+const toc = [
+  { roman: "I", title: d.distinctive.title },
+  { roman: "II", title: d.plateTrial.title },
+  { roman: "III", title: d.photoTips.title },
+  { roman: "IV", title: d.gifts.title },
+  { roman: "V", title: d.commission.title },
+];
+
+const romanFolio = (n: string, right: string) => ({ left: `CHAPTER ${n}`, right });
+---
+
+<Layout title={`${d.title} — Purrtraits`} description={d.excerpt} noindex={false}>
+  <article class="ed">
+    <!-- 1. HERO -->
+    <section class="ed-hero">
+      <div class="ed-hero__top">
+        <span class="ed-hero__story">THE COVER STORY · BREED SPOTLIGHT NO. {d.issueNo}</span>
+        <span class="ed-hero__style">{d.heroStyleCaption}</span>
+      </div>
+      <div class="ed-hero__plate">
+        <div class="ed-hero__art">
+          <PetArt id="ed-hero" variant={d.heroVariant} breed={d.heroBreed} />
+        </div>
+        <div class="ed-hero__ribbon">VOL. {d.volume} · NO. {d.issueNo}</div>
+      </div>
+      <div class="ed-hero__caption">
+        <span>{d.heroPlateCaption}</span>
+        <span>fig. 1</span>
+      </div>
+    </section>
+
+    <!-- 2. H1 + 3. META -->
+    <section class="ed-title">
+      <div class="ed-title__kicker">THE COVER STORY</div>
+      <h1 class="ed-title__h1">
+        {d.title}<br /><em>{d.subtitle}</em>
+      </h1>
+      <div class="ed-title__meta">
+        <div class="ed-meta">
+          <span class="ed-meta__avatar">{d.author.slice(0, 1)}</span>
+          <span class="ed-meta__name">{d.author}</span>
+          <span>·</span>
+          <span>{d.publishDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
+          <span>·</span>
+          <span>{d.readTime} read</span>
+        </div>
+        <div class="ed-title__filed">Filed under <em>{d.filedUnder}</em></div>
+      </div>
+    </section>
+
+    <!-- 4. Body + sticky sidebar -->
+    <div class="ed-body">
+      <div class="ed-article">
+        <!-- 5. Intro drop-cap -->
+        <p class="ed-intro" set:html={d.intro} />
+
+        <!-- §I Distinctive -->
+        <div class="ed-folio">
+          <span>{romanFolio("I", "DISTINCTIVE TRAITS · 02").left}</span><span>★</span><span>DISTINCTIVE TRAITS · 02</span>
+        </div>
+        <header class="ed-h2">
+          <div class="ed-h2__roman">· I ·</div>
+          <div class="ed-h2__kicker">{d.distinctive.kicker}</div>
+          <h2 class="ed-h2__title">{d.distinctive.title}</h2>
+        </header>
+        <div class="ed-cols">
+          {d.distinctive.paragraphs.map((p) => <p set:html={p} />)}
+        </div>
+
+        <!-- §II Plate trial -->
+        <div class="ed-folio">
+          <span>CHAPTER II</span><span>★</span><span>THE PLATE TRIAL · 04</span>
+        </div>
+        <header class="ed-h2">
+          <div class="ed-h2__roman">· II ·</div>
+          <div class="ed-h2__kicker">{d.plateTrial.kicker}</div>
+          <h2 class="ed-h2__title">{d.plateTrial.title}</h2>
+        </header>
+        <p class="ed-lede" set:html={d.plateTrial.intro} />
+
+        <div class="ed-plates">
+          {
+            d.plateTrial.plates.map((pl, i) => (
+              <figure class="ed-plate">
+                <div class="ed-plate__art">
+                  <PetArt id={`ed-st${i}`} variant={pl.variant} breed={pl.breed} />
+                </div>
+                <figcaption class="ed-plate__cap">
+                  <span>Plate {pl.no} · {pl.title}</span>
+                  <span>{pl.style}</span>
+                </figcaption>
+              </figure>
+            ))
+          }
+        </div>
+
+        <div class="ed-cols ed-cols--mt">
+          {d.plateTrial.analysis.map((p) => <p set:html={p} />)}
+        </div>
+
+        <!-- Fourth plate feature -->
+        <div class="ed-fourth">
+          <figure class="ed-plate">
+            <div class="ed-plate__art ed-plate__art--45">
+              <PetArt id="ed-st-mem" variant={d.plateTrial.fourthPlate.plate.variant} breed={d.plateTrial.fourthPlate.plate.breed} />
+            </div>
+            <figcaption class="ed-plate__cap">
+              <span>Plate {d.plateTrial.fourthPlate.plate.no} · {d.plateTrial.fourthPlate.plate.title}</span>
+              <span>{d.plateTrial.fourthPlate.plate.style}</span>
+            </figcaption>
+          </figure>
+          <div>
+            <div class="ed-fourth__kicker">{d.plateTrial.fourthPlate.kicker}</div>
+            <div class="ed-fourth__title">{d.plateTrial.fourthPlate.title}</div>
+            <p class="ed-fourth__body" set:html={d.plateTrial.fourthPlate.body} />
+          </div>
+        </div>
+
+        <!-- 8. Mid-article ad (leaderboard) -->
+        <div class="ed-ad ed-ad--leader">
+          <span class="ed-ad__label">ADVERTISEMENT</span>
+          <span class="ed-ad__txt">AdSense · 728 × 90</span>
+        </div>
+
+        <!-- §III Photo tips -->
+        <div class="ed-folio">
+          <span>CHAPTER III</span><span>★</span><span>PHOTO TIPS · 06</span>
+        </div>
+        <header class="ed-h2">
+          <div class="ed-h2__roman">· III ·</div>
+          <div class="ed-h2__kicker">{d.photoTips.kicker}</div>
+          <h2 class="ed-h2__title">{d.photoTips.title}</h2>
+        </header>
+        <div class="ed-split">
+          <figure class="ed-plate">
+            <div class="ed-plate__art ed-plate__art--45">
+              <PetArt id="ed-pt1" variant={d.photoTips.plate.variant} breed={d.photoTips.plate.breed} />
+            </div>
+            <figcaption class="ed-plate__cap">
+              <span>Plate {d.photoTips.plate.no} · {d.photoTips.plate.title}</span>
+              <span>{d.photoTips.plate.style}</span>
+            </figcaption>
+          </figure>
+          <div class="ed-prose">
+            {d.photoTips.paragraphs.map((p) => <p set:html={p} />)}
+            <p>
+              <a class="ed-link" href="#">{d.photoTips.relatedLabel}</a>
+              <span class="ed-link__meta">{d.photoTips.relatedMeta}</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- §IV Gifts -->
+        <div class="ed-folio">
+          <span>CHAPTER IV</span><span>★</span><span>AS GIFTS · 08</span>
+        </div>
+        <header class="ed-h2">
+          <div class="ed-h2__roman">· IV ·</div>
+          <div class="ed-h2__kicker">{d.gifts.kicker}</div>
+          <h2 class="ed-h2__title">{d.gifts.title}</h2>
+        </header>
+        <div class="ed-prose ed-prose--mt">
+          {d.gifts.paragraphs.map((p) => <p set:html={p} />)}
+        </div>
+
+        <!-- §V Commission CTA -->
+        <section class="ed-commission">
+          <div class="ed-commission__bg">
+            <PetArt id="ed-cta-bg" variant={d.heroVariant} breed={d.heroBreed} />
+          </div>
+          <div class="ed-commission__grid">
+            <div>
+              <div class="ed-commission__roman">· V ·</div>
+              <div class="ed-commission__kicker">COMMISSION</div>
+              <h2 class="ed-commission__title">{d.commission.title}</h2>
+              <p class="ed-commission__body" set:html={d.commission.body} />
+              <div class="ed-commission__cta">
+                <a href="/quiz" class="ed-btn ed-btn--pink">Take the style quiz →</a>
+                <a href="/upload" class="ed-btn ed-btn--ghost">Start a portrait →</a>
+              </div>
+              <div class="ed-commission__guarantee">{d.commission.guarantee}</div>
+            </div>
+            <div class="ed-commission__plates">
+              <div class="ed-commission__plates-h">SELECT A PLATE</div>
+              {
+                d.commission.plates.map((pl) => (
+                  <div class="ed-commission__plate">
+                    <span class="ed-commission__plate-name">{pl.name}</span>
+                    <span class="ed-commission__plate-price">{pl.price}</span>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="ed-aside">
+        <div class="ed-aside__sticky">
+          <nav class="ed-toc">
+            <div class="ed-toc__h">INSIDE THIS PROFILE</div>
+            {
+              toc.map((t, i) => (
+                <div class:list={["ed-toc__row", { "ed-toc__row--first": i === 0 }]}>
+                  <span class="ed-toc__roman">{t.roman}</span>
+                  <span class="ed-toc__title">{t.title}</span>
+                </div>
+              ))
+            }
+          </nav>
+          <div class="ed-ad ed-ad--mrec">
+            <span class="ed-ad__label">ADVERTISEMENT</span>
+            <span class="ed-ad__txt">AdSense · 300 × 250</span>
+          </div>
+          <div class="ed-studio">
+            <div class="ed-studio__kicker">FROM THE STUDIO</div>
+            <div class="ed-studio__title">Paint your dog in oil.</div>
+            <div class="ed-studio__body">Cotton canvas, oak frame, 60 × 90 cm. From £89.</div>
+            <a href="/upload" class="ed-studio__btn">Begin a portrait →</a>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 12. Related -->
+    {
+      d.related.length > 0 && (
+        <section class="ed-related">
+          <div class="ed-related__h">KEEP READING</div>
+          <div class="ed-related__grid">
+            {d.related.map((r, i) => (
+              <a class="ed-rel" href={r.href}>
+                <div class="ed-rel__art">
+                  <PetArt id={`ed-rel${i}`} variant={r.variant} />
+                </div>
+                <div class="ed-rel__kicker" style={`color:${colourMap[r.colour]};`}>{r.kicker}</div>
+                <div class="ed-rel__title">{r.title}</div>
+                <div class="ed-rel__desc">{r.desc}</div>
+                <div class="ed-rel__meta">{r.readTime.toUpperCase()} READ</div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <!-- Next post -->
+    {
+      next && (
+        <section class="ed-next">
+          <div class="ed-next__box">
+            <div>
+              <div class="ed-next__kicker">TURN THE PAGE →</div>
+              <div class="ed-next__title">{next.data.title}</div>
+              <div class="ed-next__sub">Next spotlight · {next.data.readTime}</div>
+            </div>
+            <a href={`/blog/${next.data.category}/${next.id}`} class="ed-btn ed-btn--pink">
+              Read {next.data.title} →
+            </a>
+          </div>
+        </section>
+      )
+    }
+  </article>
+</Layout>
+
+<style>
+  .ed {
+    --blog-ink: #1f1612;
+    --blog-paper: #f4ecdd;
+    --blog-rule: #d6c9ac;
+    --blog-mute: #6a5040;
+    --blog-pink: #e5a6b3;
+    --blog-pink-deep: #d88a9a;
+    --blog-pink-soft: #f5dde2;
+    --blog-serif: Georgia, "Times New Roman", serif;
+    background: var(--blog-paper);
+    color: var(--blog-ink);
+    font-family: var(--font-body);
+    display: block;
+  }
+  .ed :global(em) { font-style: italic; }
+  .ed a { color: inherit; }
+
+  /* ── Hero ───────────────────────────────────────────────── */
+  .ed-hero { padding: 32px 64px 0; }
+  .ed-hero__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .ed-hero__story {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--blog-mute);
+    font-weight: 700;
+  }
+  .ed-hero__style {
+    font-family: var(--blog-serif);
+    font-size: 14px;
+    font-style: italic;
+    color: var(--blog-mute);
+  }
+  .ed-hero__plate { position: relative; margin-top: 14px; }
+  .ed-hero__art { width: 100%; aspect-ratio: 16/9; overflow: hidden; }
+  .ed-hero__ribbon {
+    position: absolute;
+    top: 24px;
+    left: -12px;
+    background: var(--blog-pink);
+    color: #fff;
+    padding: 8px 22px 8px 14px;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 50%, 100% 100%, 0 100%);
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-weight: 700;
+  }
+  .ed-hero__caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 8px;
+    border-top: 1px solid var(--blog-ink);
+    font-family: var(--blog-serif);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--blog-mute);
+    gap: 8px;
+  }
+
+  /* ── Title ──────────────────────────────────────────────── */
+  .ed-title { padding: 48px 64px 0; }
+  .ed-title__kicker {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--blog-pink-deep);
+    font-weight: 700;
+  }
+  .ed-title__h1 {
+    font-family: var(--blog-serif);
+    font-weight: 400;
+    color: var(--blog-ink);
+    line-height: 0.95;
+    margin-top: 12px;
+    letter-spacing: -2px;
+    max-width: 1180px;
+    font-size: clamp(36px, 7vw, 104px);
+  }
+  .ed-title__meta {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid var(--blog-ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .ed-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--blog-mute);
+  }
+  .ed-meta__avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--blog-pink-soft);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--blog-serif);
+    font-size: 12px;
+    font-style: italic;
+    color: var(--blog-pink-deep);
+    font-weight: 600;
+  }
+  .ed-meta__name {
+    color: var(--blog-ink);
+    font-family: var(--blog-serif);
+    font-style: italic;
+    font-size: 13px;
+  }
+  .ed-title__filed {
+    font-family: var(--blog-serif);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--blog-mute);
+  }
+
+  /* ── Body grid ──────────────────────────────────────────── */
+  .ed-body {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 64px;
+    padding: 48px 64px 0;
+    align-items: start;
+  }
+  .ed-article { min-width: 0; }
+
+  .ed-intro {
+    font-family: var(--blog-serif);
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--blog-ink);
+    text-align: justify;
+  }
+  .ed-intro :global(.ed-dropcap),
+  .ed-intro::first-letter {
+    /* Drop-cap is applied via a wrapping span in content (.ed-dropcap). */
+  }
+  .ed-intro :global(.dropcap) {
+    font-family: var(--blog-serif);
+    font-size: 124px;
+    float: left;
+    line-height: 0.85;
+    color: var(--blog-pink);
+    margin-right: 12px;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  .ed-folio {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    color: var(--blog-ink);
+    padding-bottom: 14px;
+    margin: 56px 0 18px;
+    border-bottom: 1px solid var(--blog-ink);
+    font-weight: 600;
+  }
+
+  .ed-h2 { text-align: center; margin-top: 8px; }
+  .ed-h2__roman {
+    font-family: var(--blog-serif);
+    font-size: 18px;
+    color: var(--blog-pink-deep);
+    font-style: italic;
+  }
+  .ed-h2__kicker {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--blog-mute);
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .ed-h2__title {
+    font-family: var(--blog-serif);
+    font-size: clamp(34px, 5vw, 56px);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--blog-ink);
+    line-height: 1.02;
+    margin: 8px auto 0;
+    letter-spacing: -1px;
+    max-width: 920px;
+  }
+
+  .ed-cols {
+    column-count: 2;
+    column-gap: 48px;
+    font-family: var(--blog-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    color: #3a2a22;
+    text-align: justify;
+    margin-top: 28px;
+  }
+  .ed-cols--mt { margin-top: 32px; }
+  .ed-cols :global(p + p) { margin-top: 14px; }
+
+  .ed-lede {
+    font-family: var(--blog-serif);
+    font-size: 19px;
+    font-style: italic;
+    color: var(--blog-mute);
+    line-height: 1.55;
+    margin: 18px auto 0;
+    text-align: center;
+    max-width: 760px;
+  }
+
+  .ed-plates {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .ed-plate__art { aspect-ratio: 4/5; overflow: hidden; }
+  .ed-plate__art--45 { aspect-ratio: 4/5; }
+  .ed-plate__cap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--blog-serif);
+    font-size: 12px;
+    font-style: italic;
+    color: var(--blog-mute);
+    padding-top: 6px;
+    border-top: 1px solid var(--blog-rule);
+    gap: 8px;
+  }
+
+  .ed-fourth {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 48px;
+    align-items: center;
+  }
+  .ed-fourth__kicker {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--blog-mute);
+    font-weight: 700;
+  }
+  .ed-fourth__title {
+    font-family: var(--blog-serif);
+    font-size: 28px;
+    font-style: italic;
+    color: var(--blog-ink);
+    line-height: 1.15;
+    margin-top: 8px;
+    letter-spacing: -0.5px;
+  }
+  .ed-fourth__body {
+    font-family: var(--blog-serif);
+    font-size: 16px;
+    color: #3a2a22;
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+
+  .ed-split {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 48px;
+    align-items: start;
+  }
+  .ed-prose {
+    font-family: var(--blog-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    color: #3a2a22;
+    text-align: justify;
+  }
+  .ed-prose--mt { margin-top: 28px; }
+  .ed-prose :global(p + p) { margin-top: 12px; }
+
+  .ed-link {
+    color: var(--blog-pink-deep);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 4px;
+  }
+  .ed-link__meta {
+    color: var(--blog-mute);
+    font-style: italic;
+    margin-left: 8px;
+    font-size: 14px;
+  }
+
+  /* ── Commission CTA ─────────────────────────────────────── */
+  .ed-commission {
+    margin-top: 56px;
+    background: var(--blog-ink);
+    color: var(--blog-paper);
+    padding: 56px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ed-commission__bg {
+    position: absolute;
+    top: -30px;
+    right: -60px;
+    width: 520px;
+    height: 520px;
+    opacity: 0.18;
+  }
+  .ed-commission__grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 64px;
+  }
+  .ed-commission__roman {
+    font-family: var(--blog-serif);
+    font-size: 18px;
+    color: var(--blog-pink);
+    font-style: italic;
+  }
+  .ed-commission__kicker {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--blog-pink);
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .ed-commission__title {
+    font-family: var(--blog-serif);
+    font-size: clamp(38px, 5.5vw, 72px);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--blog-paper);
+    line-height: 0.95;
+    margin-top: 12px;
+    letter-spacing: -1.5px;
+    max-width: 680px;
+  }
+  .ed-commission__body {
+    font-family: var(--blog-serif);
+    font-size: 18px;
+    color: #d8c8b0;
+    line-height: 1.55;
+    margin-top: 18px;
+    max-width: 520px;
+    font-style: italic;
+  }
+  .ed-commission__cta {
+    display: flex;
+    gap: 14px;
+    margin-top: 28px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .ed-commission__guarantee {
+    font-size: 11px;
+    color: #a8978a;
+    margin-top: 14px;
+    letter-spacing: 1px;
+  }
+  .ed-commission__plates { align-self: end; }
+  .ed-commission__plates-h {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--blog-pink);
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #4a3a30;
+    margin-bottom: 10px;
+  }
+  .ed-commission__plate {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 12px 0;
+    border-bottom: 1px solid #4a3a30;
+  }
+  .ed-commission__plate-name {
+    font-family: var(--blog-serif);
+    font-size: 20px;
+    font-style: italic;
+    color: var(--blog-paper);
+  }
+  .ed-commission__plate-price { font-size: 12px; color: #a8978a; }
+
+  .ed-btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 14px 28px;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .ed-btn--pink { color: #fff; background: var(--blog-pink); border: none; }
+  .ed-btn--ghost { color: var(--blog-paper); background: transparent; border: 1px solid var(--blog-paper); font-weight: 600; }
+
+  /* ── Sidebar ────────────────────────────────────────────── */
+  .ed-aside__sticky {
+    position: sticky;
+    top: 88px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .ed-toc {
+    background: var(--blog-paper);
+    border: 2px solid var(--blog-ink);
+    padding: 18px 20px;
+  }
+  .ed-toc__h {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--blog-ink);
+    font-weight: 700;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--blog-ink);
+    margin-bottom: 8px;
+  }
+  .ed-toc__row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--blog-rule);
+  }
+  .ed-toc__row:last-child { border-bottom: none; }
+  .ed-toc__roman {
+    font-family: var(--blog-serif);
+    font-style: italic;
+    color: var(--blog-pink-deep);
+    font-size: 13px;
+    width: 24px;
+  }
+  .ed-toc__title {
+    flex: 1;
+    font-family: var(--blog-serif);
+    font-size: 13px;
+    font-style: italic;
+    color: #3a2a22;
+    line-height: 1.3;
+  }
+  .ed-toc__row--first .ed-toc__title { color: var(--blog-ink); }
+
+  .ed-studio {
+    border: 2px solid var(--blog-ink);
+    background: #fff;
+    padding: 18px;
+  }
+  .ed-studio__kicker {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--blog-mute);
+    font-weight: 700;
+  }
+  .ed-studio__title {
+    font-family: var(--blog-serif);
+    font-size: 20px;
+    font-style: italic;
+    color: var(--blog-ink);
+    line-height: 1.15;
+    margin-top: 8px;
+  }
+  .ed-studio__body {
+    font-size: 12px;
+    color: #3a2a22;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .ed-studio__btn {
+    display: block;
+    text-align: center;
+    margin-top: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--blog-pink);
+    border-radius: 999px;
+    padding: 10px;
+    letter-spacing: 1.5px;
+    text-decoration: none;
+  }
+
+  /* ── Ad slots ───────────────────────────────────────────── */
+  .ed-ad {
+    border: 1px dashed #b89f76;
+    background: rgba(212, 189, 150, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .ed-ad--leader { width: 100%; max-width: 728px; height: 90px; margin: 56px auto 0; }
+  .ed-ad--mrec { width: 100%; height: 250px; }
+  .ed-ad__label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: var(--blog-mute);
+  }
+  .ed-ad__txt { font-size: 11px; color: var(--blog-mute); font-style: italic; }
+
+  /* ── Related ────────────────────────────────────────────── */
+  .ed-related { padding: 72px 64px 0; }
+  .ed-related__h {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--blog-mute);
+    font-weight: 700;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--blog-ink);
+  }
+  .ed-related__grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+    margin-top: 24px;
+  }
+  .ed-rel { text-decoration: none; display: block; }
+  .ed-rel__art { aspect-ratio: 4/5; overflow: hidden; margin-bottom: 12px; }
+  .ed-rel__kicker { font-size: 10px; letter-spacing: 2px; font-weight: 700; }
+  .ed-rel__title {
+    font-family: var(--blog-serif);
+    font-size: 22px;
+    font-style: italic;
+    color: var(--blog-ink);
+    line-height: 1.1;
+    margin-top: 6px;
+  }
+  .ed-rel__desc {
+    font-family: var(--blog-serif);
+    font-size: 14px;
+    font-style: italic;
+    color: var(--blog-mute);
+    margin-top: 6px;
+  }
+  .ed-rel__meta { font-size: 10px; color: #8a7466; margin-top: 8px; letter-spacing: 1px; }
+
+  /* ── Next ───────────────────────────────────────────────── */
+  .ed-next { padding: 56px 64px 64px; }
+  .ed-next__box {
+    border: 2px solid var(--blog-ink);
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .ed-next__kicker { font-size: 10px; letter-spacing: 3px; color: var(--blog-mute); font-weight: 700; }
+  .ed-next__title {
+    font-family: var(--blog-serif);
+    font-size: 36px;
+    font-style: italic;
+    color: var(--blog-ink);
+    line-height: 1.05;
+    margin-top: 6px;
+  }
+  .ed-next__sub {
+    font-family: var(--blog-serif);
+    font-size: 15px;
+    font-style: italic;
+    color: var(--blog-mute);
+    margin-top: 4px;
+  }
+
+  /* ── Responsive ─────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .ed-hero,
+    .ed-title,
+    .ed-body,
+    .ed-related,
+    .ed-next { padding-left: 32px; padding-right: 32px; }
+    .ed-body { grid-template-columns: 1fr; gap: 40px; }
+    .ed-aside__sticky { position: static; }
+    .ed-related__grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 640px) {
+    .ed-hero,
+    .ed-title,
+    .ed-body,
+    .ed-related,
+    .ed-next { padding-left: 18px; padding-right: 18px; }
+    .ed-hero { padding-top: 18px; }
+    .ed-cols { column-count: 1; }
+    .ed-plates { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ed-fourth,
+    .ed-split { grid-template-columns: 1fr; gap: 18px; }
+    .ed-commission { padding: 32px 18px; }
+    .ed-commission__grid { grid-template-columns: 1fr; gap: 24px; }
+    .ed-commission__title { font-size: 38px; }
+    .ed-related__grid { grid-template-columns: 1fr; }
+    .ed-intro :global(.dropcap) { font-size: 72px; margin-right: 10px; }
+    .ed-next__box { padding: 18px; }
+    .ed-next__title { font-size: 24px; }
+  }
+</style>

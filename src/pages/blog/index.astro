@@ -1,0 +1,500 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import FramedPlate from "../../components/blog/FramedPlate.astro";
+import { getCollection } from "astro:content";
+
+// Real breed posts let us resolve the wall's breed-spotlight plates to live
+// article pages. Non-breed plates (photo tips, décor, etc.) have no template
+// yet, so they render as static plaques without a link.
+const posts = await getCollection("blog");
+const bySlug = new Map(posts.map((p) => [p.id, p]));
+const hrefFor = (slug?: string) =>
+  slug && bySlug.has(slug) ? `/blog/breeds/${slug}` : undefined;
+
+const categories = [
+  { label: "ALL · 12", active: true, colour: "#1F1612" },
+  { label: "BREEDS · 4", active: false, colour: "#D88A9A" },
+  { label: "PHOTO TIPS · 3", active: false, colour: "#9FB39A" },
+  { label: "HOME & DÉCOR · 2", active: false, colour: "#D9A867" },
+  { label: "GIFTS · 2", active: false, colour: "#D88A9A" },
+  { label: "PERSONALITY · 1", active: false, colour: "#9FB39A" },
+];
+---
+
+<Layout
+  title="The Wall — Purrtraits Blog"
+  description="A curated exhibit of breed spotlights, photo tips, décor and gift guides from the Purrtraits studio. Walk the room."
+>
+  <div class="gw">
+    <!-- Header -->
+    <section class="gw-head">
+      <div class="gw-head__eyebrow">THE QUARTERLY · A CURATED EXHIBIT · MAY MMXXVI</div>
+      <h1 class="gw-head__title"><em>The Wall.</em></h1>
+      <p class="gw-head__lede">
+        Twelve plates hung this season. Each is an article — on a breed, a photographic angle,
+        a wall to hang it on, a dog to commission a painting of. Walk the room.
+      </p>
+      <div class="gw-chips">
+        {
+          categories.map((c) => (
+            <button
+              class:list={["gw-chip", { "gw-chip--active": c.active }]}
+              style={`--chip-c:${c.colour};`}
+            >
+              {c.label}
+            </button>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- The Wall -->
+    <section class="gw-wall">
+      <div class="gw-rail"></div>
+
+      <!-- Row 1 — feature + two stacks -->
+      <div class="gw-row gw-row--1">
+        <FramedPlate
+          id="gw-1"
+          height={520}
+          wood="gold"
+          tilt={-0.5}
+          kicker="BREED SPOTLIGHT"
+          no="No. 14 · 11 min"
+          label="The Working Dog Who Looks Like It's Thinking."
+          dim="Tess, six years · Renaissance · oil"
+          variant={5}
+          breed="pointy"
+          href={hrefFor("border-collie")}
+        />
+        <div class="gw-stack">
+          <FramedPlate
+            id="gw-2"
+            height={260}
+            wood="natural"
+            tilt={0.3}
+            kicker="PHOTO TIPS"
+            no="No. 008 · 8 min"
+            label="Working dogs, mid-task."
+            variant={0}
+            breed="pointy"
+          />
+          <FramedPlate
+            id="gw-3"
+            height={220}
+            wood="white"
+            tilt={-0.4}
+            kicker="HOME & DÉCOR"
+            no="No. 022 · 6 min"
+            label="The limewash wall."
+            variant={6}
+          />
+        </div>
+        <div class="gw-stack">
+          <FramedPlate
+            id="gw-4"
+            height={300}
+            wood="dark"
+            tilt={0.5}
+            kicker="BREED SPOTLIGHT"
+            no="No. 13 · 7 min"
+            label="The Cocker Spaniel."
+            dim="Curls, ears, the right brush"
+            variant={4}
+            breed="floppy"
+            href={hrefFor("cocker-spaniel")}
+          />
+          <FramedPlate
+            id="gw-5"
+            height={180}
+            wood="natural"
+            tilt={-0.2}
+            kicker="GIFTS"
+            no="No. 022 · 5 min"
+            label="For the dog person who has it all."
+            variant={5}
+          />
+        </div>
+      </div>
+
+      <!-- Pull-quote -->
+      <figure class="gw-quote">
+        <div class="gw-quote__kicker">A NOTE FROM THE CURATOR</div>
+        <blockquote class="gw-quote__text">
+          "The right plate often becomes obvious only when you see the dog you know rendered in
+          a way you don't."
+        </blockquote>
+        <figcaption class="gw-quote__by">— Marcus Tate, on the cover story</figcaption>
+      </figure>
+
+      <!-- Row 2 — three, even -->
+      <div class="gw-row gw-row--2">
+        <FramedPlate
+          id="gw-6"
+          height={340}
+          wood="natural"
+          tilt={0.4}
+          kicker="PERSONALITY"
+          no="No. 011 · 6 min"
+          label="The dog who cannot stop fetching."
+          dim="Working lines on canvas"
+          variant={1}
+        />
+        <FramedPlate
+          id="gw-7"
+          height={400}
+          wood="gold"
+          tilt={-0.3}
+          kicker="BREED SPOTLIGHT"
+          no="No. 15 · 9 min"
+          label="The Whippet."
+          dim="A long argument for the long dog"
+          variant={1}
+          breed="pointy"
+          href={hrefFor("whippet")}
+        />
+        <FramedPlate
+          id="gw-8"
+          height={320}
+          wood="white"
+          tilt={0.5}
+          kicker="PHOTO TIPS"
+          no="No. 007 · 5 min"
+          label="Overcast light, twenty minutes after sunrise."
+          variant={2}
+        />
+      </div>
+
+      <!-- Row 3 — four small plates -->
+      <div class="gw-row gw-row--3">
+        <FramedPlate id="gw-r3-0" height={240} wood="natural" tilt={-0.3} kicker="HOME & DÉCOR" no="No. 021 · 5 min" label="Above the sofa, not the fireplace." variant={6} />
+        <FramedPlate id="gw-r3-1" height={240} wood="white" tilt={0.2} kicker="GIFTS" no="No. 021 · 3 min" label="A note for the wedding gift you forgot." variant={5} />
+        <FramedPlate id="gw-r3-2" height={240} wood="gold" tilt={-0.4} kicker="PERSONALITY" no="No. 010 · 4 min" label="The lap dog with the working dog's eyes." variant={4} />
+        <FramedPlate id="gw-r3-3" height={240} wood="dark" tilt={0.3} kicker="LETTERS" no="No. 025 · 4 min" label="On the Whippet, from a reader in Yorkshire." variant={3} />
+      </div>
+
+      <div class="gw-more">
+        <button class="gw-more__btn">WALK THE NEXT ROOM →</button>
+        <div class="gw-more__sub">134 more plates in the archive</div>
+      </div>
+    </section>
+
+    <!-- Commission strip -->
+    <section class="gw-commission">
+      <div>
+        <div class="gw-commission__kicker">FROM THE STUDIO</div>
+        <div class="gw-commission__title">A wall is only as good as the dog hanging on it.</div>
+        <p class="gw-commission__body">
+          Upload one photograph and commission a plate of your own. Painted, framed, posted within
+          seven days.
+        </p>
+      </div>
+      <div class="gw-commission__cta">
+        <a href="/quiz" class="gw-btn gw-btn--pink">Take the style quiz →</a>
+        <a href="/upload" class="gw-btn gw-btn--ghost">From £29 →</a>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .gw {
+    /* Editorial palette — distinct from the main-site tokens. */
+    --blog-ink: #1f1612;
+    --blog-paper: #f4ecdd;
+    --blog-wall: #e4d2b6;
+    --blog-pink: #e5a6b3;
+    --blog-mute: #6a5040;
+    --blog-serif: Georgia, "Times New Roman", serif;
+    background: var(--blog-wall);
+    color: var(--blog-ink);
+    font-family: var(--font-body);
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  .gw-head {
+    text-align: center;
+    padding: 56px 24px 24px;
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  .gw-head__eyebrow {
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: #5c4030;
+    font-weight: 700;
+  }
+  .gw-head__title {
+    font-family: var(--blog-serif);
+    font-weight: 400;
+    color: var(--blog-ink);
+    line-height: 0.98;
+    margin-top: 14px;
+    letter-spacing: -2.5px;
+    font-size: clamp(52px, 9vw, 96px);
+  }
+  .gw-head__title em { font-style: italic; }
+  .gw-head__lede {
+    font-family: var(--blog-serif);
+    font-style: italic;
+    color: #5c4030;
+    max-width: 680px;
+    margin: 18px auto 0;
+    line-height: 1.5;
+    font-size: clamp(14px, 2.2vw, 18px);
+  }
+  .gw-chips {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .gw-chip {
+    font-family: var(--font-body);
+    font-size: 11px;
+    letter-spacing: 1.8px;
+    font-weight: 700;
+    color: var(--chip-c);
+    background: transparent;
+    border: 1px solid var(--chip-c);
+    border-radius: 999px;
+    padding: 8px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .gw-chip--active {
+    color: #fff;
+    background: var(--blog-ink);
+    border-color: var(--blog-ink);
+  }
+
+  /* ── Wall ───────────────────────────────────────────────── */
+  .gw-wall {
+    position: relative;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 48px 40px 56px;
+  }
+  .gw-rail {
+    position: absolute;
+    top: 0;
+    left: 40px;
+    right: 40px;
+    height: 1px;
+    background: #9a7b58;
+    box-shadow: 0 2px 0 rgba(180, 140, 90, 0.3);
+  }
+  .gw-row {
+    display: grid;
+    gap: 56px;
+    align-items: start;
+  }
+  .gw-row--1 { grid-template-columns: 1.4fr 1fr 1fr; }
+  .gw-row--2 { grid-template-columns: 1fr 1.2fr 1fr; margin-top: 16px; }
+  .gw-row--3 { grid-template-columns: repeat(4, 1fr); gap: 40px; margin-top: 72px; }
+  .gw-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+
+  /* ── Pull-quote ─────────────────────────────────────────── */
+  .gw-quote {
+    margin: 80px auto 56px;
+    max-width: 880px;
+    text-align: center;
+    padding: 32px 0;
+    border-top: 1px solid #9a7b58;
+    border-bottom: 1px solid #9a7b58;
+  }
+  .gw-quote__kicker {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #5c4030;
+    font-weight: 700;
+  }
+  .gw-quote__text {
+    font-family: var(--blog-serif);
+    font-style: italic;
+    color: var(--blog-ink);
+    line-height: 1.25;
+    margin: 14px 0 0;
+    letter-spacing: -0.3px;
+    font-size: clamp(19px, 3.4vw, 30px);
+  }
+  .gw-quote__by {
+    font-family: var(--blog-serif);
+    font-size: 14px;
+    font-style: italic;
+    color: #5c4030;
+    margin-top: 14px;
+  }
+
+  /* ── More ───────────────────────────────────────────────── */
+  .gw-more {
+    text-align: center;
+    margin-top: 64px;
+  }
+  .gw-more__btn {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--blog-ink);
+    border: none;
+    border-radius: 999px;
+    padding: 14px 36px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  .gw-more__sub {
+    font-family: var(--blog-serif);
+    font-size: 13px;
+    font-style: italic;
+    color: #5c4030;
+    margin-top: 14px;
+  }
+
+  /* ── Commission strip ───────────────────────────────────── */
+  .gw-commission {
+    background: var(--blog-ink);
+    color: var(--blog-paper);
+    padding: 56px 40px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: center;
+  }
+  .gw-commission__kicker {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--blog-pink);
+    font-weight: 700;
+  }
+  .gw-commission__title {
+    font-family: var(--blog-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--blog-paper);
+    line-height: 1;
+    margin-top: 10px;
+    letter-spacing: -1.2px;
+    max-width: 760px;
+    font-size: clamp(30px, 4.6vw, 48px);
+  }
+  .gw-commission__body {
+    font-family: var(--blog-serif);
+    font-size: clamp(14px, 2vw, 16px);
+    color: #d8c8b0;
+    line-height: 1.55;
+    margin-top: 14px;
+    font-style: italic;
+    max-width: 620px;
+  }
+  .gw-commission__cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .gw-btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 14px 28px;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .gw-btn--pink { color: #fff; background: var(--blog-pink); border: none; }
+  .gw-btn--ghost { color: var(--blog-paper); background: transparent; border: 1px solid var(--blog-paper); font-weight: 600; }
+
+  /* ── Plate reveal + hover (progressive enhancement) ─────── */
+  .gw :global(.gw-plate) {
+    transform: translateY(48px) rotate(0deg);
+    opacity: 0;
+    transition:
+      opacity 1s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .gw :global(.gw-plate.in) {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--gw-tilt, 0deg));
+  }
+  .gw :global(.gw-frame) {
+    box-shadow:
+      0 24px 40px -16px rgba(40, 28, 16, 0.45),
+      0 6px 14px rgba(40, 28, 16, 0.22);
+    transition: box-shadow 0.35s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @media (hover: hover) {
+    .gw :global(a.gw-plate.in:hover) {
+      transform: translateY(-6px) rotate(calc(var(--gw-tilt, 0deg) * 0.3));
+      z-index: 2;
+    }
+    .gw :global(a.gw-plate.in:hover .gw-frame) {
+      box-shadow:
+        0 36px 60px -20px rgba(40, 28, 16, 0.55),
+        0 12px 24px rgba(40, 28, 16, 0.28);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gw :global(.gw-plate) {
+      opacity: 1 !important;
+      transform: rotate(var(--gw-tilt, 0deg)) !important;
+      transition: none !important;
+    }
+  }
+
+  /* ── Responsive collapse ────────────────────────────────── */
+  @media (max-width: 900px) {
+    .gw-head { padding: 32px 18px 12px; }
+    .gw-head__title { letter-spacing: -1.5px; }
+    .gw-head__lede { max-width: 100%; }
+    .gw-chips {
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      margin-top: 18px;
+      padding-bottom: 4px;
+    }
+    .gw-wall { padding: 24px 20px 0; }
+    .gw-rail { left: 20px; right: 20px; }
+    .gw-row,
+    .gw-row--1,
+    .gw-row--2,
+    .gw-row--3 {
+      grid-template-columns: 1fr;
+      gap: 36px;
+      margin-top: 36px;
+    }
+    .gw-stack { gap: 36px; }
+    .gw-quote { margin: 40px auto 32px; padding: 22px 0; }
+    .gw-commission {
+      grid-template-columns: 1fr;
+      padding: 32px 20px;
+      gap: 18px;
+    }
+  }
+</style>
+
+<script>
+  // Rise + hover reveal, mirroring the design's IntersectionObserver. Plates
+  // start translated/rotated-flat and settle into their tilt as they enter.
+  const obs = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          obs.unobserve(e.target);
+        }
+      }
+    },
+    { threshold: 0.06, rootMargin: "0px 0px -4% 0px" },
+  );
+  document.querySelectorAll(".gw-plate").forEach((el) => obs.observe(el));
+</script>

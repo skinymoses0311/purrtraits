@@ -1,0 +1,90 @@
+---
+// Painterly pet-portrait SVG — ported from the design bundle's brand-tokens.jsx
+// PetArt(). Deterministic from the seed so the same id+variant always paints
+// the same portrait. Used as the "art" inside every blog plate/frame.
+interface Props {
+  id?: string;
+  variant?: number;
+  breed?: "pointy" | "floppy" | "dog";
+  width?: string;
+  height?: string;
+}
+const {
+  id = "a",
+  variant = 0,
+  breed = "dog",
+  width = "100%",
+  height = "100%",
+} = Astro.props;
+
+const PALETTES = [
+  { sky: ["#D8E4DC", "#7FA88E"], ground: "#A8C078", fur: ["#3A2218", "#5C3A28", "#8A5A3C", "#C28A5C", "#A87248"] },
+  { sky: ["#F8C8A8", "#D8826E"], ground: "#9F6E48", fur: ["#3A2218", "#7A4A2A", "#C2966A", "#E8C896", "#5A3A28"] },
+  { sky: ["#3A3028", "#1A140E"], ground: "#3A2A1E", fur: ["#E8C896", "#C29464", "#8A5A38", "#5A3A20", "#2A1A10"] },
+  { sky: ["#F8D8A8", "#E89460"], ground: "#5AAFC8", fur: ["#1E1410", "#E83870", "#F8C840", "#3870D8", "#FFFFFF"] },
+  { sky: ["#F5E4D8", "#E8C0C8"], ground: "#C8D5B8", fur: ["#5C3A28", "#A87248", "#D8B098", "#8A5A3C", "#6B4830"] },
+  { sky: ["#9FB8D8", "#3A4868"], ground: "#5A6878", fur: ["#F8E8C8", "#C8A878", "#8A6850", "#4A3828", "#2A2018"] },
+  { sky: ["#E8B898", "#A85838"], ground: "#7A4830", fur: ["#FFFFFF", "#E8D8C8", "#A87858", "#6A4030", "#3A2018"] },
+];
+
+function seedRand(seed: number) {
+  let s = seed || 1;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+const P = PALETTES[variant % PALETTES.length];
+const rng = seedRand(7 + variant * 31 + id.charCodeAt(0));
+const dabs = Array.from({ length: 160 }, () => ({
+  cx: rng() * 100,
+  cy: rng() * 100,
+  rr: 0.7 + rng() * 1.6,
+  f: [P.ground, P.sky[1], P.sky[0], "#fff", P.fur[2]][Math.floor(rng() * 5)],
+  o: 0.4 + rng() * 0.4,
+}));
+const dogDabs = Array.from({ length: 140 }, () => ({
+  cx: 30 + rng() * 42,
+  cy: 42 + rng() * 42,
+  rr: 0.9 + rng() * 1.5,
+  f: P.fur[Math.floor(rng() * P.fur.length)],
+  o: 0.7 + rng() * 0.3,
+}));
+const earShape =
+  breed === "floppy"
+    ? "M 32 50 Q 28 64 36 72 L 42 70 Z M 68 50 Q 72 64 64 72 L 58 70 Z"
+    : breed === "pointy"
+      ? "M 36 44 L 32 30 L 44 42 Z M 64 44 L 68 30 L 56 42 Z"
+      : "";
+
+const skyId = `pa-sky-${id}`;
+const clipId = `pa-dog-${id}`;
+---
+
+<svg
+  viewBox="0 0 100 120"
+  preserveAspectRatio="xMidYMid slice"
+  style={`display:block; width:${width}; height:${height};`}
+  aria-hidden="true"
+>
+  <defs>
+    <linearGradient id={skyId} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color={P.sky[0]} />
+      <stop offset="100%" stop-color={P.sky[1]} />
+    </linearGradient>
+    <clipPath id={clipId}>
+      <path
+        d="M 38 70 Q 34 60 38 54 Q 35 48 39 45 L 43 49 Q 47 46 51 49 L 55 46 Q 60 47 62 53 Q 66 56 68 60 L 72 64 Q 76 70 70 74 L 64 78 Q 64 86 60 92 L 55 92 L 56 84 L 50 84 L 49 92 L 44 92 L 44 82 Q 38 78 38 70 Z"
+      ></path>
+    </clipPath>
+  </defs>
+  <rect width="100" height="120" fill={`url(#${skyId})`}></rect>
+  <rect y="78" width="100" height="42" fill={P.ground} opacity="0.78"></rect>
+  {dabs.map((d, i) => <circle key={`b${i}`} cx={d.cx} cy={d.cy} r={d.rr} fill={d.f} opacity={d.o} />)}
+  <g clip-path={`url(#${clipId})`}>
+    <rect x="30" y="40" width="50" height="60" fill={P.fur[1]}></rect>
+    {dogDabs.map((d, i) => <circle key={`d${i}`} cx={d.cx} cy={d.cy} r={d.rr} fill={d.f} opacity={d.o} />)}
+  </g>
+  {earShape && <path d={earShape} fill={P.fur[0]} opacity="0.95" />}
+</svg>

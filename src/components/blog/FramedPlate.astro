@@ -1,0 +1,116 @@
+---
+// A single "hung plate" for the Gallery Wall — a wood-framed PetArt portrait
+// with a museum plaque beneath. Ported from blog-home.jsx GW_Frame. The tilt
+// + rise/hover animation is driven by CSS in the homepage (.gw-plate).
+import PetArt from "./PetArt.astro";
+
+interface Props {
+  kicker: string;
+  no?: string;
+  label: string;
+  dim?: string;
+  height: number;
+  wood?: "natural" | "gold" | "white" | "dark";
+  tilt?: number;
+  variant?: number;
+  breed?: "pointy" | "floppy";
+  href?: string;
+  id: string;
+}
+const {
+  kicker,
+  no,
+  label,
+  dim,
+  height,
+  wood = "natural",
+  tilt = 0,
+  variant = 0,
+  breed,
+  href,
+  id,
+} = Astro.props;
+
+const frameBg = {
+  dark: "linear-gradient(135deg, #2a1810 0%, #3d2418 35%, #2a1810 70%, #1a0e08 100%)",
+  gold: "linear-gradient(135deg, #d4ad5e 0%, #b8893f 40%, #e6c684 70%, #9a7030 100%)",
+  white: "linear-gradient(135deg, #f4eee2 0%, #e8dfcc 50%, #d9cdb3 100%)",
+  natural: "linear-gradient(135deg, #d4b896 0%, #c19a6f 35%, #b8916a 70%, #a07d54 100%)",
+}[wood];
+
+const Tag = href ? "a" : "div";
+---
+
+<Tag
+  class="gw-plate"
+  data-plate
+  href={href}
+  style={`--gw-tilt:${tilt}deg;`}
+>
+  <div class="gw-frame" style={`height:${height}px; background:${frameBg};`}>
+    <div class="gw-frame__inner">
+      <PetArt id={id} variant={variant} breed={breed} />
+    </div>
+  </div>
+  <div class="gw-plaque">
+    <div class="gw-plaque__kicker">
+      {kicker}{no && <span class="gw-plaque__no"> · {no}</span>}
+    </div>
+    <div class="gw-plaque__label">{label}</div>
+    {dim && <div class="gw-plaque__dim">{dim}</div>}
+  </div>
+</Tag>
+
+<style>
+  .gw-plate {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .gw-frame {
+    width: 100%;
+    padding: 12px;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .gw-frame__inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 0 6px rgba(120, 80, 40, 0.35);
+  }
+  .gw-plaque {
+    margin-top: 14px;
+    padding: 0 4px;
+  }
+  .gw-plaque__kicker {
+    font-family: var(--font-body);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #5c4030;
+    font-weight: 700;
+  }
+  .gw-plaque__no {
+    color: #6a5040;
+    font-weight: 500;
+  }
+  .gw-plaque__label {
+    font-family: var(--blog-serif);
+    font-size: 20px;
+    font-style: italic;
+    color: #1f1612;
+    line-height: 1.15;
+    margin-top: 4px;
+    letter-spacing: -0.2px;
+  }
+  .gw-plaque__dim {
+    font-family: var(--blog-serif);
+    font-size: 12px;
+    font-style: italic;
+    color: #7a5040;
+    margin-top: 4px;
+  }
+</style>
