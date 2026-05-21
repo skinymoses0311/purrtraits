@@ -230,6 +230,29 @@ export const seedUpsertArtwork = mutation({
   },
 });
 
+// Seed-only — deletes any artwork row whose slug isn't in the catalog's
+// keep-list, cleaning up its storage objects. Called by the seed script
+// after upserting so the DB exactly mirrors convex/artworksCatalog.ts.
+// Without this, removing an entry from the catalog file would leave a
+// stale active row in the picker forever (upsert never deletes).
+export const seedPruneArtworks = mutation({
+  args: { token: v.string(), keepSlugs: v.array(v.string()) },
+  handler: async (ctx, { token, keepSlugs }): Promise<{ pruned: string[] }> => {
+    assertSeedToken(token);
+    const keep = new Set(keepSlugs);
+    const all = await ctx.db.query("artworks").collect();
+    const pruned: string[] = [];
+    for (const a of all) {
+      if (keep.has(a.slug)) continue;
+      try { await ctx.storage.delete(a.thumbStorageId); } catch { /* noop */ }
+      try { await ctx.storage.delete(a.referenceStorageId); } catch { /* noop */ }
+      await ctx.db.delete(a._id);
+      pruned.push(a.slug);
+    }
+    return { pruned };
+  },
+});
+
 // Internal — used by the Seedream pipeline at generation time to resolve a
 // session's selectedArtworkSlug into the data needed to build prompts and
 // fetch the high-res reference image.

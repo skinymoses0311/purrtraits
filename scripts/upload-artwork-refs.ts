@@ -240,7 +240,25 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log(`Done — ${inserted} inserted, ${updated} updated, ${failed} failed.`);
-  if (failed > 0) process.exit(1);
+
+  // Prune: delete any DB row whose slug isn't in the catalog, so the live
+  // `artworks` table exactly mirrors this file. Skipped if any upsert
+  // failed, so a partial run can't wipe rows it didn't get to re-seed.
+  if (failed === 0) {
+    const keepSlugs = ARTWORKS_CATALOG.map((a) => a.slug);
+    const { pruned } = await client.mutation(api.artworks.seedPruneArtworks, {
+      token: SEED_TOKEN!,
+      keepSlugs,
+    });
+    if (pruned.length > 0) {
+      console.log(`Pruned ${pruned.length} stale row(s): ${pruned.join(", ")}`);
+    } else {
+      console.log("Nothing to prune — DB already matches the catalog.");
+    }
+  } else {
+    console.log("Skipping prune because some upserts failed.");
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
