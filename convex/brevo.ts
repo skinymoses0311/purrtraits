@@ -68,6 +68,50 @@ async function sendTemplate(args: {
   }
 }
 
+// Inline-HTML sender. Used for the name-shortlist email because that
+// transactional flow doesn't yet have a Brevo dashboard template — once one
+// is set up the shortlist action can switch to sendTemplate() with no
+// behavioural change. Brevo's /smtp/email accepts either form on the same
+// endpoint.
+async function sendInlineHtml(args: {
+  subject: string;
+  htmlContent: string;
+  to: { email: string; name?: string };
+}): Promise<void> {
+  const res = await fetch(`${BREVO_API}/smtp/email`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      sender: SENDER,
+      to: [args.to],
+      subject: args.subject,
+      htmlContent: args.htmlContent,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Brevo send failed (${res.status}): ${text}`);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+
+function originLabel(key: string): string {
+  switch (key) {
+    case "english-germanic": return "English & Germanic";
+    case "celtic":           return "Celtic";
+    case "romance":          return "Romance";
+    case "slavic":           return "Slavic";
+    case "arabic":           return "Arabic & Middle Eastern";
+    case "east-asian":       return "East Asian";
+    default:                 return key;
+  }
+}
+
 // Confirmation: fired right after Stripe webhook marks the order paid.
 // Every paid line gets the high-res printFileUrl as a download — physical
 // orders include the digital file for free, so the email surfaces it the
@@ -204,6 +248,112 @@ export const sendStatusEmail = internalAction({
     await ctx.runMutation(internal.orders.markEmailSent, {
       id: orderId,
       stage,
+    });
+  },
+});
+
+// Dog-name shortlist: fired after the user saves their shortlist from the
+// /dog-name-generator page (either inline if signed in, or post-claim if the
+// shortlist was created signed-out). Idempotent on emailSentAt — a duplicate
+// schedule (retry, double-claim, etc.) is a no-op once the row is marked.
+//
+// Recipient priority: the user's account email if present, otherwise the
+// recipientEmail captured on the row at save time. If neither is set the
+// send is skipped with a warning, never thrown — an email failure must
+// never break the save.
+export const sendDogNameShortlist = internalAction({
+  args: { shortlistId: v.id("dogShortlists") },
+  handler: async (ctx, { shortlistId }): Promise<void> => {
+    const row = await ctx.runQuery(internal.dogShortlists.getInternal, {
+      id: shortlistId,
+    });
+    if (!row) return;
+    if (row.emailSentAt) return;
+
+    let toEmail: string | undefined = row.recipientEmail ?? undefined;
+    let toName: string | undefined = undefined;
+    if (row.userId) {
+      const user = await ctx.runQuery(internal.users.getInternal, {
+        id: row.userId,
+      });
+      if (user?.email) toEmail = user.email;
+      if (user?.name) toName = user.name;
+    }
+    if (!toEmail) {
+      console.warn(
+        `dogShortlist ${shortlistId} has no recipient email — skipping send`,
+      );
+      return;
+    }
+
+    const firstName = firstNameOf(toName) || "there";
+    const breedLabel =
+      row.inputs.breedMode === "unknown"
+        ? "your dog"
+        : row.inputs.breed
+          ? `your ${row.inputs.breed}`
+          : "your dog";
+
+    const listRows = row.names
+      .map(
+        (n) => `
+          <tr>
+            <td style="padding:10px 12px;border-bottom:1px solid #f1d7da;vertical-align:top;">
+              <div style="font-weight:600;font-size:16px;color:#2a2a2a;">${escapeHtml(n.name)}</div>
+              <div style="color:#7a6a6c;font-size:13px;margin-top:2px;">${escapeHtml(originLabel(n.origin))} · ${escapeHtml(n.meaning)}</div>
+            </td>
+          </tr>`,
+      )
+      .join("");
+
+    const subject = `Your dog name shortlist · Purrtraits`;
+    const htmlContent = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#fff5f6;font-family:Georgia,'Times New Roman',serif;color:#2a2a2a;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fff5f6;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;width:100%;background:#ffffff;border:1.5px solid #f1d7da;border-radius:14px;overflow:hidden;">
+        <tr><td style="padding:28px 28px 8px 28px;">
+          <div style="font-size:14px;color:#a87278;letter-spacing:0.08em;text-transform:uppercase;">🐾 Purrtraits</div>
+          <h1 style="font-size:24px;margin:14px 0 6px 0;color:#2a2a2a;">Hello ${escapeHtml(firstName)},</h1>
+          <p style="font-size:16px;line-height:1.5;margin:6px 0 18px 0;color:#3f3338;">
+            Here's the dog name shortlist you saved for ${escapeHtml(breedLabel)} —
+            keep it somewhere safe and try a few on for size.
+          </p>
+        </td></tr>
+        <tr><td style="padding:0 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+            ${listRows}
+          </table>
+        </td></tr>
+        <tr><td style="padding:24px 28px 4px 28px;">
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;color:#3f3338;">
+            Once you've picked the one, why not make it official? Turn your favourite
+            photo of them into a museum-worthy portrait — your shortlisted name goes
+            right on the piece.
+          </p>
+          <p style="margin:6px 0 24px 0;">
+            <a href="${HOMEPAGE_URL}/upload" style="display:inline-block;background:#e85a6a;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px;">Create their portrait →</a>
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 28px 26px 28px;border-top:1px solid #f1d7da;color:#86737a;font-size:12px;line-height:1.5;">
+          You're receiving this because you saved a shortlist on
+          <a href="${HOMEPAGE_URL}/dog-name-generator" style="color:#a87278;">purrtraits.shop</a>.
+          This is a one-off email — we'll only message you if you've placed an order or saved another shortlist.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+    await sendInlineHtml({
+      subject,
+      htmlContent,
+      to: { email: toEmail, name: toName },
+    });
+
+    await ctx.runMutation(internal.dogShortlists.markEmailSent, {
+      id: shortlistId,
+      at: Date.now(),
     });
   },
 });

@@ -337,6 +337,57 @@ export default defineSchema({
     .index("by_gelato", ["gelatoOrderId"])
     .index("by_userId", ["userId"]),
 
+  // Saved shortlists from the public /dog-name-generator page. Deliberately
+  // separate from `sessions` (the buying-flow container) so the SEO funnel
+  // and the revenue funnel can't entangle. Two ownership states:
+  //   1. userId set        → owned, persisted against an account
+  //   2. claimToken set    → unclaimed, created by a signed-out user pre
+  //                          sign-up. The page passes the token through
+  //                          ?claim=... after the auth round-trip; the
+  //                          claim mutation stamps userId and clears the
+  //                          token. Unclaimed rows are cleared by the
+  //                          shortlist-expiry cron (not wired in v1 — the
+  //                          rows are small).
+  dogShortlists: defineTable({
+    userId: v.optional(v.id("users")),
+    claimToken: v.optional(v.string()),
+    // Inputs the user gave the quiz. Kept for analytics + so the email body
+    // can include "shortlist for your Shiba Inu".
+    inputs: v.object({
+      breed: v.optional(v.string()),
+      breeds: v.optional(v.array(v.string())),
+      breedMode: v.union(
+        v.literal("single"),
+        v.literal("crossbreed"),
+        v.literal("unknown"),
+      ),
+      gender: v.union(
+        v.literal("boy"),
+        v.literal("girl"),
+        v.literal("either"),
+      ),
+      styles: v.array(v.string()), // origin keys, length 1..3
+    }),
+    // Snapshot of the names presented to the user. Stored so the email
+    // matches the page exactly, even if the curated set evolves later.
+    names: v.array(
+      v.object({
+        name: v.string(),
+        origin: v.string(),
+        gender: v.string(),
+        meaning: v.string(),
+      }),
+    ),
+    // Recipient email — captured for unclaimed rows (we wouldn't have a
+    // user.email yet); on claim it's left in place as the canonical
+    // recipient for re-sends.
+    recipientEmail: v.optional(v.string()),
+    emailSentAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_claimToken", ["claimToken"]),
+
   // Offline example-matrix output. Populated by the matrix test harness
   // (convex/matrixRender.ts + scripts/matrix-render.ts) — NOT part of any
   // user-facing flow. One row per rendered placement image. Grouped by
