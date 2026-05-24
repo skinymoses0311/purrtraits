@@ -143,8 +143,6 @@ commission:
 related:
   - { kicker: "BREED SPOTLIGHT · NO. 12", title: "The Whippet", desc: "", readTime: "", variant: 0, colour: pinkDeep, href: "/blog/breeds/whippet" }
   - { kicker: "BREED SPOTLIGHT · NO. 18", title: "The Border Terrier", desc: "", readTime: "", variant: 0, colour: pinkDeep, href: "/blog/breeds/border-terrier" }
-
-nextPost: whippet
 ---
 
 Dachshund breed spotlight — content is structured in frontmatter for the Editorial Profile template.

@@ -3,21 +3,79 @@ import Layout from "../../layouts/Layout.astro";
 import FramedPlate from "../../components/blog/FramedPlate.astro";
 import { getCollection } from "astro:content";
 
-// Real breed posts let us resolve the wall's breed-spotlight plates to live
-// article pages. Non-breed plates (photo tips, décor, etc.) have no template
-// yet, so they render as static plaques without a link.
-const posts = await getCollection("blog");
-const bySlug = new Map(posts.map((p) => [p.id, p]));
-const hrefFor = (slug?: string) =>
-  slug && bySlug.has(slug) ? `/blog/breeds/${slug}` : undefined;
+// The Gallery Wall is data-driven from the blog collection. Each plate links
+// to its post and uses the post's heroImage (PetArt is the fallback when a
+// post hasn't specified an image yet).
+const allPosts = await getCollection("blog");
+const breedPosts = allPosts.filter((p) => p.data.category === "breeds");
 
-const categories = [
-  { label: "ALL · 12", active: true, colour: "#1F1612" },
-  { label: "BREEDS · 4", active: false, colour: "#D88A9A" },
-  { label: "PHOTO TIPS · 3", active: false, colour: "#9FB39A" },
-  { label: "HOME & DÉCOR · 2", active: false, colour: "#D9A867" },
-  { label: "GIFTS · 2", active: false, colour: "#D88A9A" },
-  { label: "PERSONALITY · 1", active: false, colour: "#9FB39A" },
+// Featured posts first, then newest publishDate. Stable for ties.
+const sortedBreeds = [...breedPosts].sort((a, b) => {
+  if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+  return b.data.publishDate.getTime() - a.data.publishDate.getTime();
+});
+
+// Curated slot geometry — preserves the design's asymmetric layout. Posts are
+// zipped into these slots in order; if there are fewer posts than slots, the
+// trailing slots simply don't render.
+type Wood = "natural" | "gold" | "white" | "dark";
+type Slot = { height: number; wood: Wood; tilt: number };
+const slots: Slot[] = [
+  // Row 1 — feature + two stacks (5)
+  { height: 520, wood: "gold",    tilt: -0.5 },
+  { height: 260, wood: "natural", tilt:  0.3 },
+  { height: 220, wood: "white",   tilt: -0.4 },
+  { height: 300, wood: "dark",    tilt:  0.5 },
+  { height: 180, wood: "natural", tilt: -0.2 },
+  // Row 2 — three, even (3)
+  { height: 340, wood: "natural", tilt:  0.4 },
+  { height: 400, wood: "gold",    tilt: -0.3 },
+  { height: 320, wood: "white",   tilt:  0.5 },
+  // Row 3 — small plates, up to four
+  { height: 240, wood: "natural", tilt: -0.3 },
+  { height: 240, wood: "white",   tilt:  0.2 },
+  { height: 240, wood: "gold",    tilt: -0.4 },
+  { height: 240, wood: "dark",    tilt:  0.3 },
+];
+
+const wall = sortedBreeds.slice(0, slots.length).map((post, i) => ({
+  post,
+  ...slots[i],
+  kicker: "BREED SPOTLIGHT",
+  no: `No. ${post.data.issueNo} · ${post.data.readTime}`,
+  label: post.data.subtitle,
+  href: `/blog/breeds/${post.id}`,
+  alt: post.data.heroAlt ?? `${post.data.title} ${post.data.subtitle}`,
+}));
+
+// Split by row for the staged grids the design uses.
+const row1 = wall.slice(0, 5); // feature + 2 stacks
+const row2 = wall.slice(5, 8);
+const row3 = wall.slice(8, 12);
+
+// Category chips reflect reality: hide a chip until that category has posts.
+type ChipColour = "ink" | "pinkDeep" | "sage" | "ochre";
+const colourHex: Record<ChipColour, string> = {
+  ink: "#1F1612",
+  pinkDeep: "#D88A9A",
+  sage: "#9FB39A",
+  ochre: "#D9A867",
+};
+const totals = {
+  breeds: breedPosts.length,
+  "photo-tips": allPosts.filter((p) => p.data.category === "photo-tips").length,
+  decor: allPosts.filter((p) => p.data.category === "decor").length,
+  gifts: allPosts.filter((p) => p.data.category === "gifts").length,
+  personality: allPosts.filter((p) => p.data.category === "personality").length,
+};
+const totalAll = Object.values(totals).reduce((a, b) => a + b, 0);
+const chips: { label: string; active: boolean; colour: ChipColour }[] = [
+  { label: `ALL · ${totalAll}`, active: true, colour: "ink" },
+  ...(totals.breeds       > 0 ? [{ label: `BREEDS · ${totals.breeds}`,             active: false, colour: "pinkDeep" as ChipColour }] : []),
+  ...(totals["photo-tips"] > 0 ? [{ label: `PHOTO TIPS · ${totals["photo-tips"]}`,   active: false, colour: "sage"     as ChipColour }] : []),
+  ...(totals.decor        > 0 ? [{ label: `HOME & DÉCOR · ${totals.decor}`,         active: false, colour: "ochre"    as ChipColour }] : []),
+  ...(totals.gifts        > 0 ? [{ label: `GIFTS · ${totals.gifts}`,                active: false, colour: "pinkDeep" as ChipColour }] : []),
+  ...(totals.personality  > 0 ? [{ label: `PERSONALITY · ${totals.personality}`,    active: false, colour: "sage"     as ChipColour }] : []),
 ];
 ---
 
@@ -31,15 +89,15 @@ const categories = [
       <div class="gw-head__eyebrow">THE QUARTERLY · A CURATED EXHIBIT · MAY MMXXVI</div>
       <h1 class="gw-head__title"><em>The Wall.</em></h1>
       <p class="gw-head__lede">
-        Twelve plates hung this season. Each is an article — on a breed, a photographic angle,
+        {totalAll} plates hung this season. Each is an article — on a breed, a photographic angle,
         a wall to hang it on, a dog to commission a painting of. Walk the room.
       </p>
       <div class="gw-chips">
         {
-          categories.map((c) => (
+          chips.map((c) => (
             <button
               class:list={["gw-chip", { "gw-chip--active": c.active }]}
-              style={`--chip-c:${c.colour};`}
+              style={`--chip-c:${colourHex[c.colour]};`}
             >
               {c.label}
             </button>
@@ -53,69 +111,72 @@ const categories = [
       <div class="gw-rail"></div>
 
       <!-- Row 1 — feature + two stacks -->
-      <div class="gw-row gw-row--1">
-        <FramedPlate
-          id="gw-1"
-          height={520}
-          wood="gold"
-          tilt={-0.5}
-          kicker="BREED SPOTLIGHT"
-          no="No. 14 · 11 min"
-          label="The Working Dog Who Looks Like It's Thinking."
-          dim="Tess, six years · Renaissance · oil"
-          variant={5}
-          breed="pointy"
-          href={hrefFor("border-collie")}
-        />
-        <div class="gw-stack">
-          <FramedPlate
-            id="gw-2"
-            height={260}
-            wood="natural"
-            tilt={0.3}
-            kicker="PHOTO TIPS"
-            no="No. 008 · 8 min"
-            label="Working dogs, mid-task."
-            variant={0}
-            breed="pointy"
-          />
-          <FramedPlate
-            id="gw-3"
-            height={220}
-            wood="white"
-            tilt={-0.4}
-            kicker="HOME & DÉCOR"
-            no="No. 022 · 6 min"
-            label="The limewash wall."
-            variant={6}
-          />
-        </div>
-        <div class="gw-stack">
-          <FramedPlate
-            id="gw-4"
-            height={300}
-            wood="dark"
-            tilt={0.5}
-            kicker="BREED SPOTLIGHT"
-            no="No. 13 · 7 min"
-            label="The Cocker Spaniel."
-            dim="Curls, ears, the right brush"
-            variant={4}
-            breed="floppy"
-            href={hrefFor("cocker-spaniel")}
-          />
-          <FramedPlate
-            id="gw-5"
-            height={180}
-            wood="natural"
-            tilt={-0.2}
-            kicker="GIFTS"
-            no="No. 022 · 5 min"
-            label="For the dog person who has it all."
-            variant={5}
-          />
-        </div>
-      </div>
+      {
+        row1.length > 0 && (
+          <div class="gw-row gw-row--1">
+            {row1[0] && (
+              <FramedPlate
+                id="gw-1"
+                height={row1[0].height}
+                wood={row1[0].wood}
+                tilt={row1[0].tilt}
+                kicker={row1[0].kicker}
+                no={row1[0].no}
+                label={row1[0].label}
+                image={row1[0].post.data.heroImage}
+                alt={row1[0].alt}
+                variant={row1[0].post.data.heroVariant}
+                breed={row1[0].post.data.heroBreed}
+                href={row1[0].href}
+              />
+            )}
+            {(row1[1] || row1[2]) && (
+              <div class="gw-stack">
+                {[row1[1], row1[2]].map((s, i) =>
+                  s ? (
+                    <FramedPlate
+                      id={`gw-2-${i}`}
+                      height={s.height}
+                      wood={s.wood}
+                      tilt={s.tilt}
+                      kicker={s.kicker}
+                      no={s.no}
+                      label={s.label}
+                      image={s.post.data.heroImage}
+                      alt={s.alt}
+                      variant={s.post.data.heroVariant}
+                      breed={s.post.data.heroBreed}
+                      href={s.href}
+                    />
+                  ) : null,
+                )}
+              </div>
+            )}
+            {(row1[3] || row1[4]) && (
+              <div class="gw-stack">
+                {[row1[3], row1[4]].map((s, i) =>
+                  s ? (
+                    <FramedPlate
+                      id={`gw-3-${i}`}
+                      height={s.height}
+                      wood={s.wood}
+                      tilt={s.tilt}
+                      kicker={s.kicker}
+                      no={s.no}
+                      label={s.label}
+                      image={s.post.data.heroImage}
+                      alt={s.alt}
+                      variant={s.post.data.heroVariant}
+                      breed={s.post.data.heroBreed}
+                      href={s.href}
+                    />
+                  ) : null,
+                )}
+              </div>
+            )}
+          </div>
+        )
+      }
 
       <!-- Pull-quote -->
       <figure class="gw-quote">
@@ -128,50 +189,52 @@ const categories = [
       </figure>
 
       <!-- Row 2 — three, even -->
-      <div class="gw-row gw-row--2">
-        <FramedPlate
-          id="gw-6"
-          height={340}
-          wood="natural"
-          tilt={0.4}
-          kicker="PERSONALITY"
-          no="No. 011 · 6 min"
-          label="The dog who cannot stop fetching."
-          dim="Working lines on canvas"
-          variant={1}
-        />
-        <FramedPlate
-          id="gw-7"
-          height={400}
-          wood="gold"
-          tilt={-0.3}
-          kicker="BREED SPOTLIGHT"
-          no="No. 15 · 9 min"
-          label="The Whippet."
-          dim="A long argument for the long dog"
-          variant={1}
-          breed="pointy"
-          href={hrefFor("whippet")}
-        />
-        <FramedPlate
-          id="gw-8"
-          height={320}
-          wood="white"
-          tilt={0.5}
-          kicker="PHOTO TIPS"
-          no="No. 007 · 5 min"
-          label="Overcast light, twenty minutes after sunrise."
-          variant={2}
-        />
-      </div>
+      {
+        row2.length > 0 && (
+          <div class:list={["gw-row", `gw-row--2`, `gw-row--cols-${row2.length}`]}>
+            {row2.map((s, i) => (
+              <FramedPlate
+                id={`gw-r2-${i}`}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                no={s.no}
+                label={s.label}
+                image={s.post.data.heroImage}
+                alt={s.alt}
+                variant={s.post.data.heroVariant}
+                breed={s.post.data.heroBreed}
+                href={s.href}
+              />
+            ))}
+          </div>
+        )
+      }
 
-      <!-- Row 3 — four small plates -->
-      <div class="gw-row gw-row--3">
-        <FramedPlate id="gw-r3-0" height={240} wood="natural" tilt={-0.3} kicker="HOME & DÉCOR" no="No. 021 · 5 min" label="Above the sofa, not the fireplace." variant={6} />
-        <FramedPlate id="gw-r3-1" height={240} wood="white" tilt={0.2} kicker="GIFTS" no="No. 021 · 3 min" label="A note for the wedding gift you forgot." variant={5} />
-        <FramedPlate id="gw-r3-2" height={240} wood="gold" tilt={-0.4} kicker="PERSONALITY" no="No. 010 · 4 min" label="The lap dog with the working dog's eyes." variant={4} />
-        <FramedPlate id="gw-r3-3" height={240} wood="dark" tilt={0.3} kicker="LETTERS" no="No. 025 · 4 min" label="On the Whippet, from a reader in Yorkshire." variant={3} />
-      </div>
+      <!-- Row 3 — small plates, up to four -->
+      {
+        row3.length > 0 && (
+          <div class:list={["gw-row", `gw-row--3`, `gw-row--cols-${row3.length}`]}>
+            {row3.map((s, i) => (
+              <FramedPlate
+                id={`gw-r3-${i}`}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                no={s.no}
+                label={s.label}
+                image={s.post.data.heroImage}
+                alt={s.alt}
+                variant={s.post.data.heroVariant}
+                breed={s.post.data.heroBreed}
+                href={s.href}
+              />
+            ))}
+          </div>
+        )
+      }
 
       <div class="gw-more">
         <button class="gw-more__btn">WALK THE NEXT ROOM →</button>
@@ -292,8 +355,17 @@ const categories = [
     align-items: start;
   }
   .gw-row--1 { grid-template-columns: 1.4fr 1fr 1fr; }
-  .gw-row--2 { grid-template-columns: 1fr 1.2fr 1fr; margin-top: 16px; }
-  .gw-row--3 { grid-template-columns: repeat(4, 1fr); gap: 40px; margin-top: 72px; }
+  .gw-row--2 { margin-top: 16px; }
+  /* row 2 keeps the design's asymmetric 1 / 1.2 / 1 when it has all three; for
+     fewer slots it falls back to equal columns so we don't leave empty space. */
+  .gw-row--2.gw-row--cols-3 { grid-template-columns: 1fr 1.2fr 1fr; }
+  .gw-row--2.gw-row--cols-2 { grid-template-columns: 1fr 1fr; }
+  .gw-row--2.gw-row--cols-1 { grid-template-columns: 1fr; }
+  .gw-row--3 { gap: 40px; margin-top: 72px; }
+  .gw-row--3.gw-row--cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .gw-row--3.gw-row--cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .gw-row--3.gw-row--cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .gw-row--3.gw-row--cols-1 { grid-template-columns: 1fr; }
   .gw-stack {
     display: flex;
     flex-direction: column;
