@@ -1,0 +1,946 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const SIZES = [
+  { id: "toy",    label: "Toy",    range: "under 4 kg",  example: "Chihuahua, Pomeranian" },
+  { id: "small",  label: "Small",  range: "4 – 9 kg",    example: "Jack Russell, Mini Dachshund" },
+  { id: "medium", label: "Medium", range: "9 – 23 kg",   example: "Cocker Spaniel, Beagle" },
+  { id: "large",  label: "Large",  range: "23 – 40 kg",  example: "Labrador, Boxer" },
+  { id: "giant",  label: "Giant",  range: "over 40 kg",  example: "Great Dane, St Bernard" },
+] as const;
+
+type SizeId = (typeof SIZES)[number]["id"];
+
+// Size-aware variant of the AVMA dog-to-human curve. Dogs mature fast in
+// year one (~15 human years), reach ~24 human years by age two, then age
+// at a per-year rate that depends on size — giant breeds age fastest.
+function dogToHuman(years: number, size: SizeId): number {
+  if (!years || years <= 0) return 0;
+  const Y1  = { toy: 15, small: 15, medium: 15, large: 14, giant: 12 }[size];
+  const Y2  = { toy: 24, small: 24, medium: 24, large: 22, giant: 22 }[size];
+  const PER = { toy: 4,  small: 4,  medium: 5,  large: 6,  giant: 9  }[size];
+  if (years <= 1) return Math.round(Y1 * years);
+  if (years <= 2) return Math.round(Y1 + (Y2 - Y1) * (years - 1));
+  return Math.round(Y2 + PER * (years - 2));
+}
+
+const STAGES = [
+  { key: "puppy",   label: "Puppy",   yr: "0–1 yrs",   blurb: "All paws and possibility. The wonder years.",            img: "/samples/styles/adventuring_playful_sketch.jpg",       frame: "natural", mx: 6,  my: 55 },
+  { key: "pup",     label: "Pup",     yr: "1–2 yrs",   blurb: "Out of nappies, into mischief. Energy unlimited.",      img: "/samples/styles/adventuring_playful_watercolour_jh799q76ast12y4vhczhd984p185j271.jpg", frame: "gold",    mx: 22, my: 30 },
+  { key: "adult",   label: "Adult",   yr: "2–7 yrs",   blurb: "Their prime. Sharp, loyal, fully themselves.",           img: "/samples/styles/adventuring_playful_oil.jpg",          frame: "natural", mx: 40, my: 62 },
+  { key: "mature",  label: "Mature",  yr: "7–10 yrs",  blurb: "A few greys, a slower kettle. The good years deepen.",   img: "/samples/styles/adventuring_playful_impressionist.jpg", frame: "white",   mx: 58, my: 30 },
+  { key: "senior",  label: "Senior",  yr: "10–13 yrs", blurb: "Sofa wisdom. Naps, then more naps. Still the best dog.", img: "/samples/styles/adventuring_playful_renaissance.jpg",  frame: "dark",    mx: 76, my: 60 },
+  { key: "veteran", label: "Veteran", yr: "13+ yrs",   blurb: "A true elder. Treasured every single day.",              img: "/samples/styles/adventuring_playful_comic.jpg",        frame: "gold",    mx: 94, my: 32 },
+] as const;
+
+function stageFor(years: number) {
+  if (years < 1)  return STAGES[0];
+  if (years < 2)  return STAGES[1];
+  if (years < 7)  return STAGES[2];
+  if (years < 10) return STAGES[3];
+  if (years < 13) return STAGES[4];
+  return STAGES[5];
+}
+
+const INITIAL_AGE: number = 5;
+const INITIAL_SIZE: SizeId = "medium";
+const initialStage = stageFor(INITIAL_AGE);
+const initialHuman = dogToHuman(INITIAL_AGE, INITIAL_SIZE);
+const initialSize = SIZES.find((s) => s.id === INITIAL_SIZE)!;
+
+const faq = [
+  {
+    q: "Why does my dog's size change their human age?",
+    a: "Smaller dogs tend to live longer and age more slowly past puberty; giant breeds age faster. The calculator uses a size-aware variant of the AVMA's curve so a ten-year-old Chihuahua and a ten-year-old Great Dane aren't given the same human-equivalent age — because vets don't treat them as if they were.",
+  },
+  {
+    q: "How accurate is the dog-to-human age calculation?",
+    a: "It's a sensible rule of thumb, not a medical assessment. The old 'one dog year equals seven human years' is too blunt, so we use a sliding curve: dogs mature very quickly in their first two years, then age at a steadier, size-dependent rate. Individual health and breed history varies — talk to your vet for anything clinical.",
+  },
+  {
+    q: "What counts as a toy, small, medium, large or giant dog?",
+    a: "Toy is under 4 kg (Chihuahua, Pomeranian). Small is 4–9 kg (Jack Russell, Miniature Dachshund). Medium is 9–23 kg (Cocker Spaniel, Beagle). Large is 23–40 kg (Labrador, Boxer). Giant is over 40 kg (Great Dane, St Bernard). If you're not sure, pick the closest — being one band out only shifts the result by a year or two.",
+  },
+  {
+    q: "What do the life stages mean?",
+    a: "Puppy (0–1), Pup (1–2), Adult (2–7), Mature (7–10), Senior (10–13), and Veteran (13+). These are the stages most UK vets use when talking about behaviour, feeding and check-up frequency — a more useful frame than a single number.",
+  },
+  {
+    q: "Do you store anything I enter here?",
+    a: "No. The calculator runs entirely in your browser — your dog's age and size never leave the page. There's no account needed and nothing is sent anywhere.",
+  },
+  {
+    q: "Can I turn my dog's photo into a portrait?",
+    a: "Yes — that's what we do. Upload a photo and we'll paint your dog in the style of your choice, from oil and watercolour to pop and renaissance. Prints, framed canvases and posters from £29.",
+  },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.map((item) => ({
+    "@type": "Question",
+    name: item.q,
+    acceptedAnswer: { "@type": "Answer", text: item.a },
+  })),
+};
+---
+
+<Layout
+  title="Dog Age Calculator · How old is your dog in human years? · Purrtraits"
+  description="Free dog age calculator. Size-aware conversion from dog years to human years for toy, small, medium, large and giant dogs. Based on UK vet data, no sign-up needed."
+>
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} slot="jsonld" />
+
+  <main class="page container dac">
+    <header class="dac__hero">
+      <div class="dac__eyebrow">Free tool · Purrtraits Studio</div>
+      <h1 class="dac__title">The Dog Age Calculator.</h1>
+      <p class="dac__tagline">
+        The classic question, properly answered. Tell us how old your dog is
+        and how big they are — we'll walk you down the years they've
+        already lived in ours.
+      </p>
+      <p class="dac__meta muted">
+        <span>🐾 Size-aware</span>
+        <span class="dac__meta-dot">·</span>
+        <span>🐾 No sign-up</span>
+        <span class="dac__meta-dot">·</span>
+        <span>🐾 Based on UK vet data</span>
+      </p>
+    </header>
+
+    <section class="dac__calc" aria-label="Dog age calculator">
+      <div class="dac__calc-grid">
+        <div class="dac__calc-input">
+          <div class="dac__step">Step one</div>
+          <h2 class="dac__h2">How old is your dog?</h2>
+
+          <div class="dac__label">Age</div>
+          <div class="dac__stepper">
+            <button class="dac__stepper-btn" id="dac-age-down" type="button" aria-label="Decrease age">−</button>
+            <div class="dac__stepper-value">
+              <span id="dac-age">{INITIAL_AGE}</span>
+              <span class="dac__stepper-unit">yrs</span>
+            </div>
+            <button class="dac__stepper-btn" id="dac-age-up" type="button" aria-label="Increase age">+</button>
+          </div>
+
+          <div class="dac__label">Size</div>
+          <div class="dac__seg" role="radiogroup" aria-label="Dog size">
+            {SIZES.map((s) => (
+              <button
+                type="button"
+                class:list={["dac__seg-btn", { "dac__seg-btn--active": s.id === INITIAL_SIZE }]}
+                data-size={s.id}
+                role="radio"
+                aria-checked={s.id === INITIAL_SIZE}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <p class="dac__seg-meta muted" id="dac-size-meta">
+            {initialSize.range} · e.g. {initialSize.example}
+          </p>
+        </div>
+
+        <div class="dac__calc-divider" aria-hidden="true"></div>
+
+        <div class="dac__calc-output">
+          <div class="dac__step dac__step--pink">In human years, they're</div>
+          <div class="dac__result">
+            <span class="dac__result-num" id="dac-human">{initialHuman}</span>
+            <span class="dac__result-unit">human years</span>
+          </div>
+          <span class="dac__stage-badge" id="dac-stage-badge" aria-live="polite">
+            <span class="dac__stage-dot"></span>
+            <span>Life stage · <span id="dac-stage-label">{initialStage.label}</span></span>
+          </span>
+          <p class="dac__stage-blurb" id="dac-stage-blurb">{initialStage.blurb}</p>
+          <p class="dac__stage-meta muted" id="dac-stage-meta">
+            {INITIAL_AGE} years as a {initialSize.label.toLowerCase()} dog ≈ {initialHuman} as a human.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="dac__trail-section" aria-label="Life stage trail">
+      <div class="dac__trail-head">
+        <div class="dac__eyebrow muted">Step two · Walk the path</div>
+        <h2 class="dac__h2 dac__h2--center">Where are they now?</h2>
+      </div>
+      <div class="dac__trail-stage">
+        <svg class="dac__trail-svg" viewBox="0 0 1200 380" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="dac-trail-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#8A6840" />
+              <stop offset="100%" stop-color="#4A3225" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M 24 247 C 120 76, 240 38, 360 152 C 480 296, 576 304, 660 152 C 744 38, 840 76, 912 228 C 984 323, 1080 209, 1176 114"
+            fill="none"
+            stroke="url(#dac-trail-grad)"
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-dasharray="2 14"
+            class="dac__trail-path"
+          />
+        </svg>
+        <div class="dac__trail-markers">
+          {STAGES.map((s, i) => (
+            <div
+              class:list={["dac__marker", { "dac__marker--active": s.key === initialStage.key }]}
+              data-stage={s.key}
+              data-index={i}
+              style={`--mx:${s.mx}%; --my:${s.my}%; --tilt:${(s.mx * 47) % 4 - 2}deg; --enter-delay:${300 + i * 110}ms;`}
+            >
+              <div class:list={["dac__marker-frame", `dac__marker-frame--${s.frame}`]}>
+                <div class="dac__marker-mat">
+                  <img src={s.img} alt={`${s.label} life-stage sample portrait`} loading="lazy" decoding="async" />
+                </div>
+              </div>
+              <div class="dac__marker-label">{s.label}</div>
+              <div class="dac__marker-yr">{s.yr}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="dac__table-wrap" aria-labelledby="dac-table-h">
+      <div class="dac__table-grid">
+        <div class="dac__table-intro">
+          <div class="dac__eyebrow muted">The fine print</div>
+          <h2 class="dac__h2" id="dac-table-h">Size matters, actually.</h2>
+          <p class="dac__table-blurb">
+            A Great Dane and a Chihuahua don't age at the same rate. The
+            bigger the dog, the faster the years run. Here's the quick
+            read-across.
+          </p>
+        </div>
+        <div class="dac__table">
+          <div class="dac__table-row dac__table-head">
+            <span>Size</span><span>1 yr</span><span>2 yrs</span><span>5 yrs</span><span>10 yrs</span>
+          </div>
+          {SIZES.map((s) => (
+            <div
+              class:list={["dac__table-row", { "dac__table-row--active": s.id === INITIAL_SIZE }]}
+              data-row-size={s.id}
+            >
+              <span class="dac__table-cell-size">
+                <strong>{s.label}</strong><span class="muted"> · {s.range}</span>
+              </span>
+              <span>{dogToHuman(1, s.id)}</span>
+              <span>{dogToHuman(2, s.id)}</span>
+              <span>{dogToHuman(5, s.id)}</span>
+              <span>{dogToHuman(10, s.id)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="dac__cta">
+      <div class="dac__cta-inner">
+        <div class="dac__cta-portrait">
+          <div class="dac__marker-frame dac__marker-frame--gold dac__cta-frame">
+            <div class="dac__marker-mat">
+              <img id="dac-cta-img" src={initialStage.img} alt="Sample Purrtraits portrait" />
+            </div>
+          </div>
+        </div>
+        <div class="dac__cta-copy">
+          <div class="dac__eyebrow">Pause the years</div>
+          <h2 class="dac__cta-title">
+            Frame them at <span id="dac-cta-stage">{initialStage.label.toLowerCase()}</span>, forever.
+          </h2>
+          <p class="dac__cta-blurb">
+            One photograph, painted in oil. The dog you have now, hung on
+            a wall for the dogs you'll be lucky to know later.
+          </p>
+          <div class="dac__cta-actions">
+            <a href="/upload" class="btn btn--primary">Commission a portrait →</a>
+            <a href="/#how" class="btn">See styles · from £29</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <article class="dac__editorial">
+      <h2>How dog years actually work</h2>
+      <p>
+        The old saying — <em>one dog year is seven human years</em> — is the
+        sort of thing that's stuck around because it's easy to remember,
+        not because it's true. Dogs do most of their ageing in their first
+        two years: a one-year-old Labrador is already physically mature,
+        roughly the equivalent of a fifteen-year-old human. By two, they're
+        closer to a young adult. After that, the rate slows down — and it
+        slows down by different amounts depending on how big they are.
+      </p>
+
+      <h3>Small dogs live longer</h3>
+      <p>
+        It's one of the quiet cruelties of dog ownership: the bigger the
+        dog, the shorter the average lifespan. A toy or small breed can
+        often see their mid-teens, while a giant breed like a Great Dane
+        averages closer to seven or eight years. The calculator above
+        accounts for this by ageing larger dogs faster after year two —
+        so a ten-year-old Great Dane lands in the same human-equivalent
+        ballpark as a much older small dog.
+      </p>
+
+      <h3>Life stages, not just numbers</h3>
+      <p>
+        Vets tend to think about dogs in stages — Puppy, Pup, Adult,
+        Mature, Senior, Veteran — because the relevant questions change
+        across each one. Puppies need vaccination schedules and
+        socialisation; adults need exercise and weight control; seniors
+        often need more frequent check-ups and joint support. The
+        human-years number is a nice headline, but the stage is usually
+        the more useful answer.
+      </p>
+
+      <h3>Make this one count</h3>
+      <p>
+        However many human years your dog turns out to be, none of them
+        come back. If you've been meaning to get them painted, this is
+        probably your sign — <a href="/upload">upload a photo</a> and
+        we'll turn it into something worth hanging on a wall.
+      </p>
+
+      <h2>Frequently asked questions</h2>
+      <div class="dac__faq">
+        {faq.map((item) => (
+          <details class="dac__faq-item">
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </article>
+  </main>
+</Layout>
+
+<script>
+  // Vanilla TS so this page ships zero framework JS. Single calculator
+  // controller: handles the stepper, size segmented control, and pushes
+  // every change through one render() so the result number, life-stage
+  // badge, trail marker, reference-table highlight and CTA all stay in
+  // sync from a single source of truth.
+
+  type SizeId = "toy" | "small" | "medium" | "large" | "giant";
+
+  const SIZES_META: Record<SizeId, { label: string; range: string; example: string }> = {
+    toy:    { label: "Toy",    range: "under 4 kg",  example: "Chihuahua, Pomeranian" },
+    small:  { label: "Small",  range: "4 – 9 kg",    example: "Jack Russell, Mini Dachshund" },
+    medium: { label: "Medium", range: "9 – 23 kg",   example: "Cocker Spaniel, Beagle" },
+    large:  { label: "Large",  range: "23 – 40 kg",  example: "Labrador, Boxer" },
+    giant:  { label: "Giant",  range: "over 40 kg",  example: "Great Dane, St Bernard" },
+  };
+
+  function dogToHuman(years: number, size: SizeId): number {
+    if (!years || years <= 0) return 0;
+    const Y1  = { toy: 15, small: 15, medium: 15, large: 14, giant: 12 }[size];
+    const Y2  = { toy: 24, small: 24, medium: 24, large: 22, giant: 22 }[size];
+    const PER = { toy: 4,  small: 4,  medium: 5,  large: 6,  giant: 9  }[size];
+    if (years <= 1) return Math.round(Y1 * years);
+    if (years <= 2) return Math.round(Y1 + (Y2 - Y1) * (years - 1));
+    return Math.round(Y2 + PER * (years - 2));
+  }
+
+  type Stage = { key: string; label: string; blurb: string };
+  const STAGE_BLURBS: Stage[] = [
+    { key: "puppy",   label: "Puppy",   blurb: "All paws and possibility. The wonder years." },
+    { key: "pup",     label: "Pup",     blurb: "Out of nappies, into mischief. Energy unlimited." },
+    { key: "adult",   label: "Adult",   blurb: "Their prime. Sharp, loyal, fully themselves." },
+    { key: "mature",  label: "Mature",  blurb: "A few greys, a slower kettle. The good years deepen." },
+    { key: "senior",  label: "Senior",  blurb: "Sofa wisdom. Naps, then more naps. Still the best dog." },
+    { key: "veteran", label: "Veteran", blurb: "A true elder. Treasured every single day." },
+  ];
+  function stageFor(years: number): Stage {
+    if (years < 1)  return STAGE_BLURBS[0]!;
+    if (years < 2)  return STAGE_BLURBS[1]!;
+    if (years < 7)  return STAGE_BLURBS[2]!;
+    if (years < 10) return STAGE_BLURBS[3]!;
+    if (years < 13) return STAGE_BLURBS[4]!;
+    return STAGE_BLURBS[5]!;
+  }
+
+  // Stage → portrait map, mirrored from the SSR side. Used to swap the
+  // bottom CTA portrait to match the active life stage.
+  const STAGE_IMG: Record<string, string> = {
+    puppy:   "/samples/styles/adventuring_playful_sketch.jpg",
+    pup:     "/samples/styles/adventuring_playful_watercolour_jh799q76ast12y4vhczhd984p185j271.jpg",
+    adult:   "/samples/styles/adventuring_playful_oil.jpg",
+    mature:  "/samples/styles/adventuring_playful_impressionist.jpg",
+    senior:  "/samples/styles/adventuring_playful_renaissance.jpg",
+    veteran: "/samples/styles/adventuring_playful_comic.jpg",
+  };
+
+  const MIN_AGE = 0;
+  const MAX_AGE = 25;
+  const STEP    = 1;
+
+  let age: number   = 5;
+  let size: SizeId  = "medium";
+
+  const ageEl       = document.getElementById("dac-age")!;
+  const humanEl     = document.getElementById("dac-human")!;
+  const stageLabel  = document.getElementById("dac-stage-label")!;
+  const stageBlurb  = document.getElementById("dac-stage-blurb")!;
+  const stageMeta   = document.getElementById("dac-stage-meta")!;
+  const sizeMeta    = document.getElementById("dac-size-meta")!;
+  const stageBadge  = document.getElementById("dac-stage-badge")!;
+  const resultNum   = document.getElementById("dac-human")!;
+  const ctaStage    = document.getElementById("dac-cta-stage")!;
+  const ctaImg      = document.getElementById("dac-cta-img") as HTMLImageElement | null;
+
+  // Tween the displayed integer toward `to` over ~520ms with ease-out.
+  // Re-targetable mid-flight: starting a new tween cancels the old rAF.
+  let tweenRaf = 0;
+  function tweenNumber(el: HTMLElement, to: number) {
+    cancelAnimationFrame(tweenRaf);
+    const from = parseFloat(el.textContent || "0") || 0;
+    if (from === to) { el.textContent = String(to); return; }
+    const t0 = performance.now();
+    const dur = 520;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = from + (to - from) * eased;
+      el.textContent = String(Math.round(cur));
+      if (t < 1) tweenRaf = requestAnimationFrame(step);
+    };
+    tweenRaf = requestAnimationFrame(step);
+  }
+
+  function render() {
+    const human = dogToHuman(age, size);
+    const stage = stageFor(age);
+    const meta  = SIZES_META[size];
+
+    ageEl.textContent = String(age);
+    tweenNumber(humanEl, human);
+
+    // Restart the "stamp in" animation by removing+adding the class on
+    // each change. The void offsetWidth read forces layout so the browser
+    // notices the class flip and replays the keyframe.
+    if (stageLabel.textContent !== stage.label) {
+      stageBadge.classList.remove("dac__stage-badge--in");
+      void (stageBadge as HTMLElement).offsetWidth;
+      stageBadge.classList.add("dac__stage-badge--in");
+      stageBlurb.classList.remove("dac__fade-in");
+      void (stageBlurb as HTMLElement).offsetWidth;
+      stageBlurb.classList.add("dac__fade-in");
+      resultNum.classList.remove("dac__result-num--bump");
+      void (resultNum as HTMLElement).offsetWidth;
+      resultNum.classList.add("dac__result-num--bump");
+    }
+
+    stageLabel.textContent = stage.label;
+    stageBlurb.textContent = stage.blurb;
+    stageMeta.textContent  = `${age} ${age === 1 ? "year" : "years"} as a ${meta.label.toLowerCase()} dog ≈ ${human} as a human.`;
+    sizeMeta.textContent   = `${meta.range} · e.g. ${meta.example}`;
+    ctaStage.textContent   = stage.label.toLowerCase();
+
+    if (ctaImg) {
+      const nextImg = STAGE_IMG[stage.key];
+      if (nextImg && ctaImg.getAttribute("src") !== nextImg) {
+        ctaImg.classList.remove("dac__cta-img--in");
+        ctaImg.src = nextImg;
+        void (ctaImg as HTMLElement).offsetWidth;
+        ctaImg.classList.add("dac__cta-img--in");
+      }
+    }
+
+    // Trail: mark the active stage and dim the rest.
+    document.querySelectorAll<HTMLElement>(".dac__marker").forEach((el) => {
+      el.classList.toggle("dac__marker--active", el.dataset.stage === stage.key);
+    });
+
+    // Reference table: highlight the active size row.
+    document.querySelectorAll<HTMLElement>(".dac__table-row[data-row-size]").forEach((el) => {
+      el.classList.toggle("dac__table-row--active", el.dataset.rowSize === size);
+    });
+
+    // Size segmented control: reflect selection + a11y state.
+    document.querySelectorAll<HTMLButtonElement>(".dac__seg-btn").forEach((el) => {
+      const active = el.dataset.size === size;
+      el.classList.toggle("dac__seg-btn--active", active);
+      el.setAttribute("aria-checked", String(active));
+    });
+  }
+
+  document.getElementById("dac-age-down")?.addEventListener("click", () => {
+    age = Math.max(MIN_AGE, age - STEP);
+    render();
+  });
+  document.getElementById("dac-age-up")?.addEventListener("click", () => {
+    age = Math.min(MAX_AGE, age + STEP);
+    render();
+  });
+
+  document.querySelectorAll<HTMLButtonElement>(".dac__seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.size as SizeId | undefined;
+      if (next && next !== size) {
+        size = next;
+        render();
+      }
+    });
+  });
+</script>
+
+<style>
+  /* ── Layout shell ────────────────────────────────────────────── */
+  .dac { max-width: 1200px; }
+  .dac__hero { text-align: center; margin: 8px 0 28px; }
+  .dac__eyebrow {
+    font-family: var(--font-body);
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+    color: var(--c-pink); text-transform: uppercase;
+  }
+  .dac__title {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 9vw, 112px);
+    font-weight: 700;
+    color: var(--c-dark);
+    line-height: 0.94;
+    letter-spacing: -1.5px;
+    margin: 6px 0 0;
+  }
+  .dac__tagline {
+    font-family: 'DM Sans', serif;
+    font-style: italic;
+    font-size: clamp(15px, 2vw, 19px);
+    color: var(--c-text);
+    max-width: 680px;
+    margin: 16px auto 0;
+    line-height: 1.55;
+  }
+  .dac__meta {
+    margin-top: 14px;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 12px; font-size: 12px; letter-spacing: 1px;
+  }
+  .dac__meta-dot { opacity: 0.4; }
+
+  .dac__h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--c-dark);
+    line-height: 1.02;
+    font-size: clamp(28px, 4.5vw, 44px);
+    margin: 4px 0 0;
+  }
+  .dac__h2--center { text-align: center; }
+  .dac__step {
+    font-family: var(--font-body);
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+    color: var(--c-text); text-transform: uppercase;
+  }
+  .dac__step--pink { color: var(--c-pink); }
+  .dac__label {
+    font-size: 13px; color: var(--c-text);
+    font-weight: 600; margin-top: 18px;
+  }
+
+  /* ── Calculator card ────────────────────────────────────────── */
+  .dac__calc {
+    background: var(--c-cream);
+    border: 1px solid var(--c-stroke-light);
+    border-radius: 24px;
+    padding: 22px;
+    margin: 24px 0 0;
+    box-shadow: 0 28px 60px -28px rgba(80, 50, 20, 0.22),
+                0 6px 18px rgba(80, 50, 20, 0.06);
+  }
+  @media (min-width: 768px) { .dac__calc { padding: 36px; } }
+
+  .dac__calc-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  .dac__calc-divider { display: none; }
+  @media (min-width: 880px) {
+    .dac__calc-grid {
+      grid-template-columns: 1fr 1px 0.95fr;
+      gap: 36px;
+    }
+    .dac__calc-divider {
+      display: block;
+      align-self: stretch;
+      width: 1px;
+      background: linear-gradient(180deg, transparent, var(--c-stroke-light), transparent);
+    }
+  }
+
+  /* Stepper */
+  .dac__stepper {
+    display: inline-flex; align-items: center;
+    background: #fff;
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: 100px;
+    padding: 4px 6px;
+    margin-top: 6px;
+  }
+  .dac__stepper-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%; border: none; cursor: pointer;
+    background: #F7EFE2; color: var(--c-dark);
+    font-size: 20px; font-weight: 600; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s ease, transform .08s ease;
+  }
+  .dac__stepper-btn:hover { background: var(--c-pink-light); }
+  .dac__stepper-btn:active { transform: scale(0.94); }
+  .dac__stepper-value {
+    min-width: 96px; padding: 0 8px; text-align: center;
+    font-family: var(--font-display);
+    font-size: 32px; font-weight: 700; color: var(--c-dark);
+    line-height: 1;
+  }
+  .dac__stepper-unit {
+    font-family: var(--font-body);
+    font-size: 13px; font-weight: 500; color: var(--c-text);
+    margin-left: 2px;
+  }
+
+  /* Size segmented control */
+  .dac__seg {
+    display: inline-flex; flex-wrap: wrap; gap: 6px;
+    background: #fff;
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: 100px;
+    padding: 4px;
+    margin-top: 6px;
+    max-width: 100%;
+  }
+  .dac__seg-btn {
+    font-family: var(--font-body);
+    font-size: 12px; font-weight: 600;
+    color: var(--c-dark); background: transparent;
+    border: none; border-radius: 100px;
+    padding: 7px 14px; cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .dac__seg-btn:hover { background: var(--c-pink-light); }
+  .dac__seg-btn--active {
+    background: var(--c-pink); color: #fff;
+  }
+  .dac__seg-btn--active:hover { background: var(--c-pink); }
+  .dac__seg-meta {
+    margin-top: 14px; font-size: 12px; font-style: italic; line-height: 1.5;
+  }
+
+  /* Result side */
+  .dac__calc-output { position: relative; }
+  .dac__result {
+    font-family: var(--font-display); font-weight: 700; color: var(--c-dark);
+    line-height: 0.92; letter-spacing: -2px;
+    margin-top: 6px;
+  }
+  .dac__result-num {
+    display: inline-block;
+    font-size: clamp(80px, 14vw, 132px);
+  }
+  .dac__result-unit {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 3vw, 36px);
+    color: var(--c-text); font-weight: 600;
+    margin-left: 6px;
+  }
+  .dac__stage-badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--c-pink-light);
+    padding: 8px 14px; border-radius: 999px;
+    margin-top: 12px;
+  }
+  .dac__stage-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--c-pink);
+  }
+  .dac__stage-badge > span:last-child {
+    font-family: var(--font-body);
+    font-size: 12px; letter-spacing: 1.2px;
+    font-weight: 700; color: var(--c-pink);
+    text-transform: uppercase;
+  }
+  .dac__stage-blurb {
+    margin-top: 14px;
+    font-style: italic; font-size: clamp(14px, 1.5vw, 16px);
+    color: var(--c-text); line-height: 1.55;
+    max-width: 380px;
+  }
+  .dac__stage-meta {
+    margin-top: 10px; font-size: 12px; color: var(--c-text);
+  }
+
+  /* Animations for result-side updates */
+  @keyframes dac-bump {
+    0%   { transform: scale(0.92); opacity: 0.4; }
+    60%  { transform: scale(1.04); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .dac__result-num--bump { animation: dac-bump .42s ease-out; }
+
+  @keyframes dac-stamp {
+    0%   { transform: scale(0.6) rotate(-4deg); opacity: 0; }
+    70%  { transform: scale(1.06) rotate(1deg);  opacity: 1; }
+    100% { transform: scale(1)    rotate(0);     opacity: 1; }
+  }
+  .dac__stage-badge--in { animation: dac-stamp .5s ease-out; }
+
+  @keyframes dac-fade-up {
+    from { transform: translateY(6px); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  .dac__fade-in { animation: dac-fade-up .4s ease-out; }
+
+  /* ── Trail section ──────────────────────────────────────────── */
+  .dac__trail-section { margin-top: 56px; }
+  .dac__trail-head { text-align: center; margin-bottom: 20px; }
+  .dac__trail-stage {
+    background: linear-gradient(180deg, #FAF1DD 0%, #E8D9BD 60%, #D4BF99 100%);
+    border-radius: 24px;
+    border: 1px solid #E0CFA8;
+    position: relative; overflow: hidden;
+    padding: 18px 14px 28px;
+  }
+  @media (min-width: 768px) {
+    .dac__trail-stage { padding: 40px 32px 56px; }
+  }
+
+  /* Decorative curving path — only meaningful on desktop where markers
+     are positioned along it. Below 768px we lay markers in a 3-col grid
+     instead, so the path would be misleading; hide it there. */
+  .dac__trail-svg {
+    display: none;
+    width: 100%; height: 380px;
+  }
+  @media (min-width: 768px) {
+    .dac__trail-svg { display: block; }
+  }
+  @keyframes dac-path-draw {
+    from { stroke-dashoffset: 1600; }
+    to   { stroke-dashoffset: 0; }
+  }
+  .dac__trail-path { animation: dac-path-draw 1.6s ease-out both; }
+
+  /* Marker positioning: absolute over the SVG on desktop, grid on mobile */
+  .dac__trail-markers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px 12px;
+  }
+  @media (min-width: 768px) {
+    .dac__trail-markers {
+      display: block; position: absolute; inset: 40px 32px 56px;
+    }
+  }
+  .dac__marker {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    transition: opacity .35s ease, filter .35s ease;
+    opacity: 0.85; filter: saturate(0.85);
+    animation: dac-fade-up .55s ease-out both;
+    animation-delay: var(--enter-delay, 200ms);
+  }
+  .dac__marker--active { opacity: 1; filter: none; z-index: 3; }
+  @media (min-width: 768px) {
+    .dac__marker {
+      position: absolute;
+      width: 130px;
+      left: calc(var(--mx) - 65px);
+      top: calc(var(--my) - 65px);
+    }
+  }
+
+  /* Framed portrait */
+  .dac__marker-frame {
+    padding: 6%;
+    transform: rotate(var(--tilt, 0deg));
+    box-shadow: 0 16px 32px -14px rgba(60, 40, 20, 0.35),
+                0 6px 12px rgba(60, 40, 20, 0.15);
+    width: 92px; height: 106px;
+    margin: 0 auto;
+  }
+  @media (min-width: 768px) {
+    .dac__marker-frame { width: 110px; height: 128px; }
+  }
+  .dac__marker-frame--natural {
+    background: linear-gradient(135deg, #d4b896 0%, #c19a6f 35%, #b8916a 70%, #a07d54 100%);
+  }
+  .dac__marker-frame--gold {
+    background: linear-gradient(135deg, #d4ad5e 0%, #b8893f 40%, #e6c684 70%, #9a7030 100%);
+  }
+  .dac__marker-frame--white {
+    background: linear-gradient(135deg, #f4eee2 0%, #e8dfcc 50%, #d9cdb3 100%);
+  }
+  .dac__marker-frame--dark {
+    background: linear-gradient(135deg, #2a1810 0%, #3d2418 35%, #2a1810 70%, #1a0e08 100%);
+  }
+  .dac__marker-mat {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16),
+                inset 0 0 6px rgba(120,80,40,0.35);
+  }
+  .dac__marker-mat img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .dac__marker--active .dac__marker-frame {
+    box-shadow: 0 0 0 3px var(--c-pink-light),
+                0 0 0 5px var(--c-pink),
+                0 18px 36px -10px rgba(232, 164, 184, 0.5),
+                0 8px 18px rgba(60, 40, 20, 0.25);
+    animation: dac-breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes dac-breathe {
+    0%, 100% { transform: rotate(var(--tilt, 0deg)) scale(1); }
+    50%      { transform: rotate(var(--tilt, 0deg)) scale(1.04); }
+  }
+
+  .dac__marker-label {
+    margin-top: 8px;
+    font-family: var(--font-body); font-size: 10px;
+    letter-spacing: 2px; font-weight: 700;
+    color: var(--c-text); text-transform: uppercase;
+    transition: color .3s ease;
+  }
+  .dac__marker--active .dac__marker-label { color: var(--c-pink); }
+  .dac__marker-yr {
+    font-family: var(--font-display);
+    font-size: 16px; color: var(--c-dark); line-height: 1;
+  }
+  @media (min-width: 768px) {
+    .dac__marker-yr { font-size: 18px; }
+  }
+
+  /* ── Reference table ────────────────────────────────────────── */
+  .dac__table-wrap { margin-top: 48px; }
+  .dac__table-grid {
+    display: grid; grid-template-columns: 1fr; gap: 24px;
+    align-items: start;
+  }
+  @media (min-width: 880px) {
+    .dac__table-grid { grid-template-columns: 1fr 2fr; gap: 48px; }
+  }
+  .dac__table-blurb {
+    font-style: italic; color: var(--c-text); line-height: 1.6;
+    margin-top: 12px; font-size: 15px;
+  }
+  .dac__table {
+    border: 1px solid var(--c-stroke-light);
+    border-radius: 14px; overflow: hidden;
+    background: var(--c-cream);
+  }
+  .dac__table-row {
+    display: grid;
+    grid-template-columns: 1.4fr 0.7fr 0.7fr 0.7fr 0.7fr;
+    padding: 14px 16px;
+    font-family: var(--font-body); font-size: 14px;
+    color: var(--c-dark);
+    border-top: 1px solid #EFE4CE;
+    transition: background .25s ease;
+  }
+  .dac__table-row:first-child { border-top: none; }
+  .dac__table-head {
+    background: #F7EFE2;
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+    color: var(--c-text); text-transform: uppercase;
+  }
+  .dac__table-row--active { background: var(--c-pink-light); }
+  .dac__table-cell-size strong { font-weight: 700; }
+  @media (max-width: 600px) {
+    .dac__table-row {
+      grid-template-columns: 1.4fr 0.55fr 0.55fr 0.55fr 0.55fr;
+      padding: 12px 12px; font-size: 13px;
+    }
+    .dac__table-cell-size .muted { display: none; }
+  }
+
+  /* ── Bottom CTA ─────────────────────────────────────────────── */
+  .dac__cta {
+    margin-top: 56px;
+    background: linear-gradient(180deg, #FDF2DC 0%, #F5E4C1 100%);
+    border: 1px solid #EBD9B2;
+    border-radius: 24px;
+    padding: 32px 22px;
+  }
+  @media (min-width: 768px) { .dac__cta { padding: 56px 64px; } }
+  .dac__cta-inner {
+    display: grid; grid-template-columns: 1fr; gap: 28px;
+    align-items: center;
+  }
+  @media (min-width: 768px) {
+    .dac__cta-inner { grid-template-columns: 1fr 1.2fr; gap: 56px; }
+  }
+  .dac__cta-portrait { display: flex; justify-content: center; }
+  .dac__cta-frame {
+    width: 200px; height: 232px;
+    transform: rotate(-1.2deg);
+    box-shadow: 0 28px 56px -18px rgba(60, 40, 20, 0.4),
+                0 10px 22px rgba(60, 40, 20, 0.2);
+  }
+  @media (min-width: 768px) {
+    .dac__cta-frame { width: 260px; height: 300px; }
+  }
+  #dac-cta-img { transition: opacity .45s ease; }
+  .dac__cta-img--in { animation: dac-fade-up .45s ease-out; }
+
+  .dac__cta-title {
+    font-family: var(--font-display); font-weight: 700; color: var(--c-dark);
+    font-size: clamp(34px, 6vw, 60px);
+    line-height: 1; letter-spacing: -0.5px;
+    margin: 8px 0 0;
+  }
+  .dac__cta-blurb {
+    font-family: 'DM Sans', serif; font-style: italic;
+    font-size: clamp(15px, 2vw, 18px);
+    color: #5C4030;
+    margin-top: 14px; line-height: 1.5;
+  }
+  .dac__cta-actions {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin-top: 20px;
+  }
+
+  /* ── Editorial / FAQ ────────────────────────────────────────── */
+  .dac__editorial { margin-top: 56px; max-width: 760px; }
+  .dac__editorial h2 { font-size: clamp(24px, 4vw, 32px); margin: 32px 0 10px; }
+  .dac__editorial h3 { font-size: 19px; margin: 22px 0 6px; }
+  .dac__editorial p  { line-height: 1.65; margin: 0 0 14px; color: var(--c-text); }
+  .dac__editorial p a { color: var(--c-pink); text-decoration: underline; }
+
+  .dac__faq { margin-top: 8px; }
+  .dac__faq-item {
+    border-top: 1px solid var(--c-stroke-light);
+    padding: 10px 0;
+  }
+  .dac__faq-item:last-of-type { border-bottom: 1px solid var(--c-stroke-light); }
+  .dac__faq-item summary {
+    cursor: pointer; font-weight: 600;
+    font-family: var(--font-display); font-size: 18px;
+    padding: 4px 0; color: var(--c-dark);
+  }
+  .dac__faq-item p { margin: 8px 0 4px; font-size: 15px; line-height: 1.6; }
+
+  /* Reduce motion: drop the big keyframes (path draw + breathing). */
+  @media (prefers-reduced-motion: reduce) {
+    .dac__trail-path,
+    .dac__marker,
+    .dac__marker--active .dac__marker-frame,
+    .dac__stage-badge--in,
+    .dac__fade-in,
+    .dac__result-num--bump,
+    .dac__cta-img--in {
+      animation: none !important;
+    }
+  }
+</style>
