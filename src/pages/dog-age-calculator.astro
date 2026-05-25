@@ -93,7 +93,7 @@ const faqJsonLd = {
   <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} slot="jsonld" />
 
   <main class="page container dac">
-    <header class="dac__hero">
+    <header class="dac__hero dac-reveal dac-reveal--load">
       <div class="dac__eyebrow">Free tool · Purrtraits Studio</div>
       <h1 class="dac__title">The Dog Age Calculator.</h1>
       <p class="dac__tagline">
@@ -110,7 +110,7 @@ const faqJsonLd = {
       </p>
     </header>
 
-    <section class="dac__calc" aria-label="Dog age calculator">
+    <section class="dac__calc dac-reveal" aria-label="Dog age calculator">
       <div class="dac__calc-grid">
         <div class="dac__calc-input">
           <div class="dac__step">Step one</div>
@@ -165,7 +165,7 @@ const faqJsonLd = {
       </div>
     </section>
 
-    <section class="dac__trail-section" aria-label="Life stage trail">
+    <section class="dac__trail-section dac-reveal" aria-label="Life stage trail">
       <div class="dac__trail-head">
         <div class="dac__eyebrow muted">Step two · Walk the path</div>
         <h2 class="dac__h2 dac__h2--center">Where are they now?</h2>
@@ -179,6 +179,7 @@ const faqJsonLd = {
             </linearGradient>
           </defs>
           <path
+            id="dac-trail-path"
             d="M 24 247 C 120 76, 240 38, 360 152 C 480 296, 576 304, 660 152 C 744 38, 840 76, 912 228 C 984 323, 1080 209, 1176 114"
             fill="none"
             stroke="url(#dac-trail-grad)"
@@ -187,6 +188,10 @@ const faqJsonLd = {
             stroke-dasharray="2 14"
             class="dac__trail-path"
           />
+          <!-- Paw prints sprinkled along the path — populated by script
+               via getPointAtLength() so they always sit exactly on the
+               curve, even if the path's d attr changes later. -->
+          <g class="dac__trail-paws" id="dac-trail-paws" aria-hidden="true"></g>
         </svg>
         <div class="dac__trail-markers">
           {STAGES.map((s, i) => (
@@ -194,8 +199,11 @@ const faqJsonLd = {
               class:list={["dac__marker", { "dac__marker--active": s.key === initialStage.key }]}
               data-stage={s.key}
               data-index={i}
-              style={`--mx:${s.mx}%; --my:${s.my}%; --tilt:${(s.mx * 47) % 4 - 2}deg; --enter-delay:${300 + i * 110}ms;`}
+              style={`--mx:${s.mx}%; --my:${s.my}%; --tilt:${(s.mx * 47) % 4 - 2}deg; --stage-index:${i};`}
             >
+              {/* Balloon hovers over the active marker; CSS toggles its
+                  visibility based on .dac__marker--active. */}
+              <div class="dac__marker-balloon" aria-hidden="true">🎈</div>
               <div class:list={["dac__marker-frame", `dac__marker-frame--${s.frame}`]}>
                 <div class="dac__marker-mat">
                   <img src={s.img} alt={`${s.label} life-stage sample portrait`} loading="lazy" decoding="async" />
@@ -209,7 +217,7 @@ const faqJsonLd = {
       </div>
     </section>
 
-    <section class="dac__table-wrap" aria-labelledby="dac-table-h">
+    <section class="dac__table-wrap dac-reveal" aria-labelledby="dac-table-h">
       <div class="dac__table-grid">
         <div class="dac__table-intro">
           <div class="dac__eyebrow muted">The fine print</div>
@@ -242,7 +250,7 @@ const faqJsonLd = {
       </div>
     </section>
 
-    <section class="dac__cta">
+    <section class="dac__cta dac-reveal">
       <div class="dac__cta-inner">
         <div class="dac__cta-portrait">
           <div class="dac__marker-frame dac__marker-frame--gold dac__cta-frame">
@@ -268,7 +276,7 @@ const faqJsonLd = {
       </div>
     </section>
 
-    <article class="dac__editorial">
+    <article class="dac__editorial dac-reveal">
       <h2>How dog years actually work</h2>
       <p>
         The old saying — <em>one dog year is seven human years</em> — is the
@@ -424,9 +432,17 @@ const faqJsonLd = {
     ageEl.textContent = String(age);
     tweenNumber(humanEl, human);
 
-    // Restart the "stamp in" animation by removing+adding the class on
-    // each change. The void offsetWidth read forces layout so the browser
-    // notices the class flip and replays the keyframe.
+    // Result number bumps on every change — feels lively when stepping
+    // the age even within the same stage. The void offsetWidth read
+    // forces layout so the browser notices the class flip and replays
+    // the keyframe.
+    resultNum.classList.remove("dac__result-num--bump");
+    void (resultNum as HTMLElement).offsetWidth;
+    resultNum.classList.add("dac__result-num--bump");
+
+    // Stage-only animations: badge stamp + blurb fade only when the
+    // life stage actually changes (otherwise constant re-stamps on every
+    // age tick would feel jittery).
     if (stageLabel.textContent !== stage.label) {
       stageBadge.classList.remove("dac__stage-badge--in");
       void (stageBadge as HTMLElement).offsetWidth;
@@ -434,9 +450,6 @@ const faqJsonLd = {
       stageBlurb.classList.remove("dac__fade-in");
       void (stageBlurb as HTMLElement).offsetWidth;
       stageBlurb.classList.add("dac__fade-in");
-      resultNum.classList.remove("dac__result-num--bump");
-      void (resultNum as HTMLElement).offsetWidth;
-      resultNum.classList.add("dac__result-num--bump");
     }
 
     stageLabel.textContent = stage.label;
@@ -491,11 +504,105 @@ const faqJsonLd = {
       }
     });
   });
+
+  // ── Paw prints along the SVG path ───────────────────────────────
+  // Sample the path at evenly-spaced arc-length positions so the paws
+  // always sit exactly on the curve, regardless of the path's d attr.
+  // Each paw gets a staggered animation delay (the actual fade-in is
+  // gated by the .dac-revealed class so they only animate once the
+  // trail section is in view).
+  (() => {
+    const path = document.getElementById("dac-trail-path") as SVGPathElement | null;
+    const group = document.getElementById("dac-trail-paws");
+    if (!path || !group || typeof path.getTotalLength !== "function") return;
+
+    const total = path.getTotalLength();
+    const N = 18;
+    const NS = "http://www.w3.org/2000/svg";
+    // SVG fragments are tiny — building via innerHTML is fine and keeps
+    // the construction loop readable.
+    for (let i = 0; i < N; i++) {
+      const p = path.getPointAtLength((total * (i + 0.5)) / N);
+      const tilt = i % 2 ? 12 : -8;
+      const delay = 700 + i * 55;
+      const g = document.createElementNS(NS, "g");
+      g.setAttribute("transform", `translate(${p.x} ${p.y}) rotate(${tilt})`);
+      g.setAttribute("class", "dac__paw");
+      g.setAttribute("style", `--paw-delay:${delay}ms;`);
+      g.innerHTML = `
+        <ellipse cx="0"    cy="3"  rx="3"   ry="2.4" fill="#6A4830"/>
+        <ellipse cx="-3"   cy="-1" rx="1.2" ry="1.6" fill="#6A4830"/>
+        <ellipse cx="-1"   cy="-3" rx="1.2" ry="1.6" fill="#6A4830"/>
+        <ellipse cx="1.6"  cy="-3" rx="1.2" ry="1.6" fill="#6A4830"/>
+        <ellipse cx="3.6"  cy="-1" rx="1.2" ry="1.6" fill="#6A4830"/>
+      `;
+      group.appendChild(g);
+    }
+  })();
+
+  // ── Scroll-triggered reveals ────────────────────────────────────
+  // Sections marked .dac-reveal start hidden + translated; once they
+  // intersect the viewport they get .dac-revealed which transitions
+  // them into place and triggers any child animations (path-draw,
+  // marker stagger, paw fade-ins, etc.) via CSS selectors.
+  //
+  // Hero is also tagged .dac-reveal--load so it reveals immediately
+  // on page load without waiting for an intersection event — it's
+  // above the fold by definition.
+  const reveal = (el: Element) => el.classList.add("dac-revealed");
+
+  // Load-class targets reveal synchronously on first frame so the
+  // hero never flashes hidden.
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".dac-reveal--load").forEach(reveal);
+  });
+
+  // Older Safari / browsers without IO: bail and show everything so
+  // the page is never permanently hidden.
+  if (!("IntersectionObserver" in window)) {
+    document.querySelectorAll(".dac-reveal").forEach(reveal);
+  } else {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            reveal(e.target);
+            io.unobserve(e.target);
+          }
+        }
+      },
+      // 15% of the element needs to be visible — feels natural; fires
+      // a touch before the section is fully on-screen so the user
+      // catches the animation rather than walking into a static view.
+      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" }
+    );
+    document
+      .querySelectorAll(".dac-reveal:not(.dac-reveal--load):not(.dac-revealed)")
+      .forEach((el) => io.observe(el));
+  }
 </script>
 
 <style>
   /* ── Layout shell ────────────────────────────────────────────── */
   .dac { max-width: 1200px; }
+
+  /* Section-level scroll-triggered reveals. Each section tagged
+     `.dac-reveal` starts hidden + nudged down. Once IntersectionObserver
+     sees it (or, for `.dac-reveal--load`, on the next animation frame
+     for above-the-fold content), `.dac-revealed` swaps in to transition
+     it into place. The trail section also uses .dac-revealed as the
+     trigger for its internal path-draw + marker-stagger animations. */
+  .dac-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity .8s ease-out, transform .8s cubic-bezier(.22, .61, .36, 1);
+    will-change: opacity, transform;
+  }
+  .dac-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
   .dac__hero { text-align: center; margin: 8px 0 28px; }
   .dac__eyebrow {
     font-family: var(--font-body);
@@ -726,11 +833,31 @@ const faqJsonLd = {
   @media (min-width: 768px) {
     .dac__trail-svg { display: block; }
   }
-  @keyframes dac-path-draw {
-    from { stroke-dashoffset: 1600; }
-    to   { stroke-dashoffset: 0; }
+  /* Path draws in left-to-right via a clip-path mask once the trail
+     section reveals. Clipping the whole SVG also reveals the paws
+     in sequence, which feels like footsteps appearing on the path. */
+  .dac__trail-svg {
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 1.8s cubic-bezier(.22, .61, .36, 1);
   }
-  .dac__trail-path { animation: dac-path-draw 1.6s ease-out both; }
+  .dac__trail-section.dac-revealed .dac__trail-svg {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Paw prints — start invisible/scaled, fade-pop in with per-paw
+     delay so they appear to land one after the other. Gated by the
+     trail-section's .dac-revealed so paws below the fold wait until
+     the user scrolls to them. */
+  .dac__paw {
+    opacity: 0;
+    transform-origin: center;
+    transform-box: fill-box;
+    transition: opacity .45s ease-out, transform .45s ease-out;
+    transition-delay: var(--paw-delay, 0ms);
+  }
+  .dac__trail-section.dac-revealed .dac__paw {
+    opacity: 0.7;
+  }
 
   /* Marker positioning: absolute over the SVG on desktop, grid on mobile */
   .dac__trail-markers {
@@ -743,15 +870,27 @@ const faqJsonLd = {
       display: block; position: absolute; inset: 40px 32px 56px;
     }
   }
+  /* Markers stamp in with stagger after the path has finished drawing.
+     Delay is (stage-index * 130ms) + 900ms base — enough lead time for
+     ~half the path to be drawn before the first frame lands. */
   .dac__marker {
+    position: relative;
     display: flex; flex-direction: column; align-items: center;
     text-align: center;
-    transition: opacity .35s ease, filter .35s ease;
-    opacity: 0.85; filter: saturate(0.85);
-    animation: dac-fade-up .55s ease-out both;
-    animation-delay: var(--enter-delay, 200ms);
+    opacity: 0; transform: translateY(10px) scale(0.92);
+    transition:
+      opacity .55s ease-out,
+      transform .55s cubic-bezier(.22, 1.2, .36, 1),
+      filter .35s ease;
+    filter: saturate(0.85);
+    transition-delay: calc(var(--stage-index, 0) * 130ms + 900ms);
   }
-  .dac__marker--active { opacity: 1; filter: none; z-index: 3; }
+  .dac__trail-section.dac-revealed .dac__marker {
+    opacity: 0.85; transform: translateY(0) scale(1);
+  }
+  .dac__trail-section.dac-revealed .dac__marker--active {
+    opacity: 1; filter: none; z-index: 3;
+  }
   @media (min-width: 768px) {
     .dac__marker {
       position: absolute;
@@ -820,6 +959,31 @@ const faqJsonLd = {
   }
   @media (min-width: 768px) {
     .dac__marker-yr { font-size: 18px; }
+  }
+
+  /* Balloon that hovers over the active marker. Always rendered in the
+     DOM but only revealed when the marker is active — that way changing
+     stages just toggles a class instead of re-mounting the emoji. */
+  .dac__marker-balloon {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    font-size: 22px;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.6);
+    transition: opacity .35s ease-out, transform .45s cubic-bezier(.22, 1.4, .36, 1);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18));
+  }
+  .dac__marker--active .dac__marker-balloon {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+    animation: dac-balloon-bob 3s ease-in-out 0.4s infinite;
+  }
+  @keyframes dac-balloon-bob {
+    0%, 100% { transform: translate(-50%, 0)    scale(1); }
+    50%      { transform: translate(-50%, -5px) scale(1); }
   }
 
   /* ── Reference table ────────────────────────────────────────── */
@@ -931,11 +1095,25 @@ const faqJsonLd = {
   }
   .dac__faq-item p { margin: 8px 0 4px; font-size: 15px; line-height: 1.6; }
 
-  /* Reduce motion: drop the big keyframes (path draw + breathing). */
+  /* Reduce motion: drop every animated transition / keyframe, and
+     force reveals straight to their visible state so the page is
+     still usable with motion fully off. */
   @media (prefers-reduced-motion: reduce) {
-    .dac__trail-path,
+    .dac-reveal,
+    .dac__trail-svg,
     .dac__marker,
+    .dac__paw,
+    .dac__marker-balloon {
+      transition: none !important;
+    }
+    .dac-reveal { opacity: 1; transform: none; }
+    .dac__trail-svg { clip-path: none; }
+    .dac__marker { opacity: 0.85; transform: none; }
+    .dac__marker--active { opacity: 1; }
+    .dac__paw { opacity: 0.7; }
+
     .dac__marker--active .dac__marker-frame,
+    .dac__marker--active .dac__marker-balloon,
     .dac__stage-badge--in,
     .dac__fade-in,
     .dac__result-num--bump,
