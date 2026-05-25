@@ -1,16 +1,20 @@
 // Saved shortlists for the public /dog-name-generator. Kept independent of
 // `sessions` so the SEO funnel never touches the buying-flow container.
 //
-// Save flow:
-//   - Signed-in user: saveShortlist() stamps userId immediately and schedules
-//     the transactional email in the same mutation.
-//   - Signed-out user: saveShortlist() writes with a fresh claimToken and
-//     returns { id, claimToken }. The page stashes the token, sends the user
-//     through /sign-up?next=..., then calls claimShortlist() on return to
-//     stamp userId and schedule the email.
+// v2 flow (email-only, no sign-up detour):
+//   - Signed-out user submits email + consent checkbox → saveShortlist
+//     writes the row, schedules the shortlist email, and (iff consent)
+//     schedules a contact-add to Brevo list 3.
+//   - Signed-in user → same shape, against their account.
 //
-// The email send is scheduled (not awaited) so a Brevo outage can't block
+// Both send paths are scheduled (not awaited) so a Brevo outage can't block
 // the save or break the page — same pattern as sendWelcome in auth.ts.
+//
+// Legacy: `claimShortlist` and the `claimToken` column are kept for
+// backward compatibility with any rows created during the brief window
+// between v1 and v2 deploys. New code never sets a claimToken; new clients
+// never call claimShortlist. Both can be removed once the legacy rows have
+// aged out.
 
 import {
   mutation,
@@ -48,65 +52,66 @@ const namesValidator = v.array(
   }),
 );
 
-// 16 bytes of base36 — random enough that an attacker can't guess another
-// user's claim token in practice (~80 bits of entropy).
-function makeClaimToken(): string {
-  const a = Math.random().toString(36).slice(2, 12);
-  const b = Math.random().toString(36).slice(2, 12);
-  return `${a}${b}`;
-}
-
 export const saveShortlist = mutation({
   args: {
     inputs: inputsValidator,
     names: namesValidator,
-    // Signed-out callers pass an email so the email send has a recipient.
-    // Signed-in callers can omit it — we use the account email.
+    // Recipient email. Signed-in callers may omit it — we fall back to the
+    // account email in the email action. Signed-out callers MUST pass it.
     email: v.optional(v.string()),
+    // Whether the user ticked the marketing-consent checkbox on the form.
+    // false (or missing) → transactional shortlist email only.
+    // true               → also add to Brevo contact list 3.
+    marketingConsent: v.optional(v.boolean()),
   },
   handler: async (
     ctx,
     args,
-  ): Promise<{ id: Id<"dogShortlists">; claimToken: string | null }> => {
+  ): Promise<{ id: Id<"dogShortlists"> }> => {
     const userId = await getAuthUserId(ctx);
-    if (userId) {
-      // Signed-in: own immediately, schedule email against the user's
-      // account email.
-      const id = await ctx.db.insert("dogShortlists", {
-        userId,
-        inputs: args.inputs,
-        names: args.names,
-        recipientEmail: args.email,
-        createdAt: Date.now(),
-      });
-      await ctx.scheduler.runAfter(0, internal.brevo.sendDogNameShortlist, {
-        shortlistId: id,
-      });
-      return { id, claimToken: null };
+    const consent = args.marketingConsent === true;
+    const now = Date.now();
+
+    if (!userId && !args.email) {
+      // Signed-out callers must give us an address — otherwise we have
+      // nowhere to send the email.
+      throw new Error("Email is required for signed-out saves");
     }
-    // Signed-out: write unclaimed with a token. Email is sent on claim, not
-    // now — sending a shortlist to an anonymous email address before any
-    // account verification would be a spam vector.
-    const claimToken = makeClaimToken();
+
     const id = await ctx.db.insert("dogShortlists", {
-      claimToken,
+      userId: userId ?? undefined,
       inputs: args.inputs,
       names: args.names,
       recipientEmail: args.email,
-      createdAt: Date.now(),
+      marketingConsent: consent,
+      marketingConsentAt: consent ? now : undefined,
+      createdAt: now,
     });
-    return { id, claimToken };
+
+    // Schedule the shortlist email — idempotent on emailSentAt.
+    await ctx.scheduler.runAfter(0, internal.brevo.sendDogNameShortlist, {
+      shortlistId: id,
+    });
+
+    // If the user gave marketing consent, add them to the Brevo contact
+    // list separately. Scheduled (not awaited) so a Brevo /contacts outage
+    // doesn't block the save.
+    if (consent) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.brevo.addNameGeneratorContact,
+        { shortlistId: id },
+      );
+    }
+
+    return { id };
   },
 });
 
-// Called from /dog-name-generator after the sign-up round-trip. The page
-// reads the stashed { id, claimToken } from sessionStorage and posts it
-// here; we stamp userId, clear the token, and schedule the email.
-//
-// Idempotent — claiming an already-claimed row owned by the same user is a
-// no-op; claiming a row owned by a different user is a no-op (defensive —
-// the token is the bearer credential, but if it leaked, we don't let it
-// steal a different user's shortlist).
+// LEGACY: kept callable for any in-flight v1 client that still has a pending
+// claim token in sessionStorage. New clients never call this. Once we are
+// confident no v1 clients are out there, this and the claimToken column
+// can be removed in a follow-up migration.
 export const claimShortlist = mutation({
   args: {
     id: v.id("dogShortlists"),
@@ -120,9 +125,6 @@ export const claimShortlist = mutation({
     if (row.userId && row.userId !== userId) {
       return { ok: false as const, reason: "owned-by-other" as const };
     }
-    // Already claimed by this user — still trigger the email send, which is
-    // itself idempotent on emailSentAt. This lets a sign-up that succeeded
-    // but failed the email schedule recover on a refresh.
     if (row.userId === userId) {
       if (!row.emailSentAt) {
         await ctx.scheduler.runAfter(0, internal.brevo.sendDogNameShortlist, {
@@ -162,7 +164,7 @@ export const getMyShortlists = query({
   },
 });
 
-// Internal accessors for the email action.
+// Internal accessors for the email + contact-sync actions.
 export const getInternal = internalQuery({
   args: { id: v.id("dogShortlists") },
   handler: async (ctx, { id }) => ctx.db.get(id),
@@ -172,5 +174,12 @@ export const markEmailSent = internalMutation({
   args: { id: v.id("dogShortlists"), at: v.number() },
   handler: async (ctx, { id, at }) => {
     await ctx.db.patch(id, { emailSentAt: at });
+  },
+});
+
+export const markContactSynced = internalMutation({
+  args: { id: v.id("dogShortlists"), at: v.number() },
+  handler: async (ctx, { id, at }) => {
+    await ctx.db.patch(id, { contactSyncedAt: at });
   },
 });

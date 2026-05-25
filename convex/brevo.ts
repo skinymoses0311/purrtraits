@@ -17,9 +17,24 @@ const TEMPLATES = {
   delivered: 4,
   cancellation: 5,
   welcome: 6,
+  nameShortlist: 7,
+} as const;
+
+// Brevo contact lists.
+//   nameGeneratorLeads (3) — captures emails from the /dog-name-generator
+//   page when the user opts in via the marketing-consent checkbox. Kept
+//   separate from any future general-newsletter list so the funnel stage
+//   ("SEO lead, not yet a buyer") stays addressable.
+const LISTS = {
+  nameGeneratorLeads: 3,
 } as const;
 
 const HOMEPAGE_URL = "https://purrtraits.shop";
+
+// Max names to include in the shortlist email. The page may show more via
+// the "show more" control; the email is a digest of the first N from the
+// deterministic order — same as what the user saw first on screen.
+const SHORTLIST_EMAIL_NAME_COUNT = 20;
 
 type Stage = "confirmation" | "inProduction" | "inTransit" | "delivered" | "canceled";
 
@@ -66,38 +81,6 @@ async function sendTemplate(args: {
     const text = await res.text();
     throw new Error(`Brevo send failed (${res.status}): ${text}`);
   }
-}
-
-// Inline-HTML sender. Used for the name-shortlist email because that
-// transactional flow doesn't yet have a Brevo dashboard template — once one
-// is set up the shortlist action can switch to sendTemplate() with no
-// behavioural change. Brevo's /smtp/email accepts either form on the same
-// endpoint.
-async function sendInlineHtml(args: {
-  subject: string;
-  htmlContent: string;
-  to: { email: string; name?: string };
-}): Promise<void> {
-  const res = await fetch(`${BREVO_API}/smtp/email`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      sender: SENDER,
-      to: [args.to],
-      subject: args.subject,
-      htmlContent: args.htmlContent,
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Brevo send failed (${res.status}): ${text}`);
-  }
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
 }
 
 function originLabel(key: string): string {
@@ -253,14 +236,17 @@ export const sendStatusEmail = internalAction({
 });
 
 // Dog-name shortlist: fired after the user saves their shortlist from the
-// /dog-name-generator page (either inline if signed in, or post-claim if the
-// shortlist was created signed-out). Idempotent on emailSentAt — a duplicate
-// schedule (retry, double-claim, etc.) is a no-op once the row is marked.
+// /dog-name-generator page. Idempotent on emailSentAt — a duplicate schedule
+// (retry, double-submit) is a no-op once the row is marked.
 //
 // Recipient priority: the user's account email if present, otherwise the
 // recipientEmail captured on the row at save time. If neither is set the
 // send is skipped with a warning, never thrown — an email failure must
 // never break the save.
+//
+// Sends via Brevo dashboard template 7 (`nameShortlist`). The template
+// expects the param shape below — see also the design doc in the build
+// thread for the canonical contract.
 export const sendDogNameShortlist = internalAction({
   args: { shortlistId: v.id("dogShortlists") },
   handler: async (ctx, { shortlistId }): Promise<void> => {
@@ -286,7 +272,9 @@ export const sendDogNameShortlist = internalAction({
       return;
     }
 
-    const firstName = firstNameOf(toName) || "there";
+    // breedLabel is already "your-prefixed" so the template can drop it
+    // straight into copy like "for {{ params.breedLabel }}". Stays "your dog"
+    // when we don't know the breed.
     const breedLabel =
       row.inputs.breedMode === "unknown"
         ? "your dog"
@@ -294,61 +282,42 @@ export const sendDogNameShortlist = internalAction({
           ? `your ${row.inputs.breed}`
           : "your dog";
 
-    const listRows = row.names
-      .map(
-        (n) => `
-          <tr>
-            <td style="padding:10px 12px;border-bottom:1px solid #f1d7da;vertical-align:top;">
-              <div style="font-weight:600;font-size:16px;color:#2a2a2a;">${escapeHtml(n.name)}</div>
-              <div style="color:#7a6a6c;font-size:13px;margin-top:2px;">${escapeHtml(originLabel(n.origin))} · ${escapeHtml(n.meaning)}</div>
-            </td>
-          </tr>`,
-      )
-      .join("");
+    const genderLabel =
+      row.inputs.gender === "boy"
+        ? "Boy"
+        : row.inputs.gender === "girl"
+          ? "Girl"
+          : "Any";
 
-    const subject = `Your dog name shortlist · Purrtraits`;
-    const htmlContent = `<!doctype html>
-<html><body style="margin:0;padding:0;background:#fff5f6;font-family:Georgia,'Times New Roman',serif;color:#2a2a2a;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fff5f6;">
-    <tr><td align="center" style="padding:32px 16px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;width:100%;background:#ffffff;border:1.5px solid #f1d7da;border-radius:14px;overflow:hidden;">
-        <tr><td style="padding:28px 28px 8px 28px;">
-          <div style="font-size:14px;color:#a87278;letter-spacing:0.08em;text-transform:uppercase;">🐾 Purrtraits</div>
-          <h1 style="font-size:24px;margin:14px 0 6px 0;color:#2a2a2a;">Hello ${escapeHtml(firstName)},</h1>
-          <p style="font-size:16px;line-height:1.5;margin:6px 0 18px 0;color:#3f3338;">
-            Here's the dog name shortlist you saved for ${escapeHtml(breedLabel)} —
-            keep it somewhere safe and try a few on for size.
-          </p>
-        </td></tr>
-        <tr><td style="padding:0 16px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-            ${listRows}
-          </table>
-        </td></tr>
-        <tr><td style="padding:24px 28px 4px 28px;">
-          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;color:#3f3338;">
-            Once you've picked the one, why not make it official? Turn your favourite
-            photo of them into a museum-worthy portrait — your shortlisted name goes
-            right on the piece.
-          </p>
-          <p style="margin:6px 0 24px 0;">
-            <a href="${HOMEPAGE_URL}/upload" style="display:inline-block;background:#e85a6a;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:999px;">Create their portrait →</a>
-          </p>
-        </td></tr>
-        <tr><td style="padding:18px 28px 26px 28px;border-top:1px solid #f1d7da;color:#86737a;font-size:12px;line-height:1.5;">
-          You're receiving this because you saved a shortlist on
-          <a href="${HOMEPAGE_URL}/dog-name-generator" style="color:#a87278;">purrtraits.shop</a>.
-          This is a one-off email — we'll only message you if you've placed an order or saved another shortlist.
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+    const styleLabels = row.inputs.styles.map((s) => originLabel(s));
+    const styleLabelsJoined = joinHuman(styleLabels);
 
-    await sendInlineHtml({
-      subject,
-      htmlContent,
+    // Top-N: the first SHORTLIST_EMAIL_NAME_COUNT names from the
+    // deterministic shuffle the page stored. Matches what the user saw
+    // first on screen.
+    const topNames = row.names
+      .slice(0, SHORTLIST_EMAIL_NAME_COUNT)
+      .map((n) => ({
+        name: n.name,
+        originLabel: originLabel(n.origin),
+        meaning: n.meaning,
+      }));
+
+    await sendTemplate({
+      templateId: TEMPLATES.nameShortlist,
       to: { email: toEmail, name: toName },
+      params: {
+        // Note: no firstName — the lead-gen flow doesn't collect a name, so
+        // the template uses breed-driven copy instead of a personal greeting.
+        breedLabel,
+        genderLabel,
+        styleLabels,
+        styleLabelsJoined,
+        names: topNames,
+        portraitUrl: `${HOMEPAGE_URL}/upload`,
+        homepageUrl: HOMEPAGE_URL,
+        generatorUrl: `${HOMEPAGE_URL}/dog-name-generator`,
+      },
     });
 
     await ctx.runMutation(internal.dogShortlists.markEmailSent, {
@@ -357,6 +326,98 @@ export const sendDogNameShortlist = internalAction({
     });
   },
 });
+
+// Add the saved-shortlist's recipient to the "Name Generator Leads" Brevo
+// list (id 3). Only scheduled if the user ticked the marketing-consent
+// checkbox; we check the row again here as a defence-in-depth in case the
+// scheduler was kicked off in error.
+//
+// Idempotent on contactSyncedAt — a retry after a successful sync is a
+// no-op. Brevo's /contacts is itself idempotent (updates the existing
+// contact, doesn't error on duplicate), so the worst case is one wasted
+// API call per retry; the marker just makes it free.
+export const addNameGeneratorContact = internalAction({
+  args: { shortlistId: v.id("dogShortlists") },
+  handler: async (ctx, { shortlistId }): Promise<void> => {
+    const row = await ctx.runQuery(internal.dogShortlists.getInternal, {
+      id: shortlistId,
+    });
+    if (!row) return;
+    if (row.contactSyncedAt) return;
+    if (row.marketingConsent !== true) {
+      console.warn(
+        `dogShortlist ${shortlistId} has no marketing consent — refusing to add to list`,
+      );
+      return;
+    }
+
+    // Recipient: same priority as the email send.
+    let email: string | undefined = row.recipientEmail ?? undefined;
+    let displayName: string | undefined = undefined;
+    if (row.userId) {
+      const user = await ctx.runQuery(internal.users.getInternal, {
+        id: row.userId,
+      });
+      if (user?.email) email = user.email;
+      if (user?.name) displayName = user.name;
+    }
+    if (!email) {
+      console.warn(
+        `dogShortlist ${shortlistId} has no recipient email — skipping contact sync`,
+      );
+      return;
+    }
+
+    // Useful attributes for Brevo segmentation. Brevo's contact attributes
+    // are case-insensitive; we use upper-snake by convention so the
+    // dashboard column names read naturally.
+    const attributes: Record<string, unknown> = {
+      SOURCE: "dog-name-generator",
+    };
+    if (displayName) {
+      const first = firstNameOf(displayName);
+      if (first) attributes.FIRSTNAME = first;
+    }
+    if (row.inputs.breed) attributes.DOG_BREED = row.inputs.breed;
+    if (row.inputs.gender) attributes.DOG_GENDER = row.inputs.gender;
+    if (row.inputs.styles.length > 0) {
+      attributes.NAME_STYLES = row.inputs.styles.join(",");
+    }
+
+    const res = await fetch(`${BREVO_API}/contacts`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        email,
+        attributes,
+        listIds: [LISTS.nameGeneratorLeads],
+        // updateEnabled: true → if the contact already exists in Brevo,
+        // update its attributes / list membership instead of erroring out.
+        // This is what makes the call idempotent on Brevo's side.
+        updateEnabled: true,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Brevo contact sync failed (${res.status}): ${text}`);
+    }
+
+    await ctx.runMutation(internal.dogShortlists.markContactSynced, {
+      id: shortlistId,
+      at: Date.now(),
+    });
+  },
+});
+
+// Joins an array of strings into an Oxford-comma-ish "A, B and C" — small
+// helper used by the shortlist email to format the chosen styles. Kept
+// inline because it's only used in one place.
+function joinHuman(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
 
 // Welcome: fired once per new user from auth.ts createOrUpdateUser. Idempotent
 // on `welcomeEmailSentAt` so a retried sign-up flow can't double-send.

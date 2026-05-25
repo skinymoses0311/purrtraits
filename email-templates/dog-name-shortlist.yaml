@@ -1,0 +1,553 @@
+author: ""
+brandUpdateTime: '2026-05-25T08:30:00.000Z'
+campaignType: template
+fields: {}
+fieldsHistory: []
+firstLoadSocialIcons: false
+font-fallback:
+  default: Arial
+  headings: Tahoma
+fonts:
+  - 'https://fonts.googleapis.com/css2?family=Caveat&family=DM%20Sans&display=swap'
+id: 9f3a2c41-7e8b-4d12-9f3a-2c417e8b4d12
+name: 'Purrtraits — Dog Name Shortlist'
+subject: 'Top 20 names for {{ params.breedLabel }} 🐾'
+ui:
+  showDeleteOption: false
+user-hash: 802a5bb62aa6c66a8acf4eab649f44ce
+version: 3.0.1
+body:
+  id: a1b2c3d4-e5f6-4789-a1b2-c3d4e5f64789
+  type: body
+  layout:
+    320px:
+      width: 320px
+    default:
+      wrapper-width: 600px
+  content:
+    -
+      content-type: wrapper
+      id: b2c3d4e5-f6a7-4890-b2c3-d4e5f6a78901
+      title: Wrapper
+      type: rows
+      layout:
+        320px:
+          width: 320px
+        default:
+          align: center
+          valign: top
+      content:
+        -
+          align: top
+          dist: '12'
+          gutter: 0px
+          id: c3d4e5f6-a7b8-4901-c3d4-e5f6a7b89012
+          moduleName: viewInBrowser
+          title: section
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: '#FFFDF8'
+              display: none
+              full-width: true
+              padding-bottom: 5px
+              padding-top: 5px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: d4e5f6a7-b8c9-4012-d4e5-f6a7b8c90123
+              isEmpty: false
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: e5f6a7b8-c9d0-4123-e5f6-a7b8c9d01234
+                  title: Webversion
+                  type: text
+                  layout:
+                    320px:
+                      padding-left: 10px
+                      padding-right: 10px
+                      width: 100%
+                    default:
+                      align: center
+                      line-height: 16px
+                      padding-left: 30px
+                      padding-right: 30px
+                      text-align: center
+                      width: 100%
+                  content: '<p><a href="{{ mirror }}"><span style="font-family: arial,helvetica,sans-serif;color:#7A6558;font-size: 12px; text-decoration: underline;">View in browser</span></a></p>'
+        -
+          align: top
+          dist: '12'
+          gutter: 30px
+          id: f6a7b8c9-d0e1-4234-f6a7-b8c9d0e12345
+          moduleName: header
+          title: Header
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#FFFDF8'
+              full-width: false
+              padding-bottom: 20px
+              padding-top: 20px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: a7b8c9d0-e1f2-4345-a7b8-c9d0e1f23456
+              isEmpty: false
+              title: grid-column
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: b8c9d0e1-f2a3-4456-b8c9-d0e1f2a34567
+                  moduleName: brand-logo
+                  title: Logo
+                  type: image
+                  layout:
+                    320px:
+                      max-width: 320px
+                      width: 100%
+                    default:
+                      align: center
+                      canvas-height: 200px
+                      dynamic: false
+                      embed: false
+                      image-maxWidth: 400px
+                      opacity: 1
+                      valign: top
+                      width: 200px
+                  content:
+                    src: 'https://img.mailinblue.com/11121798/images/content_library/original/69f6536f35a41bcaaaf9a58f.png'
+        -
+          align: top
+          dist: '12'
+          gutter: 20px
+          id: c9d0e1f2-a3b4-4567-c9d0-e1f2a3b45678
+          moduleName: hero
+          title: Hero
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: '#F7E8EE'
+              padding-bottom: 30px
+              padding-left: 30px
+              padding-right: 30px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: d0e1f2a3-b4c5-4678-d0e1-f2a3b4c56789
+              isEmpty: false
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: e1f2a3b4-c5d6-4789-e1f2-a3b4c5d6789a
+                  title: Headline
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 8px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<h1 class="default-heading1"><strong>Top 20 names for {{ params.breedLabel }} 🐾</strong></h1>'
+                -
+                  id: f2a3b4c5-d6e7-4890-f2a3-b4c5d6e7890b
+                  title: Subhead
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="font-size:16px;color:#2D1F1A;">Hand-picked in the {{ params.styleLabelsJoined }} style. Try a few on for size and see which one sticks.</p>'
+        -
+          align: top
+          dist: '12'
+          gutter: 20px
+          id: a3b4c5d6-e7f8-4901-a3b4-c5d6e7f8901c
+          moduleName: names-list
+          title: 'Name shortlist'
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: '#FFFDF8'
+              padding-bottom: 24px
+              padding-left: 30px
+              padding-right: 30px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: b4c5d6e7-f8a9-4012-b4c5-d6e7f8a9012d
+              isEmpty: false
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: c5d6e7f8-a9b0-4123-c5d6-e7f8a9b0123e
+                  title: 'Names heading'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 8px
+                      text-align: left
+                      valign: top
+                      width: 100%
+                  content: '<h2 class="default-heading2"><strong>Your shortlist</strong></h2>'
+                -
+                  id: d6e7f8a9-b0c1-4234-d6e7-f8a9b0c1234f
+                  title: 'Names list'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 12px
+                      text-align: left
+                      valign: top
+                      width: 100%
+                  content: "{% for name in params.names %}\n<div style=\"border-bottom:1px solid #E0D5C4;padding:14px 0;\">\n  <div style=\"font-family:'DM Sans',Arial,sans-serif;font-weight:600;font-size:17px;color:#2D1F1A;\">{{ name.name }}</div>\n  <div style=\"font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#7A6558;margin-top:3px;\">{{ name.originLabel }} · {{ name.meaning }}</div>\n</div>\n{% endfor %}\n"
+        -
+          align: top
+          dist: '12'
+          gutter: 20px
+          id: e7f8a9b0-c1d2-4345-e7f8-a9b0c1d23450
+          moduleName: tip
+          title: 'How to pick tip'
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: '#F2EBE0'
+              padding-bottom: 20px
+              padding-left: 30px
+              padding-right: 30px
+              padding-top: 20px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: f8a9b0c1-d2e3-4456-f8a9-b0c1d2e34561
+              isEmpty: false
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: a9b0c1d2-e3f4-4567-a9b0-c1d2e3f45672
+                  title: 'Tip heading'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      padding-bottom: 6px
+                      text-align: left
+                      valign: top
+                      width: 100%
+                  content: '<h3 class="default-heading3"><strong>How to pick the one</strong></h3>'
+                -
+                  id: b0c1d2e3-f4a5-4678-b0c1-d2e3f4a56783
+                  title: 'Tip body'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: left
+                      text-align: left
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#2D1F1A;line-height:1.6;">Say each one out loud. Then call it across a room. Then say it sweetly. A name that works in every tone is one that''ll wear well. Trainers also recommend names that don''t rhyme with commands (no <em>Beau</em> next to <em>no</em>, no <em>Kit</em> next to <em>sit</em>).</p>'
+        -
+          align: top
+          dist: '12'
+          gutter: 20px
+          id: c1d2e3f4-a5b6-4789-c1d2-e3f4a5b67894
+          moduleName: portrait-cta
+          title: 'Portrait CTA'
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              width: 100%
+            default:
+              align: center
+              background-color: '#FFFDF8'
+              padding-bottom: 30px
+              padding-left: 30px
+              padding-right: 30px
+              padding-top: 30px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: d2e3f4a5-b6c7-4890-d2e3-f4a5b6c789a5
+              isEmpty: false
+              title: 'column 1'
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: e3f4a5b6-c7d8-4901-e3f4-a5b6c7d890b6
+                  title: 'CTA heading'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 6px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<h2 class="default-heading2"><strong>Make it official</strong></h2>'
+                -
+                  id: f4a5b6c7-d8e9-4012-f4a5-b6c7d8e90127
+                  title: 'CTA body'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 14px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="color:#2D1F1A;">Once you''ve picked the one, turn your favourite photo of them into a museum-worthy portrait — their new name goes right on the piece.</p>'
+                -
+                  id: a5b6c7d8-e9f0-4123-a5b6-c7d8e9f01238
+                  title: 'CTA button'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-bottom: 4px
+                      padding-top: 4px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="text-align:center;"><a href="{{ params.portraitUrl }}" style="display:inline-block;background-color:#E8A4B8;color:#ffffff;font-family:arial,helvetica,sans-serif;font-size:16px;font-weight:600;padding:14px 28px;border-radius:6px;text-decoration:none;">🎨 Create their portrait →</a></p>'
+                -
+                  id: b6c7d8e9-f0a1-4234-b6c7-d8e9f0a12349
+                  title: 'Secondary link'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      padding-top: 10px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="font-size:13px;color:#7A6558;">Or <a href="{{ params.generatorUrl }}" style="color:#db8aa3;text-decoration:underline;">run the name generator again</a> if you''d like a different vibe.</p>'
+        -
+          align: top
+          dist: '12'
+          gutter: 30px
+          id: c7d8e9f0-a1b2-4345-c7d8-e9f0a1b2345a
+          moduleName: footer
+          title: Footer
+          type: grid-row
+          layout:
+            320px:
+              display: rows
+              padding-left: 15px
+              padding-right: 15px
+              width: 100%
+            default:
+              align: center
+              background-color: '#FFFDF8'
+              full-width: false
+              padding-bottom: 20px
+              padding-top: 20px
+              valign: top
+              width: 100%
+          content:
+            -
+              id: d8e9f0a1-b2c3-4456-d8e9-f0a1b2c3456b
+              isEmpty: false
+              title: grid-column
+              type: grid-column
+              layout:
+                320px: []
+                default:
+                  padding-left: 0px
+                  padding-right: 0px
+                  valign: top
+              content:
+                -
+                  id: e9f0a1b2-c3d4-4567-e9f0-a1b2c3d4567c
+                  title: 'Footer brand'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      font-size: 18px
+                      line-height: '1.5'
+                      padding-top: 15px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p><strong>Purrtraits</strong></p>'
+                -
+                  id: f0a1b2c3-d4e5-4678-f0a1-b2c3d4e5678d
+                  title: 'Footer address'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      font-size: 14px
+                      line-height: '1.5'
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="font-size:14px;color:#7A6558;">30 High Street, SK1 1EH, Stockport · This email was sent to {{ contact.EMAIL }}</p>'
+                -
+                  id: a1b2c3d4-e5f6-4789-a1b2-c3d4e5f6789e
+                  title: 'Unsubscribe link'
+                  type: text
+                  layout:
+                    320px:
+                      width: 100%
+                    default:
+                      align: center
+                      font-size: 12px
+                      line-height: '1.5'
+                      padding-top: 8px
+                      text-align: center
+                      valign: top
+                      width: 100%
+                  content: '<p style="font-size:12px;color:#7A6558;">Not feeling these? <a href="{{ unsubscribe }}" style="color:#7A6558;text-decoration:underline;">Unsubscribe</a> any time.</p>'
+media:
+  320px:
+    max-width: 600
+    min-width: 0
+styles:
+  default:
+    properties:
+      color: '#2D1F1A'
+      font-family: 'DM Sans'
+      font-size: 16px
+      line-height: '1.5'
+    title: Paragraph
+  default-button:
+    properties:
+      background-color: '#db8aa3'
+      border-color: '#db8aa3'
+      border-radius: 6px
+      border-width: 0px
+      color: '#000'
+      font-family: 'DM Sans'
+      font-size: 16px
+      font-weight: '600'
+      remove-vml-button: optional
+      width: 70%
+    title: Button
+  default-heading1:
+    properties:
+      color: '#2D1F1A'
+      font-family: Caveat
+      font-size: 32px
+      font-weight: '600'
+    title: 'Heading 1'
+  default-heading2:
+    properties:
+      color: '#2D1F1A'
+      font-family: Caveat
+      font-size: 22px
+      font-weight: '600'
+    title: 'Heading 2'
+  default-heading3:
+    properties:
+      color: '#2D1F1A'
+      font-family: Caveat
+      font-size: 18px
+      font-weight: '600'
+    title: 'Heading 3'
+  default-link:
+    properties:
+      color: '#db8aa3'
+      text-decoration: underline
+    title: Link
