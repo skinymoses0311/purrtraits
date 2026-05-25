@@ -383,6 +383,16 @@ export default defineSchema({
     // recipient for re-sends.
     recipientEmail: v.optional(v.string()),
     emailSentAt: v.optional(v.number()),
+    // GDPR audit trail: did the user tick the marketing consent box, and
+    // when? `marketingConsent === true` means we may add them to the Brevo
+    // contact list for future marketing; `false`/missing means transactional
+    // shortlist email only.
+    marketingConsent: v.optional(v.boolean()),
+    marketingConsentAt: v.optional(v.number()),
+    // Idempotency marker for the Brevo /contacts add. Set the moment the
+    // contact-sync action succeeds so a retry can't re-add (Brevo's API is
+    // idempotent too, but skipping the call entirely is cheaper).
+    contactSyncedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
