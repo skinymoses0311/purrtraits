@@ -272,7 +272,9 @@ export const sendDogNameShortlist = internalAction({
       return;
     }
 
-    const firstName = firstNameOf(toName) || "";
+    // Falls back to "there" so the template's "Hi {{ firstName }}" reads
+    // naturally for email-only signups where we don't have a name on file.
+    const firstName = firstNameOf(toName) || "there";
     // breedLabel is already "your-prefixed" so the template can drop it
     // straight into copy like "for {{ params.breedLabel }}". Stays "your dog"
     // when we don't know the breed.
