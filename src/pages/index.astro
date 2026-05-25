@@ -1,6 +1,5 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import AdUnit from "../components/AdUnit.astro";
 
 const homeJsonLd = {
   "@context": "https://schema.org",
@@ -101,17 +100,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
        Without JS this class never lands, so the page renders normally. -->
   <script is:inline>document.body.classList.add('js-anim');</script>
 
-  <!-- Mobile top banner — sits directly under the nav, above the hero. -->
-  <div class="ad-band ad-band--top">
-    <AdUnit
-      viewport="mobile"
-      slot="5052784229"
-      width={320}
-      height={50}
-      label="purrtraits_home_top_banner_mobile_320x50"
-    />
-  </div>
-
   <!-- HERO · Gallery wall ============================================ -->
   <!-- The outer .hero-wall paints the full-bleed wall gradient. Inside,
        .hero-wall__stage is a centred, aspect-ratio-locked box that holds
@@ -170,17 +158,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       </div>
     </div>
   </section>
-
-  <!-- Desktop hero leaderboard — between hero CTA and "How it works". -->
-  <div class="ad-band">
-    <AdUnit
-      viewport="desktop"
-      slot="5686149558"
-      width={728}
-      height={90}
-      label="purrtraits_home_hero_top_leaderboard_728x90"
-    />
-  </div>
 
   <!-- HOW IT WORKS · V3 ============================================== -->
   <section class="how" id="how">
@@ -289,24 +266,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       </div>
     </div>
   </section>
-
-  <!-- Mid-content MPU — between How-it-works and Sample portraits. -->
-  <div class="ad-band ad-band--mid">
-    <AdUnit
-      viewport="desktop"
-      slot="3552000295"
-      width={300}
-      height={250}
-      label="purrtraits_home_midcontent_mpu_300x250"
-    />
-    <AdUnit
-      viewport="mobile"
-      slot="3223637740"
-      width={300}
-      height={250}
-      label="purrtraits_home_midcontent_mpu_mobile_300x250"
-    />
-  </div>
 
   <!-- SAMPLE PORTRAITS · V5 (museum plaque + tabs) ==================== -->
   <section class="samples" id="samples">
@@ -966,29 +925,6 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     .sample-card__name  { font-size: 18px; }
     .sample-card__blurb { font-size: 10px; }
     .sample-card__no    { font-size: 9px; }
-  }
-
-  /* Ad bands — preserved slot positions from the previous design, but
-     painted in the warm cream so they blend seamlessly with the hero
-     fade and the cream sections above/below instead of showing the
-     body's lighter cream as a visible stripe.
-     Note: the ad iframe itself (rendered by Google AdSense) brings its
-     own background — usually white. That's outside our control and is
-     also a policy expectation: ads should look like ads. The wrapper
-     blending matches the rest of the page when slots are unfilled or
-     during loading. */
-  .ad-band {
-    display: flex; justify-content: center;
-    padding: 16px 16px 0;
-    background: #FAF6EE;
-  }
-  .ad-band--top { padding: 12px 16px 0; }
-  .ad-band--mid { padding: 24px 16px; }
-  /* The top band only ever holds a mobile-only 320×50 ad. On desktop
-     the inner AdUnit is display:none, so the wrapper would draw an
-     empty cream stripe below the nav — hide it. */
-  @media (min-width: 1024px) {
-    .ad-band--top { display: none; }
   }
 
   /* ======================================================================
