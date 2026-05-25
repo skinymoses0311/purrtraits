@@ -463,13 +463,17 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
       const cx = (px(x1) + px(x2)) / 2;
       d += ` C ${cx} ${py(y1)}, ${cx} ${py(y2)}, ${px(x2)} ${py(y2)}`;
     }
-    chartSvg.appendChild(el("path", {
+    const fillPath = el("path", {
       d: `${d} L ${px(xMax)} ${py(0)} L ${px(0)} ${py(0)} Z`,
       fill: "#F7E8EE", opacity: 0.6,
-    }));
-    chartSvg.appendChild(el("path", {
+      class: "pgp__chart-fill",
+    });
+    chartSvg.appendChild(fillPath);
+    const linePath = el("path", {
       d, stroke: "#D88A9A", "stroke-width": 2.5, fill: "none",
-    }));
+      class: "pgp__chart-line",
+    });
+    chartSvg.appendChild(linePath);
 
     // Marker — line + outer ring + inner dot + callout. Wrapped in a
     // group with a CSS transition so it glides between positions.
@@ -511,6 +515,45 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
     marker.appendChild(callout);
 
     chartSvg.appendChild(marker);
+
+    // First render after mount → set the intro's initial "hidden" state
+    // (line collapsed to a single dash offset, fill + marker invisible).
+    // The IntersectionObserver below transitions these to visible the
+    // first time the chart card enters the viewport.
+    if (!chartIntroDone) prepareChartIntro(linePath, fillPath, marker);
+  }
+
+  // ─── Scroll-triggered intro for the curve ─────────────────────
+  // The curve "draws itself" by animating stroke-dashoffset from the
+  // path's total length down to 0. Fill and marker cross-fade in on a
+  // small stagger so the line lands before the dot pops on.
+  let chartIntroDone = false;
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  function prepareChartIntro(line: SVGPathElement, fill: SVGPathElement, marker: SVGGElement) {
+    if (prefersReducedMotion) { chartIntroDone = true; return; }
+    const len = line.getTotalLength();
+    line.style.strokeDasharray = String(len);
+    line.style.strokeDashoffset = String(len);
+    fill.style.opacity = "0";
+    marker.style.opacity = "0";
+  }
+
+  function playChartIntro() {
+    if (chartIntroDone) return;
+    chartIntroDone = true;
+    const line = chartSvg.querySelector<SVGPathElement>(".pgp__chart-line");
+    const fill = chartSvg.querySelector<SVGPathElement>(".pgp__chart-fill");
+    const marker = chartSvg.querySelector<SVGGElement>(".pgp__marker");
+    if (!line || !fill || !marker) return;
+    line.style.transition = "stroke-dashoffset 1600ms cubic-bezier(0.6,0,0.3,1)";
+    fill.style.transition = "opacity 700ms ease 400ms";
+    marker.style.transition = "opacity 500ms ease 1300ms";
+    // Reflow so the from/to states actually animate.
+    void line.getBoundingClientRect();
+    line.style.strokeDashoffset = "0";
+    fill.style.opacity = "0.6";
+    marker.style.opacity = "1";
   }
 
   // ─── Bar fill width ───────────────────────────────────────────
@@ -678,6 +721,28 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
     refreshWeightMarks();
     render();
   })();
+
+  // Trigger the curve's draw-in the first time the chart scrolls into
+  // view. The chart sits below the fold by design, so animating on
+  // page load would burn the effect before the user ever sees it.
+  const chartCard = document.querySelector(".pgp__chart-card");
+  if (chartCard && "IntersectionObserver" in window && !prefersReducedMotion) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          playChartIntro();
+          io.disconnect();
+          break;
+        }
+      }
+    }, { threshold: 0.2 });
+    io.observe(chartCard);
+  } else {
+    // No IntersectionObserver support → reveal immediately rather than
+    // leaving the curve hidden behind dashoffset. (Reduced-motion users
+    // never had the chart hidden — prepareChartIntro short-circuits.)
+    playChartIntro();
+  }
 </script>
 
 <style>
