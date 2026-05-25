@@ -1,0 +1,1185 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+// ─── Breed table ─────────────────────────────────────────────────
+// Adult weight (kg), height-at-shoulder (cm), size class, age (months)
+// at which the breed is typically considered fully grown. Mirrors
+// PG_BREEDS in the puppy-growth-shared.jsx design handoff.
+const BREEDS = [
+  { name: "Cavalier King Charles Spaniel", wMin: 5.4, wMax: 8.2, hMin: 30, hMax: 33, size: "small",  full: 12 },
+  { name: "Cockapoo",                      wMin: 5,   wMax: 11,  hMin: 25, hMax: 38, size: "small",  full: 12 },
+  { name: "Cocker Spaniel",                wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
+  { name: "Border Collie",                 wMin: 14,  wMax: 20,  hMin: 46, hMax: 56, size: "medium", full: 15 },
+  { name: "Border Terrier",                wMin: 5,   wMax: 7,   hMin: 25, hMax: 30, size: "small",  full: 11 },
+  { name: "Chihuahua",                     wMin: 1.5, wMax: 3,   hMin: 15, hMax: 23, size: "toy",    full: 9  },
+  { name: "Dachshund (Miniature)",         wMin: 4,   wMax: 5,   hMin: 13, hMax: 18, size: "small",  full: 11 },
+  { name: "French Bulldog",                wMin: 8,   wMax: 14,  hMin: 28, hMax: 33, size: "small",  full: 12 },
+  { name: "Golden Retriever",              wMin: 25,  wMax: 34,  hMin: 51, hMax: 61, size: "large",  full: 16 },
+  { name: "Great Dane",                    wMin: 50,  wMax: 82,  hMin: 71, hMax: 86, size: "giant",  full: 22 },
+  { name: "Greyhound",                     wMin: 27,  wMax: 32,  hMin: 69, hMax: 76, size: "large",  full: 14 },
+  { name: "Jack Russell Terrier",          wMin: 6,   wMax: 8,   hMin: 25, hMax: 38, size: "small",  full: 11 },
+  { name: "Labrador Retriever",            wMin: 25,  wMax: 36,  hMin: 55, hMax: 62, size: "large",  full: 16 },
+  { name: "Pomeranian",                    wMin: 1.9, wMax: 3.5, hMin: 18, hMax: 30, size: "toy",    full: 10 },
+  { name: "Pug",                           wMin: 6,   wMax: 8,   hMin: 25, hMax: 33, size: "small",  full: 11 },
+  { name: "Springer Spaniel",              wMin: 18,  wMax: 25,  hMin: 46, hMax: 51, size: "medium", full: 15 },
+  { name: "Staffordshire Bull Terrier",    wMin: 11,  wMax: 17,  hMin: 36, hMax: 41, size: "medium", full: 14 },
+  { name: "St. Bernard",                   wMin: 55,  wMax: 90,  hMin: 66, hMax: 76, size: "giant",  full: 22 },
+  { name: "Whippet",                       wMin: 7,   wMax: 14,  hMin: 44, hMax: 51, size: "medium", full: 13 },
+  { name: "Yorkshire Terrier",             wMin: 2,   wMax: 3.2, hMin: 18, hMax: 23, size: "toy",    full: 10 },
+] as const;
+
+const DEFAULT_BREED_IDX = 8; // Golden Retriever
+const DEFAULT_AGE = 4;
+const DEFAULT_WEIGHT = 11;
+const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
+---
+
+<Layout
+  title="Puppy Growth Predictor · How big will your puppy get? · Purrtraits"
+  description="Free puppy size calculator. Tell us your puppy's breed, age and current weight — we'll forecast their full-grown size with breed-aware growth curves. No sign-up."
+>
+  <main class="page container pgp">
+    <!-- Hero -->
+    <header class="pgp__hero pgp-rise">
+      <div class="pgp__eyebrow">Free tool · Purrtraits</div>
+      <h1 class="pgp__title">
+        How big will <em class="pgp__title-em">your puppy</em> get?
+      </h1>
+      <p class="pgp__tagline">
+        They look at you with those enormous paws and an even bigger heart,
+        and you wonder. Tell us a little about them — we'll forecast the
+        dog they'll grow into.
+      </p>
+    </header>
+
+    <!-- Calculator + Result -->
+    <section class="pgp__main">
+      <!-- Inputs card -->
+      <div class="pgp__card pgp__inputs pgp-rise-lg">
+        <div class="pgp__inputs-head">
+          <span class="pgp__overline">Tell us about your pup</span>
+          <div class="pgp__unit-toggle" role="radiogroup" aria-label="Weight unit">
+            <button type="button" class="pgp__unit-btn pgp__unit-btn--active" data-unit="kg" role="radio" aria-checked="true">kg</button>
+            <button type="button" class="pgp__unit-btn" data-unit="lb" role="radio" aria-checked="false">lb</button>
+          </div>
+        </div>
+
+        <div class="pgp__field">
+          <label class="pgp__overline" for="pgp-breed">Breed</label>
+          <div class="pgp__select-wrap">
+            <select id="pgp-breed" class="pgp__select">
+              {BREEDS.map((b, i) => (
+                <option value={i} selected={i === DEFAULT_BREED_IDX}>{b.name}</option>
+              ))}
+            </select>
+            <span class="pgp__select-caret" aria-hidden="true">▾</span>
+          </div>
+        </div>
+
+        <div class="pgp__field">
+          <div class="pgp__slider-head">
+            <span class="pgp__overline">Current age</span>
+            <span class="pgp__slider-value">
+              <span id="pgp-age">{DEFAULT_AGE}</span><span class="pgp__slider-unit"> months</span>
+            </span>
+          </div>
+          <div class="pgp__slider">
+            <div class="pgp__slider-track">
+              <div class="pgp__slider-fill" id="pgp-age-fill"></div>
+              <div class="pgp__slider-thumb" id="pgp-age-thumb"></div>
+            </div>
+            <input
+              type="range"
+              id="pgp-age-input"
+              class="pgp__slider-input"
+              min="1" max="18" step="0.5" value={DEFAULT_AGE}
+              aria-label="Current age in months"
+            />
+          </div>
+          <div class="pgp__slider-marks">
+            <span>1 mo</span><span>6</span><span>12</span><span>18</span>
+          </div>
+        </div>
+
+        <div class="pgp__field">
+          <div class="pgp__slider-head">
+            <span class="pgp__overline">Current weight</span>
+            <span class="pgp__slider-value">
+              <span id="pgp-weight">{DEFAULT_WEIGHT}</span><span class="pgp__slider-unit" id="pgp-weight-unit"> kg</span>
+            </span>
+          </div>
+          <div class="pgp__slider">
+            <div class="pgp__slider-track">
+              <div class="pgp__slider-fill" id="pgp-weight-fill"></div>
+              <div class="pgp__slider-thumb" id="pgp-weight-thumb"></div>
+            </div>
+            <input
+              type="range"
+              id="pgp-weight-input"
+              class="pgp__slider-input"
+              min="0.5" max="40" step="0.1" value={DEFAULT_WEIGHT}
+              aria-label="Current weight"
+            />
+          </div>
+          <div class="pgp__slider-marks" id="pgp-weight-marks">
+            <span>0.5</span><span>10</span><span>20</span><span>30+</span>
+          </div>
+        </div>
+
+        <div class="pgp__inputs-foot">
+          <span class="pgp__pulse-dot" aria-hidden="true"></span>
+          <span>Forecast updates live. Estimates blend breed averages with their current trajectory.</span>
+        </div>
+      </div>
+
+      <!-- Result card -->
+      <div class="pgp__card pgp__result pgp-rise-lg" style="animation-delay: 120ms;">
+        <div class="pgp__result-head">
+          <div>
+            <div class="pgp__overline">The forecast — full grown</div>
+            <div class="pgp__result-breed" id="pgp-breed-name">{defaultBreed.name}</div>
+          </div>
+          <div class="pgp__size-pill" id="pgp-size-pill">Large breed</div>
+        </div>
+
+        <div class="pgp__result-grid">
+          <div>
+            <div class="pgp__bignum">
+              <span class="pgp__bignum-val" id="pgp-predicted">29.5</span>
+              <span class="pgp__bignum-unit" id="pgp-predicted-unit">kg</span>
+            </div>
+            <div class="pgp__bignum-sub" id="pgp-range">
+              Expected range 25.4 – 33.6 kg
+            </div>
+            <div class="pgp__stats">
+              <div class="pgp__stat">
+                <div class="pgp__overline">Adult height</div>
+                <div class="pgp__stat-val" id="pgp-height">56 cm</div>
+                <div class="pgp__stat-sub" id="pgp-height-sub">at the shoulder · 51–61 cm</div>
+              </div>
+              <div class="pgp__stat">
+                <div class="pgp__overline">Fully grown</div>
+                <div class="pgp__stat-val" id="pgp-months-to-go">~12 mo</div>
+                <div class="pgp__stat-sub" id="pgp-grown-sub">around 16 months old</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pgp__compare">
+            <div class="pgp__compare-row">
+              <div class="pgp__compare-head">
+                <span class="pgp__overline">Today</span>
+                <span class="pgp__compare-meta" id="pgp-today-label">4 mo old</span>
+              </div>
+              <div class="pgp__bar pgp__bar--today">
+                <div class="pgp__bar-fill pgp__bar-fill--today" id="pgp-today-fill">
+                  <span class="pgp__bar-val" id="pgp-today-val">11.0 kg</span>
+                </div>
+              </div>
+            </div>
+            <div class="pgp__compare-row">
+              <div class="pgp__compare-head">
+                <span class="pgp__overline pgp__overline--pink">Full grown</span>
+                <span class="pgp__compare-meta" id="pgp-adult-label">~16 mo</span>
+              </div>
+              <div class="pgp__bar pgp__bar--adult">
+                <span class="pgp__bar-val pgp__bar-val--white" id="pgp-adult-val">29.5 kg</span>
+              </div>
+            </div>
+            <div class="pgp__multiplier">
+              <span class="pgp__multiplier-val" id="pgp-mult">×2.7</span>
+              <span class="pgp__multiplier-label">growth ahead</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Growth curve -->
+    <section class="pgp__card pgp__chart-card pgp-rise-lg" style="animation-delay: 240ms;">
+      <div class="pgp__chart-head">
+        <div>
+          <div class="pgp__overline">The growth curve</div>
+          <h2 class="pgp__chart-h">Where they are today</h2>
+        </div>
+        <p class="pgp__chart-sub" id="pgp-chart-sub">
+          Golden Retrievers reach about 100% of their adult weight by month 16.
+        </p>
+      </div>
+      <div class="pgp__chart-wrap">
+        <svg
+          id="pgp-chart"
+          class="pgp__chart-svg"
+          viewBox="0 0 1160 340"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+        ></svg>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="pgp__cta pgp-rise-lg" style="animation-delay: 360ms;">
+      <div class="pgp__cta-copy">
+        <div class="pgp__eyebrow pgp__eyebrow--pink">They grow up so fast</div>
+        <h2 class="pgp__cta-title">Frame the puppy.<br />Frame the dog.</h2>
+        <p class="pgp__cta-blurb">
+          A portrait now, another at one year. The same dog, painted twice —
+          a keepsake of the speed at which they fill out a hallway.
+        </p>
+        <a href="/upload" class="pgp__cta-btn">Create their portrait →</a>
+      </div>
+      <div class="pgp__cta-portraits">
+        <figure class="pgp__cta-portrait pgp__cta-portrait--puppy">
+          <div class="pgp__frame pgp__frame--natural">
+            <div class="pgp__frame-mat">
+              <img src="/samples/styles/adventuring_playful_sketch.jpg" alt="Puppy portrait sample" loading="lazy" />
+            </div>
+          </div>
+          <figcaption>10 weeks</figcaption>
+        </figure>
+        <figure class="pgp__cta-portrait pgp__cta-portrait--adult">
+          <div class="pgp__frame pgp__frame--gold">
+            <div class="pgp__frame-mat">
+              <img src="/samples/styles/adventuring_playful_oil.jpg" alt="Adult dog portrait sample" loading="lazy" />
+            </div>
+          </div>
+          <figcaption>One year</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<script>
+  // Single calculator controller. Pure DOM + a tiny SVG chart renderer
+  // so the page ships zero framework JS. All result fields, the chart,
+  // the size pill, the compare bars and the CTA stay in sync from one
+  // render() pass driven by three inputs: breedIdx, ageMonths, currentKg.
+
+  type SizeId = "toy" | "small" | "medium" | "large" | "giant";
+
+  type Breed = {
+    name: string;
+    wMin: number; wMax: number;
+    hMin: number; hMax: number;
+    size: SizeId;
+    full: number;
+  };
+
+  const BREEDS: Breed[] = [
+    { name: "Cavalier King Charles Spaniel", wMin: 5.4, wMax: 8.2, hMin: 30, hMax: 33, size: "small",  full: 12 },
+    { name: "Cockapoo",                      wMin: 5,   wMax: 11,  hMin: 25, hMax: 38, size: "small",  full: 12 },
+    { name: "Cocker Spaniel",                wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
+    { name: "Border Collie",                 wMin: 14,  wMax: 20,  hMin: 46, hMax: 56, size: "medium", full: 15 },
+    { name: "Border Terrier",                wMin: 5,   wMax: 7,   hMin: 25, hMax: 30, size: "small",  full: 11 },
+    { name: "Chihuahua",                     wMin: 1.5, wMax: 3,   hMin: 15, hMax: 23, size: "toy",    full: 9  },
+    { name: "Dachshund (Miniature)",         wMin: 4,   wMax: 5,   hMin: 13, hMax: 18, size: "small",  full: 11 },
+    { name: "French Bulldog",                wMin: 8,   wMax: 14,  hMin: 28, hMax: 33, size: "small",  full: 12 },
+    { name: "Golden Retriever",              wMin: 25,  wMax: 34,  hMin: 51, hMax: 61, size: "large",  full: 16 },
+    { name: "Great Dane",                    wMin: 50,  wMax: 82,  hMin: 71, hMax: 86, size: "giant",  full: 22 },
+    { name: "Greyhound",                     wMin: 27,  wMax: 32,  hMin: 69, hMax: 76, size: "large",  full: 14 },
+    { name: "Jack Russell Terrier",          wMin: 6,   wMax: 8,   hMin: 25, hMax: 38, size: "small",  full: 11 },
+    { name: "Labrador Retriever",            wMin: 25,  wMax: 36,  hMin: 55, hMax: 62, size: "large",  full: 16 },
+    { name: "Pomeranian",                    wMin: 1.9, wMax: 3.5, hMin: 18, hMax: 30, size: "toy",    full: 10 },
+    { name: "Pug",                           wMin: 6,   wMax: 8,   hMin: 25, hMax: 33, size: "small",  full: 11 },
+    { name: "Springer Spaniel",              wMin: 18,  wMax: 25,  hMin: 46, hMax: 51, size: "medium", full: 15 },
+    { name: "Staffordshire Bull Terrier",    wMin: 11,  wMax: 17,  hMin: 36, hMax: 41, size: "medium", full: 14 },
+    { name: "St. Bernard",                   wMin: 55,  wMax: 90,  hMin: 66, hMax: 76, size: "giant",  full: 22 },
+    { name: "Whippet",                       wMin: 7,   wMax: 14,  hMin: 44, hMax: 51, size: "medium", full: 13 },
+    { name: "Yorkshire Terrier",             wMin: 2,   wMax: 3.2, hMin: 18, hMax: 23, size: "toy",    full: 10 },
+  ];
+
+  // % of adult weight at age (months), per size class. Vet/breeder averages.
+  const GROWTH_CURVE: Record<SizeId, [number, number][]> = {
+    toy:    [[0, 8], [1, 18], [2, 35], [3, 55], [4, 70], [6, 85], [8, 95], [10, 100]],
+    small:  [[0, 7], [1, 15], [2, 30], [3, 45], [4, 60], [6, 78], [9, 93], [12, 100]],
+    medium: [[0, 5], [1, 12], [2, 22], [3, 32], [4, 45], [6, 62], [9, 82], [12, 95], [15, 100]],
+    large:  [[0, 3], [1, 8],  [2, 15], [3, 22], [4, 32], [6, 50], [9, 70], [12, 85], [15, 95], [18, 100]],
+    giant:  [[0, 2], [1, 5],  [2, 10], [3, 15], [4, 22], [6, 35], [9, 55], [12, 72], [15, 85], [18, 95], [24, 100]],
+  };
+
+  function curvePctAt(size: SizeId, months: number): number {
+    const pts = GROWTH_CURVE[size];
+    if (months <= pts[0]![0]) return pts[0]![1];
+    if (months >= pts[pts.length - 1]![0]) return 100;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = pts[i]!, [x2, y2] = pts[i + 1]!;
+      if (months >= x1 && months <= x2) {
+        const t = (months - x1) / (x2 - x1);
+        return y1 + (y2 - y1) * t;
+      }
+    }
+    return 100;
+  }
+
+  type Prediction = {
+    pct: number;
+    predicted: number;
+    min: number; max: number;
+    height: number;
+    fullGrownAt: number;
+    monthsToGo: number;
+    sizeClass: SizeId;
+  };
+
+  function predict(breed: Breed, ageMonths: number, currentKg: number): Prediction {
+    const pct = curvePctAt(breed.size, ageMonths);
+    const breedAvg = (breed.wMin + breed.wMax) / 2;
+    // Trust puppy formula more after ~4 months; trust breed avg earlier on.
+    const fromPuppy = currentKg > 0 ? (currentKg / Math.max(pct, 4)) * 100 : breedAvg;
+    const w = Math.max(0, Math.min(0.8, (ageMonths - 1) / 8));
+    const predicted = breedAvg * (1 - w) + fromPuppy * w;
+    const spread = Math.max(0.08, (breed.wMax - breed.wMin) / breedAvg / 2.4);
+    return {
+      pct,
+      predicted,
+      min: predicted * (1 - spread),
+      max: predicted * (1 + spread),
+      height: (breed.hMin + breed.hMax) / 2,
+      fullGrownAt: breed.full,
+      monthsToGo: Math.max(0, breed.full - ageMonths),
+      sizeClass: breed.size,
+    };
+  }
+
+  const SIZE_LABEL: Record<SizeId, string> = {
+    toy: "Toy", small: "Small", medium: "Medium", large: "Large", giant: "Giant",
+  };
+
+  function fmt(v: number, d = 1): string {
+    if (!isFinite(v)) return "—";
+    if (d === 0) return Math.round(v).toString();
+    return (Math.round(v * 10) / 10).toFixed(d);
+  }
+
+  // ─── State ────────────────────────────────────────────────────
+  let breedIdx = 8;
+  let ageMonths = 4;
+  let currentKg = 11;
+  let unit: "kg" | "lb" = "kg";
+
+  const KG_PER_LB = 0.45359237;
+  const toDisplayWeight = (kg: number) => (unit === "kg" ? kg : kg / KG_PER_LB);
+  const fromDisplayWeight = (v: number) => (unit === "kg" ? v : v * KG_PER_LB);
+  const weightUnitLabel = () => (unit === "kg" ? "kg" : "lb");
+
+  // ─── Element refs ─────────────────────────────────────────────
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
+    document.getElementById(id) as T;
+
+  const breedSel       = $<HTMLSelectElement>("pgp-breed");
+  const ageInput       = $<HTMLInputElement>("pgp-age-input");
+  const weightInput    = $<HTMLInputElement>("pgp-weight-input");
+  const ageOut         = $("pgp-age");
+  const weightOut      = $("pgp-weight");
+  const weightUnitOut  = $("pgp-weight-unit");
+  const ageFill        = $("pgp-age-fill");
+  const ageThumb       = $("pgp-age-thumb");
+  const weightFill     = $("pgp-weight-fill");
+  const weightThumb    = $("pgp-weight-thumb");
+  const weightMarks    = $("pgp-weight-marks");
+
+  const breedNameOut   = $("pgp-breed-name");
+  const sizePillOut    = $("pgp-size-pill");
+  const predictedOut   = $("pgp-predicted");
+  const predictedUnit  = $("pgp-predicted-unit");
+  const rangeOut       = $("pgp-range");
+  const heightOut      = $("pgp-height");
+  const heightSubOut   = $("pgp-height-sub");
+  const monthsToGoOut  = $("pgp-months-to-go");
+  const grownSubOut    = $("pgp-grown-sub");
+
+  const todayLabelOut  = $("pgp-today-label");
+  const adultLabelOut  = $("pgp-adult-label");
+  const todayFill      = $("pgp-today-fill");
+  const todayValOut    = $("pgp-today-val");
+  const adultValOut    = $("pgp-adult-val");
+  const multOut        = $("pgp-mult");
+
+  const chartSubOut    = $("pgp-chart-sub");
+  const chartSvg       = document.getElementById("pgp-chart") as unknown as SVGSVGElement;
+
+  // ─── Chart renderer ───────────────────────────────────────────
+  // Renders gridlines, axis ticks, the breed-size growth curve, and a
+  // "you are here" marker. Called on every render() so the marker glides
+  // (via CSS transition on the marker group) when inputs change.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function el<K extends keyof SVGElementTagNameMap>(
+    tag: K,
+    attrs: Record<string, string | number> = {},
+    text?: string,
+  ): SVGElementTagNameMap[K] {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) node.setAttribute(k, String(attrs[k]));
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function renderChart(size: SizeId, age: number, pct: number) {
+    chartSvg.innerHTML = "";
+
+    const W_TOTAL = 1160, H_TOTAL = 340;
+    const padL = 56, padR = 28, padT = 24, padB = 44;
+    const W = W_TOTAL - padL - padR, H = H_TOTAL - padT - padB;
+
+    const pts = GROWTH_CURVE[size];
+    const xMax = pts[pts.length - 1]![0];
+    const px = (m: number) => padL + (m / xMax) * W;
+    const py = (p: number) => padT + (1 - p / 100) * H;
+
+    // Gridlines + y-axis labels.
+    [0, 25, 50, 75, 100].forEach((p) => {
+      chartSvg.appendChild(el("line", {
+        x1: padL, x2: padL + W, y1: py(p), y2: py(p),
+        stroke: "#EADFC9", "stroke-width": 1,
+        "stroke-dasharray": p === 100 ? "0" : "2 4",
+      }));
+      chartSvg.appendChild(el("text", {
+        x: padL - 10, y: py(p) + 4, "text-anchor": "end",
+        "font-family": "DM Sans, sans-serif", "font-size": 11, fill: "#9C8878",
+      }, `${p}%`));
+    });
+
+    // X ticks + axis label.
+    pts.forEach(([m]) => {
+      chartSvg.appendChild(el("line", {
+        x1: px(m), x2: px(m), y1: padT + H, y2: padT + H + 5, stroke: "#C4A882",
+      }));
+      chartSvg.appendChild(el("text", {
+        x: px(m), y: padT + H + 22, "text-anchor": "middle",
+        "font-family": "DM Sans, sans-serif", "font-size": 11, fill: "#7A6558",
+      }, String(m)));
+    });
+    chartSvg.appendChild(el("text", {
+      x: padL + W / 2, y: H_TOTAL - 8, "text-anchor": "middle",
+      "font-family": "DM Sans, sans-serif", "font-size": 11,
+      "letter-spacing": 1.2, fill: "#7A6558",
+    }, "AGE · MONTHS"));
+
+    // Curve path — smooth bezier through points.
+    let d = `M ${px(pts[0]![0])} ${py(pts[0]![1])}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x1, y1] = pts[i - 1]!, [x2, y2] = pts[i]!;
+      const cx = (px(x1) + px(x2)) / 2;
+      d += ` C ${cx} ${py(y1)}, ${cx} ${py(y2)}, ${px(x2)} ${py(y2)}`;
+    }
+    chartSvg.appendChild(el("path", {
+      d: `${d} L ${px(xMax)} ${py(0)} L ${px(0)} ${py(0)} Z`,
+      fill: "#F7E8EE", opacity: 0.6,
+    }));
+    chartSvg.appendChild(el("path", {
+      d, stroke: "#D88A9A", "stroke-width": 2.5, fill: "none",
+    }));
+
+    // Marker — line + outer ring + inner dot + callout. Wrapped in a
+    // group with a CSS transition so it glides between positions.
+    const markerX = px(Math.min(age, xMax));
+    const markerY = py(pct);
+
+    const marker = el("g", { class: "pgp__marker" });
+    marker.appendChild(el("line", {
+      x1: markerX, x2: markerX, y1: markerY, y2: padT + H,
+      stroke: "#D88A9A", "stroke-width": 1.5, "stroke-dasharray": "3 4",
+    }));
+    marker.appendChild(el("circle", {
+      cx: markerX, cy: markerY, r: 14, fill: "#fff",
+      stroke: "#D88A9A", "stroke-width": 2.5,
+    }));
+    marker.appendChild(el("circle", {
+      cx: markerX, cy: markerY, r: 6, fill: "#D88A9A",
+    }));
+
+    // Callout — flip to the left side of the marker if it would overflow.
+    const calloutW = 170, calloutH = 56;
+    const flip = markerX + 18 + calloutW > padL + W;
+    const cx = flip ? markerX - 18 - calloutW : markerX + 18;
+    const cy = Math.max(padT, markerY - 38);
+    const callout = el("g", {
+      transform: `translate(${cx}, ${cy})`,
+    });
+    callout.appendChild(el("rect", {
+      width: calloutW, height: calloutH, rx: 10, fill: "#2D1F1A",
+    }));
+    callout.appendChild(el("text", {
+      x: 14, y: 22, "font-family": "DM Sans, sans-serif",
+      "font-size": 10, "letter-spacing": 1.5, fill: "#FBEEF1",
+    }, "YOU ARE HERE"));
+    callout.appendChild(el("text", {
+      x: 14, y: 44, "font-family": "Caveat, cursive",
+      "font-size": 22, "font-weight": 700, fill: "#fff",
+    }, `${fmt(pct, 0)}% grown`));
+    marker.appendChild(callout);
+
+    chartSvg.appendChild(marker);
+  }
+
+  // ─── Bar fill width ───────────────────────────────────────────
+  // Today bar is sized as a fraction of adult; adult bar is the full
+  // track width (it's the "100%" reference) styled with a pink gradient.
+  function setTodayBar(todayKg: number, adultKg: number) {
+    const ratio = adultKg > 0
+      ? Math.max(0.05, Math.min(1, todayKg / adultKg))
+      : 0;
+    todayFill.style.width = `${ratio * 100}%`;
+  }
+
+  // ─── Slider visuals ───────────────────────────────────────────
+  function syncSliderVisual(
+    input: HTMLInputElement,
+    fill: HTMLElement,
+    thumb: HTMLElement,
+  ) {
+    const min = parseFloat(input.min);
+    const max = parseFloat(input.max);
+    const val = parseFloat(input.value);
+    const pct = ((val - min) / (max - min)) * 100;
+    fill.style.width = `${pct}%`;
+    thumb.style.left = `calc(${pct}% - 11px)`;
+  }
+
+  // ─── Flash animation re-trigger ───────────────────────────────
+  // Numbers flash pink briefly on change. We toggle the class off+on
+  // around an offsetWidth read so the browser replays the keyframe.
+  function flash(node: HTMLElement) {
+    node.classList.remove("pgp-num-flash");
+    void node.offsetWidth;
+    node.classList.add("pgp-num-flash");
+  }
+
+  let lastPredicted = -1, lastSize: SizeId | "" = "";
+
+  function render() {
+    const breed = BREEDS[breedIdx]!;
+    const r = predict(breed, ageMonths, currentKg);
+
+    breedNameOut.textContent = breed.name;
+    sizePillOut.textContent = `${SIZE_LABEL[r.sizeClass]} breed`;
+
+    const predictedDisp = toDisplayWeight(r.predicted);
+    const minDisp       = toDisplayWeight(r.min);
+    const maxDisp       = toDisplayWeight(r.max);
+    const todayDisp     = toDisplayWeight(currentKg);
+    const u             = weightUnitLabel();
+
+    predictedOut.textContent     = fmt(predictedDisp);
+    predictedUnit.textContent    = u;
+    rangeOut.textContent         = `Expected range ${fmt(minDisp)} – ${fmt(maxDisp)} ${u}`;
+    heightOut.textContent        = `${fmt(r.height, 0)} cm`;
+    heightSubOut.textContent     = `at the shoulder · ${breed.hMin}–${breed.hMax} cm`;
+    monthsToGoOut.textContent    = r.monthsToGo < 0.5 ? "Almost there" : `~${fmt(r.monthsToGo, 0)} mo`;
+    grownSubOut.textContent      = r.monthsToGo < 0.5 ? "Already at adult size" : `around ${r.fullGrownAt} months old`;
+
+    todayLabelOut.textContent    = `${fmt(ageMonths, ageMonths % 1 === 0 ? 0 : 1)} mo old`;
+    adultLabelOut.textContent    = r.monthsToGo < 0.5 ? "already" : `~${r.fullGrownAt} mo`;
+    todayValOut.textContent      = `${fmt(todayDisp)} ${u}`;
+    adultValOut.textContent      = `${fmt(predictedDisp)} ${u}`;
+    const mult = r.predicted / Math.max(currentKg, 0.1);
+    multOut.textContent          = `×${fmt(mult, mult < 10 ? 1 : 0)}`;
+
+    setTodayBar(currentKg, r.predicted);
+
+    chartSubOut.textContent =
+      `${breed.name}s reach about 100% of their adult weight by month ${breed.full}.`;
+
+    renderChart(r.sizeClass, ageMonths, r.pct);
+
+    // Flash big number + size pill when the underlying value or class changes.
+    if (Math.abs(r.predicted - lastPredicted) > 0.05 || r.sizeClass !== lastSize) {
+      flash(predictedOut);
+      sizePillOut.classList.remove("pgp-pop");
+      void sizePillOut.offsetWidth;
+      sizePillOut.classList.add("pgp-pop");
+    }
+    lastPredicted = r.predicted;
+    lastSize      = r.sizeClass;
+  }
+
+  // ─── Wire up inputs ───────────────────────────────────────────
+  breedSel.addEventListener("change", () => {
+    breedIdx = parseInt(breedSel.value, 10);
+    const breed = BREEDS[breedIdx]!;
+    // Adjust slider domains to suit the breed: age max scales with
+    // typical full-grown age, weight max with the breed's adult range.
+    const ageMax = Math.max(18, breed.full + 2);
+    const weightMax = Math.max(20, breed.wMax * 1.1);
+    ageInput.max = String(ageMax);
+    weightInput.max = String(weightMax);
+    if (ageMonths > ageMax) { ageMonths = ageMax; ageInput.value = String(ageMax); }
+    if (currentKg > weightMax) { currentKg = weightMax; weightInput.value = String(weightMax); }
+    syncSliderVisual(ageInput, ageFill, ageThumb);
+    syncSliderVisual(weightInput, weightFill, weightThumb);
+    refreshWeightMarks();
+    render();
+  });
+
+  ageInput.addEventListener("input", () => {
+    ageMonths = parseFloat(ageInput.value);
+    ageOut.textContent = String(ageMonths % 1 === 0 ? ageMonths : ageMonths.toFixed(1));
+    syncSliderVisual(ageInput, ageFill, ageThumb);
+    render();
+  });
+
+  weightInput.addEventListener("input", () => {
+    currentKg = parseFloat(weightInput.value);
+    weightOut.textContent = fmt(toDisplayWeight(currentKg));
+    syncSliderVisual(weightInput, weightFill, weightThumb);
+    render();
+  });
+
+  // Weight unit toggle: rescale the slider's min/max/step/value into the
+  // display unit so the range covers the same physical span (0.5 kg →
+  // breed.wMax * 1.1) in lb too. State is still kept in kg internally.
+  function applyUnit(next: "kg" | "lb") {
+    if (next === unit) return;
+    unit = next;
+    document.querySelectorAll<HTMLButtonElement>(".pgp__unit-btn").forEach((b) => {
+      const active = b.dataset.unit === unit;
+      b.classList.toggle("pgp__unit-btn--active", active);
+      b.setAttribute("aria-checked", String(active));
+    });
+    // Rebuild the weight slider's bounds in display units.
+    const breed = BREEDS[breedIdx]!;
+    const kgMax = Math.max(20, breed.wMax * 1.1);
+    weightInput.min  = String(toDisplayWeight(0.5).toFixed(1));
+    weightInput.max  = String(toDisplayWeight(kgMax).toFixed(1));
+    weightInput.step = unit === "kg" ? "0.1" : "0.2";
+    weightInput.value = String(toDisplayWeight(currentKg).toFixed(1));
+    weightUnitOut.textContent = ` ${weightUnitLabel()}`;
+    weightOut.textContent = fmt(toDisplayWeight(currentKg));
+    syncSliderVisual(weightInput, weightFill, weightThumb);
+    refreshWeightMarks();
+    render();
+  }
+
+  function refreshWeightMarks() {
+    const breed = BREEDS[breedIdx]!;
+    const kgMax = Math.max(20, breed.wMax * 1.1);
+    const marks = [0.5, kgMax * 0.25, kgMax * 0.5, kgMax * 0.75 + 0.1].map((kg) =>
+      `${fmt(toDisplayWeight(kg), 0)}`
+    );
+    // Last mark gets a "+" suffix.
+    marks[marks.length - 1] = `${marks[marks.length - 1]}+`;
+    weightMarks.innerHTML = marks.map((m) => `<span>${m}</span>`).join("");
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".pgp__unit-btn").forEach((b) => {
+    b.addEventListener("click", () => applyUnit((b.dataset.unit as "kg" | "lb")));
+  });
+
+  // ─── Initial paint ────────────────────────────────────────────
+  // Seed slider domains for the default breed, then run one render so
+  // the chart, bars and stats match the SSR'd placeholder values.
+  (function init() {
+    const breed = BREEDS[breedIdx]!;
+    ageInput.max = String(Math.max(18, breed.full + 2));
+    weightInput.max = String(Math.max(20, breed.wMax * 1.1));
+    syncSliderVisual(ageInput, ageFill, ageThumb);
+    syncSliderVisual(weightInput, weightFill, weightThumb);
+    refreshWeightMarks();
+    render();
+  })();
+</script>
+
+<style>
+  /* ── Tokens local to this page ──────────────────────────────── */
+  .pgp {
+    --pgp-ink:        #2D1F1A;
+    --pgp-ink-soft:   #5C4A3F;
+    --pgp-ink-mute:   #8A7766;
+    --pgp-paper:      #FFFDF8;
+    --pgp-panel:      #FBF6EC;
+    --pgp-rule:       #EADFC9;
+    --pgp-pink:       #E8A4B8;
+    --pgp-pink-deep:  #D88A9A;
+    --pgp-pink-soft:  #F7E8EE;
+    --pgp-pink-pale:  #FBEEF1;
+    --pgp-ease:       cubic-bezier(0.2, 0.65, 0.25, 1);
+
+    max-width: 1248px;
+    color: var(--pgp-ink);
+  }
+
+  /* ── Entrance animations ───────────────────────────────────── */
+  @keyframes pgp-rise {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pgp-rise-lg {
+    from { opacity: 0; transform: translateY(40px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes pgp-pop {
+    0%   { opacity: 0; transform: scale(0.7); }
+    60%  { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes pgp-num-flash {
+    0%   { color: var(--pgp-ink); transform: translateY(0) scale(1); }
+    24%  { color: var(--pgp-pink-deep); transform: translateY(-2px) scale(1.04); }
+    100% { color: var(--pgp-ink); transform: translateY(0) scale(1); }
+  }
+  @keyframes pgp-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.35); }
+  }
+  .pgp-rise    { animation: pgp-rise 700ms var(--pgp-ease) both; }
+  .pgp-rise-lg { animation: pgp-rise-lg 900ms var(--pgp-ease) both; }
+  .pgp-pop     { animation: pgp-pop 600ms cubic-bezier(0.25, 1.4, 0.45, 1) both; }
+  .pgp-num-flash {
+    display: inline-block; transform-origin: left center;
+    animation: pgp-num-flash 720ms cubic-bezier(0.25, 1.4, 0.45, 1) 1;
+  }
+
+  /* ── Hero ──────────────────────────────────────────────────── */
+  .pgp__hero { text-align: left; margin: 8px 0 32px; max-width: 900px; }
+  .pgp__eyebrow {
+    font-size: 11px; letter-spacing: 3px; font-weight: 700;
+    color: var(--pgp-pink-deep); text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .pgp__eyebrow--pink { color: var(--pgp-pink-deep); }
+  .pgp__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--pgp-ink);
+    font-size: clamp(48px, 9vw, 108px);
+    line-height: 0.95;
+    letter-spacing: -1px;
+    margin: 0;
+  }
+  .pgp__title-em { font-style: italic; color: var(--pgp-pink-deep); }
+  .pgp__tagline {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-size: clamp(15px, 1.6vw, 20px);
+    line-height: 1.5;
+    color: var(--pgp-ink-soft);
+    max-width: 680px;
+    margin-top: 20px;
+  }
+
+  /* ── Generic card + overline ──────────────────────────────── */
+  .pgp__card {
+    background: var(--pgp-panel);
+    border: 1px solid var(--pgp-rule);
+    border-radius: 24px;
+    padding: 28px;
+  }
+  @media (min-width: 768px) { .pgp__card { padding: 36px; } }
+  .pgp__overline {
+    display: block;
+    font-size: 11px; letter-spacing: 2px; font-weight: 700;
+    color: var(--pgp-ink-mute);
+    text-transform: uppercase;
+  }
+  .pgp__overline--pink { color: var(--pgp-pink-deep); }
+
+  /* ── Main grid: inputs + result ────────────────────────────── */
+  .pgp__main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-top: 8px;
+  }
+  @media (min-width: 980px) {
+    .pgp__main { grid-template-columns: 440px 1fr; gap: 32px; align-items: stretch; }
+  }
+
+  /* ── Inputs card ───────────────────────────────────────────── */
+  .pgp__inputs { display: flex; flex-direction: column; gap: 24px; }
+  .pgp__inputs-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .pgp__field { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Unit toggle (kg/lb) */
+  .pgp__unit-toggle {
+    display: inline-flex; gap: 2px;
+    background: #fff;
+    border: 1px solid var(--pgp-rule);
+    border-radius: 999px;
+    padding: 3px;
+  }
+  .pgp__unit-btn {
+    font: inherit; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--pgp-ink-soft);
+    background: transparent; border: none;
+    border-radius: 999px;
+    padding: 6px 14px; cursor: pointer;
+    transition: background 180ms var(--pgp-ease), color 180ms var(--pgp-ease);
+  }
+  .pgp__unit-btn:hover { background: var(--pgp-pink-pale); }
+  .pgp__unit-btn--active {
+    background: var(--pgp-pink); color: #fff;
+  }
+  .pgp__unit-btn--active:hover { background: var(--pgp-pink-deep); }
+
+  /* Breed select */
+  .pgp__select-wrap { position: relative; }
+  .pgp__select {
+    width: 100%;
+    appearance: none; -webkit-appearance: none;
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 600;
+    color: var(--pgp-ink);
+    background: #fff;
+    border: 1px solid var(--pgp-rule);
+    border-radius: 14px;
+    padding: 14px 44px 14px 18px;
+    cursor: pointer;
+    line-height: 1.1;
+    transition: border-color 200ms var(--pgp-ease), box-shadow 200ms var(--pgp-ease);
+  }
+  .pgp__select:focus {
+    outline: none;
+    border-color: var(--pgp-pink-deep);
+    box-shadow: 0 0 0 4px var(--pgp-pink-soft);
+  }
+  .pgp__select-caret {
+    position: absolute; right: 18px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px; color: var(--pgp-ink-mute);
+    pointer-events: none;
+  }
+
+  /* Slider — custom track with hidden native input on top for input  */
+  .pgp__slider-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .pgp__slider-value {
+    font-family: var(--font-display); font-size: 26px; font-weight: 700;
+    color: var(--pgp-ink); line-height: 1;
+  }
+  .pgp__slider-unit {
+    font-family: var(--font-body); font-size: 13px; font-weight: 500;
+    color: var(--pgp-ink-mute);
+  }
+  .pgp__slider { position: relative; padding: 10px 0; }
+  .pgp__slider-track {
+    position: relative;
+    height: 6px; background: #F2EBE0; border-radius: 6px;
+  }
+  .pgp__slider-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--pgp-pink), var(--pgp-pink-deep));
+    border-radius: 6px;
+    transition: width 220ms var(--pgp-ease);
+  }
+  .pgp__slider-thumb {
+    position: absolute; top: -7px; left: 0;
+    width: 22px; height: 22px;
+    background: #fff;
+    border: 2px solid var(--pgp-pink-deep);
+    border-radius: 50%;
+    box-shadow: 0 4px 10px -3px rgba(60, 40, 20, 0.3);
+    transition: left 220ms var(--pgp-ease);
+    pointer-events: none;
+  }
+  .pgp__slider-input {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    opacity: 0; cursor: pointer;
+    margin: 0;
+  }
+  .pgp__slider-marks {
+    display: flex; justify-content: space-between;
+    font-size: 10px; letter-spacing: 0.6px;
+    color: var(--pgp-ink-mute);
+    margin-top: 4px;
+  }
+
+  .pgp__inputs-foot {
+    margin-top: 6px; padding-top: 20px;
+    border-top: 1px dashed var(--pgp-rule);
+    display: flex; align-items: center; gap: 12px;
+    font-size: 13px; color: var(--pgp-ink-soft); line-height: 1.5;
+  }
+  .pgp__pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--pgp-pink-deep);
+    animation: pgp-pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  /* ── Result card ──────────────────────────────────────────── */
+  .pgp__result {
+    background: #fff;
+    display: flex; flex-direction: column;
+  }
+  .pgp__result-head {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 12px;
+  }
+  .pgp__result-breed {
+    font-family: var(--font-display);
+    font-size: 22px; color: var(--pgp-ink);
+    margin-top: 4px; line-height: 1.1;
+  }
+  .pgp__size-pill {
+    font-size: 11px; letter-spacing: 1.6px; font-weight: 700;
+    color: var(--pgp-pink-deep);
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border: 1px solid var(--pgp-pink-deep);
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+
+  .pgp__result-grid {
+    display: grid; grid-template-columns: 1fr; gap: 28px;
+    margin-top: 24px;
+    align-items: center;
+  }
+  @media (min-width: 1100px) {
+    .pgp__result-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
+  }
+
+  .pgp__bignum {
+    display: flex; align-items: baseline; gap: 8px;
+    line-height: 0.9;
+  }
+  .pgp__bignum-val {
+    font-family: var(--font-display);
+    font-size: clamp(72px, 9vw, 108px);
+    font-weight: 700;
+    color: var(--pgp-ink);
+    letter-spacing: -1px;
+    display: inline-block;
+    transform-origin: left center;
+  }
+  .pgp__bignum-unit {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 34px);
+    font-weight: 600;
+    color: var(--pgp-pink-deep);
+  }
+  .pgp__bignum-sub {
+    font-size: 13px; color: var(--pgp-ink-soft);
+    margin-top: 6px;
+  }
+
+  .pgp__stats {
+    display: flex; gap: 32px;
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px solid var(--pgp-rule);
+    flex-wrap: wrap;
+  }
+  .pgp__stat { min-width: 120px; }
+  .pgp__stat-val {
+    font-family: var(--font-display);
+    font-size: 30px; font-weight: 700;
+    color: var(--pgp-ink); line-height: 1;
+    margin-top: 6px;
+  }
+  .pgp__stat-sub {
+    font-size: 12px; color: var(--pgp-ink-soft);
+    margin-top: 4px; line-height: 1.4;
+  }
+
+  /* Compare bars */
+  .pgp__compare { display: flex; flex-direction: column; gap: 18px; }
+  .pgp__compare-row { display: flex; flex-direction: column; gap: 8px; }
+  .pgp__compare-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .pgp__compare-meta {
+    font-size: 12px; color: var(--pgp-ink-soft); font-style: italic;
+  }
+  .pgp__bar {
+    position: relative;
+    height: 38px;
+    border-radius: 19px;
+    box-sizing: border-box;
+    display: flex; align-items: center;
+  }
+  .pgp__bar--today {
+    background: #F2EBE0;
+    border: 1px solid var(--pgp-rule);
+  }
+  .pgp__bar-fill--today {
+    position: absolute; left: 0; top: -1px; bottom: -1px;
+    width: 50%;
+    background: var(--pgp-pink-soft);
+    border: 1.5px solid var(--pgp-pink-deep);
+    border-radius: 19px;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 14px;
+    min-width: 76px;
+    transition: width 540ms var(--pgp-ease);
+  }
+  .pgp__bar--adult {
+    height: 50px; border-radius: 25px;
+    background: linear-gradient(90deg, var(--pgp-pink) 0%, var(--pgp-pink-deep) 100%);
+    box-shadow: 0 10px 22px -10px rgba(216, 138, 154, 0.55);
+    justify-content: flex-end;
+    padding-right: 18px;
+  }
+  .pgp__bar-val {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 700;
+    color: var(--pgp-pink-deep);
+    white-space: nowrap; line-height: 1;
+  }
+  .pgp__bar-val--white {
+    color: #FFFDF8; font-size: 30px;
+  }
+  .pgp__multiplier {
+    display: flex; align-items: baseline; justify-content: center;
+    gap: 10px; margin-top: 4px;
+  }
+  .pgp__multiplier-val {
+    font-family: var(--font-display);
+    font-size: 32px; font-weight: 700;
+    color: var(--pgp-pink-deep); line-height: 1;
+  }
+  .pgp__multiplier-label {
+    font-size: 11px; letter-spacing: 1.6px;
+    font-weight: 700;
+    color: var(--pgp-ink-soft);
+    text-transform: uppercase;
+  }
+
+  /* ── Chart ─────────────────────────────────────────────────── */
+  .pgp__chart-card { margin-top: 24px; padding: 28px 22px; }
+  @media (min-width: 768px) { .pgp__chart-card { padding: 36px 40px 28px; } }
+  .pgp__chart-head {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-bottom: 18px;
+  }
+  @media (min-width: 768px) {
+    .pgp__chart-head {
+      flex-direction: row; justify-content: space-between; align-items: flex-end;
+      gap: 24px;
+    }
+  }
+  .pgp__chart-h {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    color: var(--pgp-ink);
+    line-height: 1;
+    margin: 6px 0 0;
+  }
+  .pgp__chart-sub {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--pgp-ink-soft);
+    max-width: 380px;
+    text-align: left;
+    margin: 0;
+  }
+  @media (min-width: 768px) { .pgp__chart-sub { text-align: right; } }
+  .pgp__chart-wrap { overflow-x: auto; }
+  .pgp__chart-svg { display: block; width: 100%; height: auto; min-width: 560px; }
+  /* Glide the marker between positions on input changes */
+  .pgp__marker { transition: transform 480ms var(--pgp-ease); }
+
+  /* ── CTA ──────────────────────────────────────────────────── */
+  .pgp__cta {
+    margin-top: 32px; margin-bottom: 64px;
+    border-radius: 24px;
+    background: linear-gradient(110deg, #FBEEF1 0%, #F7E4DC 60%, #EFD9CE 100%);
+    padding: 36px 28px;
+    display: flex; flex-direction: column;
+    gap: 28px;
+    align-items: flex-start;
+  }
+  @media (min-width: 768px) {
+    .pgp__cta {
+      flex-direction: row;
+      padding: 48px 56px;
+      gap: 48px;
+      align-items: center;
+    }
+  }
+  .pgp__cta-copy { flex: 1; }
+  .pgp__cta-title {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 6vw, 60px);
+    font-weight: 700;
+    color: var(--pgp-ink);
+    line-height: 0.95;
+    margin: 6px 0 0;
+  }
+  .pgp__cta-blurb {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-size: clamp(15px, 1.6vw, 17px);
+    color: var(--pgp-ink-soft);
+    max-width: 540px;
+    margin-top: 16px;
+    line-height: 1.55;
+  }
+  .pgp__cta-btn {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 600;
+    color: #fff;
+    background: var(--pgp-pink);
+    border: none;
+    border-radius: 999px;
+    padding: 12px 28px;
+    margin-top: 22px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 180ms var(--pgp-ease),
+                box-shadow 180ms var(--pgp-ease),
+                background 180ms var(--pgp-ease);
+  }
+  .pgp__cta-btn:hover {
+    background: var(--pgp-pink-deep);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -8px rgba(216, 138, 154, 0.55);
+  }
+  .pgp__cta-portraits {
+    display: flex; gap: 16px; align-items: flex-end;
+  }
+  .pgp__cta-portrait { margin: 0; text-align: center; }
+  .pgp__cta-portrait--puppy { transform: rotate(-3deg); }
+  .pgp__cta-portrait--adult { transform: rotate(2deg); margin-bottom: 16px; }
+  .pgp__cta-portrait figcaption {
+    font-family: var(--font-display);
+    font-size: 18px; color: var(--pgp-ink); margin-top: 8px;
+  }
+  .pgp__frame {
+    padding: 8px;
+    width: 130px; height: 150px;
+    box-shadow: 0 16px 32px -14px rgba(60, 40, 20, 0.35),
+                0 6px 12px rgba(60, 40, 20, 0.15);
+  }
+  @media (min-width: 768px) {
+    .pgp__frame { width: 170px; height: 200px; }
+    .pgp__cta-portrait--adult .pgp__frame { width: 210px; height: 244px; }
+  }
+  .pgp__frame--natural {
+    background: linear-gradient(135deg, #d4b896 0%, #c19a6f 35%, #b8916a 70%, #a07d54 100%);
+  }
+  .pgp__frame--gold {
+    background: linear-gradient(135deg, #d4ad5e 0%, #b8893f 40%, #e6c684 70%, #9a7030 100%);
+  }
+  .pgp__frame-mat {
+    width: 100%; height: 100%; overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+                inset 0 0 6px rgba(120, 80, 40, 0.35);
+  }
+  .pgp__frame-mat img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* ── Reduce motion ─────────────────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .pgp-rise, .pgp-rise-lg, .pgp-pop, .pgp-num-flash, .pgp__pulse-dot {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+    .pgp__slider-fill, .pgp__slider-thumb,
+    .pgp__bar-fill--today, .pgp__marker {
+      transition: none !important;
+    }
+  }
+</style>
