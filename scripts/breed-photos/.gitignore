@@ -1,0 +1,6 @@
+# Breed reference image binaries — sourced locally by the breed-render
+# workflow. Same convention as scripts/artwork-refs/: do not commit.
+*.jpg
+*.jpeg
+*.png
+*.webp

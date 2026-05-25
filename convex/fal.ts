@@ -32,7 +32,7 @@ const UPSCALE_FACTOR = 4;
 // prompt. Each prompt is hand-tuned to give Nano Banana a clear stylistic
 // brief while explicitly telling it to preserve the pet's identity.
 
-const STYLE_PROMPTS: Record<Style, string> = {
+export const STYLE_PROMPTS: Record<Style, string> = {
   oil:
     "Render the scene as a masterful classical oil painting in the style of 19th-century European portraiture. Rich layered brushstrokes with visible texture, warm chiaroscuro lighting, deep shadows, museum-quality finish. Soft painterly neutral background tones (deep umber to ochre) where the scene allows. Elegant and timeless.",
   watercolour:
@@ -178,7 +178,7 @@ export function buildBreedPrimacy(
 export const FULL_BLEED_LEAD =
   "FULL-BLEED, EDGE-TO-EDGE ARTWORK. The artwork must completely fill the canvas with absolutely no border, frame, mat, paper margin, silkscreen edge, painted edge, ornate moulding, drawn rectangle, or unprinted area — every pixel up to the canvas edge is part of the artwork itself.";
 
-function buildPrompt(
+export function buildPrompt(
   key: StyleOrArtist,
   activity?: string,
   mood?: string,
@@ -204,7 +204,7 @@ function buildPrompt(
 
 // ----- fal API call --------------------------------------------------------
 
-async function callNanoBanana(
+export async function callNanoBanana(
   prompt: string,
   imageUrls: string[],
 ): Promise<string> {
