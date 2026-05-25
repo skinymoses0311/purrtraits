@@ -431,10 +431,36 @@ async function modeRender(batchId: string): Promise<void> {
     artworksToRun = ARTWORKS_CATALOG.filter((a) => wanted.has(a.slug));
   }
 
+  // Optional activity / mood filter — pass --activities napping,adventuring
+  // and/or --moods calm,playful to restrict the quiz axis. Useful for
+  // cheap evaluation runs ("only need napping/calm"). Each defaults to
+  // the full ACTIVITIES / MOODS array if omitted. Validates each value
+  // against the config so typos fail loud.
+  const activitiesFilterRaw = flagValue("activities");
+  const moodsFilterRaw = flagValue("moods");
+  const activitiesToRun = activitiesFilterRaw
+    ? activitiesFilterRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : ACTIVITIES;
+  const moodsToRun = moodsFilterRaw
+    ? moodsFilterRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : MOODS;
+  for (const a of activitiesToRun) {
+    if (!ACTIVITIES.includes(a)) {
+      console.error(`Unknown activity: ${a}. Known: ${ACTIVITIES.join(", ")}`);
+      process.exit(1);
+    }
+  }
+  for (const m of moodsToRun) {
+    if (!MOODS.includes(m)) {
+      console.error(`Unknown mood: ${m}. Known: ${MOODS.join(", ")}`);
+      process.exit(1);
+    }
+  }
+
   const jobs: Job[] = [];
   for (const art of artworksToRun) {
-    for (const activity of ACTIVITIES) {
-      for (const mood of MOODS) {
+    for (const activity of activitiesToRun) {
+      for (const mood of moodsToRun) {
         jobs.push({ artworkSlug: art.slug, activity, mood });
       }
     }
@@ -448,7 +474,13 @@ async function modeRender(batchId: string): Promise<void> {
   if (filterSlugs) {
     console.log(`  Artwork filter: ${filterSlugs.join(", ")}`);
   }
-  console.log(`  ${artworksToRun.length} artwork${artworksToRun.length === 1 ? "" : "s"} × ${ACTIVITIES.length} activities × ${MOODS.length} moods = ${jobs.length} jobs`);
+  if (activitiesFilterRaw) {
+    console.log(`  Activity filter: ${activitiesToRun.join(", ")}`);
+  }
+  if (moodsFilterRaw) {
+    console.log(`  Mood filter: ${moodsToRun.join(", ")}`);
+  }
+  console.log(`  ${artworksToRun.length} artwork${artworksToRun.length === 1 ? "" : "s"} × ${activitiesToRun.length} activities × ${moodsToRun.length} moods = ${jobs.length} jobs`);
   console.log(`  ${jobs.length} jobs × 3 placements = ${renderCount} renders`);
   console.log(`  Estimated cost: ~$${lo}–$${hi}`);
   console.log(`  Concurrency: ${CONCURRENCY} jobs at a time`);
