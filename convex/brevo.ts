@@ -272,9 +272,6 @@ export const sendDogNameShortlist = internalAction({
       return;
     }
 
-    // Falls back to "there" so the template's "Hi {{ firstName }}" reads
-    // naturally for email-only signups where we don't have a name on file.
-    const firstName = firstNameOf(toName) || "there";
     // breedLabel is already "your-prefixed" so the template can drop it
     // straight into copy like "for {{ params.breedLabel }}". Stays "your dog"
     // when we don't know the breed.
@@ -310,7 +307,8 @@ export const sendDogNameShortlist = internalAction({
       templateId: TEMPLATES.nameShortlist,
       to: { email: toEmail, name: toName },
       params: {
-        firstName,
+        // Note: no firstName — the lead-gen flow doesn't collect a name, so
+        // the template uses breed-driven copy instead of a personal greeting.
         breedLabel,
         genderLabel,
         styleLabels,

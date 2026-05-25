@@ -190,7 +190,7 @@ body:
                       text-align: center
                       valign: top
                       width: 100%
-                  content: '<h1 class="default-heading1"><strong>Hi {{ params.firstName }} 👋</strong></h1>'
+                  content: '<h1 class="default-heading1"><strong>Top 20 names for {{ params.breedLabel }} 🐾</strong></h1>'
                 -
                   id: f2a3b4c5-d6e7-4890-f2a3-b4c5d6e7890b
                   title: Subhead
@@ -203,7 +203,7 @@ body:
                       text-align: center
                       valign: top
                       width: 100%
-                  content: '<p style="font-size:16px;color:#2D1F1A;">Here are <strong>20 names</strong> we picked for {{ params.breedLabel }} — {{ params.styleLabelsJoined }} style. Try a few on for size and see which one sticks.</p>'
+                  content: '<p style="font-size:16px;color:#2D1F1A;">Hand-picked in the {{ params.styleLabelsJoined }} style. Try a few on for size and see which one sticks.</p>'
         -
           align: top
           dist: '12'
