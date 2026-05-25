@@ -755,14 +755,43 @@ const faqJsonLd = {
         name_count: namesPayload.length,
         marketing_consent: marketingConsent,
       });
-      setSaveStatus("Sent — check your inbox in a minute.", "ok");
-      btn.textContent = "Sent ✓";
+      // Determine the recipient email to echo back in the confirmation.
+      // For signed-in users with no email field filled in, fall back to a
+      // generic message — we can't read their account email client-side
+      // without an extra round-trip.
+      const recipient = email ?? "your inbox";
+      renderSaveSuccess(recipient);
     } catch (err) {
       console.error("Save shortlist failed", err);
       setSaveStatus("Couldn't send your shortlist — please try again.", "err");
       btn.disabled = false;
       btn.textContent = defaultLabel;
     }
+  }
+
+  // Replaces the save card's content with a clean confirmation view.
+  // One-way transition — the form is gone for the rest of the page lifetime.
+  // A reload (or running the quiz again) starts fresh.
+  function renderSaveSuccess(recipient: string) {
+    const card = document.querySelector(".dng__save-card") as HTMLElement | null;
+    if (!card) return;
+    card.classList.add("dng__save-card--success");
+    card.innerHTML = `
+      <div class="dng__save-success" role="status" aria-live="polite">
+        <div class="dng__save-success-icon" aria-hidden="true">✓</div>
+        <h3 class="dng__save-success-title">Sent — check your inbox</h3>
+        <p class="dng__save-success-msg">
+          Your shortlist is on its way to <strong>${escapeHtml(recipient)}</strong>.
+          Give it a minute or two to arrive.
+        </p>
+        <p class="muted dng__save-success-hint">
+          Didn't see it? Check your spam folder, or
+          <a href="/dog-name-generator">run the generator again</a>
+          for a different set of names.
+        </p>
+      </div>
+    `;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // ─── Wiring ───────────────────────────────────────────────────────────
@@ -1013,6 +1042,51 @@ const faqJsonLd = {
     cursor: pointer;
   }
   .dng__consent-text { flex: 1; }
+
+  /* Success confirmation that replaces the form on submit. Solid pink
+     border instead of dashed so it reads as a finished state, not an
+     in-progress one. */
+  .dng__save-card--success {
+    border-style: solid;
+    text-align: center;
+  }
+  .dng__save-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px 4px;
+  }
+  .dng__save-success-icon {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--c-pink);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+    box-shadow: 0 4px 12px rgba(232,164,184,0.35);
+  }
+  .dng__save-success-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin: 0;
+    color: var(--c-dark);
+  }
+  .dng__save-success-msg {
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 4px 0 6px;
+    color: var(--c-text);
+    max-width: 420px;
+  }
+  .dng__save-success-msg strong { color: var(--c-dark); word-break: break-all; }
+  .dng__save-success-hint { font-size: 13px; max-width: 380px; }
+  .dng__save-success-hint a { color: var(--c-pink); text-decoration: underline; }
   .dng__save-form { display: flex; flex-direction: column; gap: 12px; }
   .dng__save-form .auth__field input {
     font-family: inherit;
