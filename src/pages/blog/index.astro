@@ -78,7 +78,8 @@ const breedItems: WallItem[] = sortedBreeds.map((p) => ({
 }));
 
 const photoTipsItems: WallItem[] = sortedPhotoTips.map((p) => {
-  const issueNum = String(filePrefix(p)).padStart(3, "0");
+  // Match the breed-plate format (e.g. "No. 14 · 11 min") — unpadded.
+  const issueNum = String(filePrefix(p));
   const readMin = p.data.wordCount
     ? Math.max(3, Math.round(p.data.wordCount / 225))
     : 5;
