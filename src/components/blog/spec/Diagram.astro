@@ -1,0 +1,35 @@
+---
+// White card + thick ink border + monospace label strip. The SVG kit
+// renders inside as <slot />.
+interface Props {
+  label: string;
+}
+const { label } = Astro.props;
+---
+
+<figure class="ps-diagram">
+  <div class="ps-diagram__card">
+    <slot />
+  </div>
+  <figcaption class="ps-diagram__label">{label}</figcaption>
+</figure>
+
+<style>
+  .ps-diagram { margin-top: 22px; }
+  .ps-diagram__card {
+    background: #fff;
+    border: 1.5px solid var(--ps-ink);
+    padding: 22px 28px;
+  }
+  .ps-diagram__label {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-ink-mute);
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+  @media (max-width: 640px) {
+    .ps-diagram { margin-top: 16px; }
+    .ps-diagram__card { padding: 14px 12px; }
+  }
+</style>

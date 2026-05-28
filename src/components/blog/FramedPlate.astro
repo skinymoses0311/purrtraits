@@ -10,6 +10,7 @@ import PetArt from "./PetArt.astro";
 
 interface Props {
   kicker: string;
+  kickerColour?: string; // optional hex for category-coloured kickers
   no?: string;
   label: string;
   dim?: string;
@@ -18,13 +19,19 @@ interface Props {
   tilt?: number;
   variant?: number;
   breed?: "pointy" | "floppy";
+  /** Astro ImageMetadata — when set, renders an optimized <Image>. */
   image?: ImageMetadata;
+  /** Raw URL string — used when an asset comes from import.meta.glob (e.g.
+   *  Photo Tips posts, whose hero paths are kept as strings and shouldn't be
+   *  re-encoded through Sharp). Falls back to <img> with object-fit: cover. */
+  imageUrl?: string;
   alt?: string;
   href?: string;
   id: string;
 }
 const {
   kicker,
+  kickerColour,
   no,
   label,
   dim,
@@ -34,6 +41,7 @@ const {
   variant = 0,
   breed,
   image,
+  imageUrl,
   alt = "",
   href,
   id,
@@ -60,6 +68,8 @@ const Tag = href ? "a" : "div";
       {
         image ? (
           <Image src={image} alt={alt} class="gw-frame__img" loading="lazy" />
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={alt} class="gw-frame__img" loading="lazy" />
         ) : (
           <PetArt id={id} variant={variant} breed={breed} />
         )
@@ -67,7 +77,7 @@ const Tag = href ? "a" : "div";
     </div>
   </div>
   <div class="gw-plaque">
-    <div class="gw-plaque__kicker">
+    <div class="gw-plaque__kicker" style={kickerColour ? `color:${kickerColour};` : undefined}>
       {kicker}{no && <span class="gw-plaque__no"> · {no}</span>}
     </div>
     <div class="gw-plaque__label">{label}</div>

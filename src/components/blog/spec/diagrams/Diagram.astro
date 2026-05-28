@@ -1,0 +1,48 @@
+---
+// Diagram router. Given an archetype string from the manifest,
+// picks the matching SVG component and wraps it in the white-card
+// + monospace-label chrome from the parent Diagram wrapper.
+import DiagramWrap from "../Diagram.astro";
+import CameraHeight from "./CameraHeight.astro";
+import CameraAngle from "./CameraAngle.astro";
+import CropGuide from "./CropGuide.astro";
+import Distance from "./Distance.astro";
+import LightDirection from "./LightDirection.astro";
+import Exposure from "./Exposure.astro";
+import TreatAboveLens from "./TreatAboveLens.astro";
+import Settings from "./Settings.astro";
+import MultiAngle from "./MultiAngle.astro";
+
+interface Props {
+  archetype:
+    | "camera-height"
+    | "camera-angle"
+    | "crop-guide"
+    | "distance"
+    | "light-direction"
+    | "exposure"
+    | "treat-above-lens"
+    | "settings"
+    | "multi-angle";
+  label: string;
+}
+const { archetype, label } = Astro.props;
+
+const COMPONENTS = {
+  "camera-height": CameraHeight,
+  "camera-angle": CameraAngle,
+  "crop-guide": CropGuide,
+  distance: Distance,
+  "light-direction": LightDirection,
+  exposure: Exposure,
+  "treat-above-lens": TreatAboveLens,
+  settings: Settings,
+  "multi-angle": MultiAngle,
+} as const;
+
+const C = COMPONENTS[archetype];
+---
+
+<DiagramWrap label={label}>
+  <C />
+</DiagramWrap>

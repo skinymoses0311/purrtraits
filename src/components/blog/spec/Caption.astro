@@ -1,0 +1,35 @@
+---
+// FIG. NN · LABEL · STATUS strip drawn directly under a PinPhoto.
+interface Props {
+  no: string; // e.g. "01a"
+  label: string;
+  status: "PASS" | "FAIL";
+}
+const { no, label, status } = Astro.props;
+const colorClass = status === "PASS" ? "ps-cap--pass" : "ps-cap--fail";
+---
+
+<div class:list={["ps-cap", colorClass]}>
+  <span class="ps-cap__left"><span class="ps-cap__fig">FIG. {no}</span> · {label}</span>
+  <span class="ps-cap__status">{status}</span>
+</div>
+
+<style>
+  .ps-cap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-ink-mute);
+    letter-spacing: 0.5px;
+    padding-top: 6px;
+    border-top: 1px solid var(--ps-ink);
+    text-transform: uppercase;
+  }
+  .ps-cap__fig { color: var(--ps-ink); font-weight: 700; }
+  .ps-cap__status { font-weight: 700; }
+  .ps-cap--pass .ps-cap__status { color: #3F6646; }
+  .ps-cap--fail .ps-cap__status { color: #8C4830; }
+</style>

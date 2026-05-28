@@ -1,0 +1,43 @@
+---
+// Fig. — Camera angle for flat-faced breeds. Three vignettes:
+// dead-on level (PASS), slightly above (FAIL — flattens), and from
+// the side (OK — but loses the symmetry). Same visual language as
+// CameraHeight but the camera moves horizontally around the dog's
+// face instead of vertically.
+---
+
+<svg viewBox="0 0 1200 240" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  <line x1="40" y1="200" x2="1160" y2="200" stroke="#2D1F1A" stroke-width="2"/>
+  {[
+    { x: 80, camY: 60, camX: 30, label: "ABOVE — FAIL", desc: "flattens muzzle", color: "#C8826E", dash: "6 4", angle: "↓ 30°" },
+    { x: 460, camY: 150, camX: 30, label: "EYE-LEVEL — PASS", desc: "honest symmetry", color: "#6FA877", dash: "0", angle: "→ 0°" },
+    { x: 840, camY: 150, camX: 110, label: "PROFILE — OK", desc: "loses one eye", color: "#D9A867", dash: "6 4", angle: "↻ 70°" },
+  ].map(({ x, camY, camX, label, desc, color, dash, angle }, i) => (
+    <g>
+      {/* dog (flat-faced) sitting */}
+      <ellipse cx={x + 220} cy={185} rx={62} ry={20} fill="#5C4A3F" />
+      <circle cx={x + 195} cy={166} r={22} fill="#5C4A3F" />
+      {/* ears */}
+      <path d={`M ${x + 178} ${150} L ${x + 174} ${136} L ${x + 188} ${154} Z M ${x + 212} ${150} L ${x + 216} ${136} L ${x + 202} ${154} Z`} fill="#5C4A3F" />
+      {/* eyes for the level / profile vignettes */}
+      {i !== 2 && <><circle cx={x + 188} cy={166} r="1.6" fill="#fff" /><circle cx={x + 202} cy={166} r="1.6" fill="#fff" /></>}
+      {i === 2 && <circle cx={x + 200} cy={164} r="1.6" fill="#fff" />}
+
+      {/* camera */}
+      <rect x={x + camX} y={camY} width="36" height="22" rx="2" fill="#2D1F1A" />
+      <circle cx={x + camX + 18} cy={camY + 11} r="6" fill="#fff" stroke="#2D1F1A" stroke-width="1.5" />
+
+      {/* sight line */}
+      <line x1={x + camX + 36} y1={camY + 11} x2={x + (i === 2 ? 178 : 195)} y2={i === 2 ? 164 : 166} stroke={color} stroke-width="1.5" stroke-dasharray={dash} />
+
+      {/* angle label */}
+      <text x={x + camX + 50} y={camY + 4} font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill={color} font-weight="700">{angle}</text>
+
+      {/* status label */}
+      <text x={x + 195} y="225" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill={color} font-weight="700" text-anchor="middle">{label}</text>
+      <text x={x + 195} y="238" font-family="DM Sans, sans-serif" font-size="10" fill="#8A7766" text-anchor="middle">{desc}</text>
+    </g>
+  ))}
+  <line x1="430" y1="20" x2="430" y2="210" stroke="#C4A882" stroke-width="1" stroke-dasharray="4 3" />
+  <line x1="810" y1="20" x2="810" y2="210" stroke="#C4A882" stroke-width="1" stroke-dasharray="4 3" />
+</svg>

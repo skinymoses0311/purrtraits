@@ -1,0 +1,93 @@
+---
+// A photograph with numbered pin markers overlaid (matched to the
+// SS_PinPhoto component in blog-tips-spec.jsx) and a PASS/FAIL
+// corner tag. The image itself comes through as a resolved URL +
+// optional 2x URL — the caller resolves the manifest's `file:` /
+// `file2x:` paths against the asset glob.
+interface Pin {
+  n: number;
+  x: number; // 0–100
+  y: number;
+  note: string;
+}
+interface Props {
+  src: string;
+  src2x?: string;
+  alt: string;
+  status: "PASS" | "FAIL";
+  pins: Pin[];
+}
+const { src, src2x, alt, status, pins } = Astro.props;
+const ok = status === "PASS";
+---
+
+<div class:list={["pp", ok ? "pp--pass" : "pp--fail"]}>
+  <div class="pp__frame">
+    <img
+      src={src}
+      srcset={src2x ? `${src} 1x, ${src2x} 2x` : undefined}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+    />
+    {pins.map((p) => (
+      <span class="pp__pin" style={`top:${p.y}%; left:${p.x}%;`} aria-label={`Pin ${p.n}: ${p.note}`}>
+        {p.n}
+      </span>
+    ))}
+    <span class="pp__tag">{status}</span>
+  </div>
+</div>
+
+<style>
+  .pp { position: relative; background: #1a1410; }
+  .pp--pass { border: 2px solid #6FA877; }
+  .pp--fail { border: 2px solid #C8826E; }
+
+  .pp__frame {
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    position: relative;
+  }
+  .pp__frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Pin markers — solid coloured disc, white numeral, dark ring
+     so they're legible over any photo background. */
+  .pp__pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ps-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+  .pp--pass .pp__pin { background: #6FA877; }
+  .pp--fail .pp__pin { background: #C8826E; }
+
+  .pp__tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 7px;
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .pp--pass .pp__tag { background: #6FA877; }
+  .pp--fail .pp__tag { background: #C8826E; }
+</style>

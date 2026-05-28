@@ -29,8 +29,12 @@ const plateSchema = (image: SchemaContext["image"]) =>
     alt: z.string().optional(),
   });
 
+// Breed posts live at the top level of ./src/content/blog (one file per
+// breed). The `*.md` glob deliberately excludes subdirectories so the
+// photo-tips collection (rooted at ./src/content/blog/photo-tips/) doesn't
+// get pulled into the breed schema and fail validation.
 const blog = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "./src/content/blog" }),
+  loader: glob({ pattern: "*.md", base: "./src/content/blog" }),
   schema: ({ image }) =>
     z.object({
       // ── identity / meta ──────────────────────────────────────────
@@ -129,4 +133,129 @@ const blog = defineCollection({
     }),
 });
 
-export const collections = { blog };
+// ════════════════════════════════════════════════════════════════
+// Photo Tips (Spec Sheet template)
+// ════════════════════════════════════════════════════════════════
+// Schema mirrors the front-matter that the matrix-converter writes.
+// Image paths are kept as raw strings so the manifest's explicit
+// `src/assets/blog/<slug>/<id>.jpg` paths flow through verbatim —
+// the page looks them up against an import.meta.glob map at render
+// time. We don't pass them to image() because the helper expects
+// paths relative to the markdown file and we don't want to re-derive.
+const DIAGRAM_ARCHETYPES = [
+  "camera-height",
+  "camera-angle",
+  "crop-guide",
+  "distance",
+  "light-direction",
+  "exposure",
+  "treat-above-lens",
+  "settings",
+  "multi-angle",
+] as const;
+
+const pinSchema = z.object({
+  n: z.number().int().min(1),
+  x: z.number(), // percentage 0-100
+  y: z.number(),
+  note: z.string(),
+});
+
+const photoSchema = z.object({
+  id: z.string(),
+  file: z.string(),
+  file2x: z.string(),
+  size: z.string().optional(),
+  aspect: z.string().optional(),
+  caption: z.string(),
+  status: z.enum(["PASS", "FAIL"]),
+  alt: z.string(),
+  depicts: z.string().optional(),
+  pins: z.array(pinSchema).default([]),
+});
+
+const photoTips = defineCollection({
+  loader: glob({ pattern: "*.md", base: "./src/content/blog/photo-tips" }),
+  schema: z.object({
+    // ── identity / SEO ───────────────────────────────────────────
+    title: z.string(),
+    slug: z.string(),
+    category: z.literal("photo-tips"),
+    issue: z.string(), // "TBC" or a numeric string
+    author: z.string().default("Naia Croft"),
+    publishDate: z.string(), // "TBC" while drafts; not a Date yet
+    metaTitle: z.string(),
+    metaDescription: z.string(),
+    primaryKeyword: z.string().optional(),
+    secondaryKeywords: z.array(z.string()).default([]),
+    wordCount: z.number().int().optional(),
+
+    // ── spec table under H1 ──────────────────────────────────────
+    specTable: z.array(
+      z.object({ label: z.string(), value: z.string() }),
+    ),
+
+    // ── "Why this matters" stats panel ───────────────────────────
+    stats: z
+      .array(z.object({ value: z.string(), label: z.string() }))
+      .default([]),
+
+    // ── images ──────────────────────────────────────────────────
+    images: z.object({
+      hero: z.object({
+        id: z.string(),
+        file: z.string(),
+        file2x: z.string(),
+        slot: z.string().optional(),
+        size: z.string().optional(),
+        aspect: z.string().optional(),
+        badge: z.string(),
+        alt: z.string(),
+        depicts: z.string().optional(),
+      }),
+      pairs: z.array(
+        z.object({
+          step: z.string(),
+          good: photoSchema,
+          bad: photoSchema,
+        }),
+      ),
+      commonMistakeThumbs: z
+        .array(
+          z.object({
+            id: z.string(),
+            source: z.string().optional(),
+            crop: z.string().optional(),
+            note: z.string().optional(),
+            file: z.string(),
+            file2x: z.string(),
+          }),
+        )
+        .default([]),
+    }),
+
+    // ── diagrams (SVG kit — keyed by step number) ────────────────
+    diagrams: z
+      .array(
+        z.object({
+          step: z.string(),
+          archetype: z.enum(DIAGRAM_ARCHETYPES),
+          label: z.string(),
+        }),
+      )
+      .default([]),
+
+    // ── related posts ────────────────────────────────────────────
+    related: z
+      .array(
+        z.object({
+          type: z.enum(["photo-tips", "breed"]),
+          slug: z.string(),
+          title: z.string(),
+        }),
+      )
+      .default([]),
+  }),
+});
+
+export const collections = { blog, photoTips };

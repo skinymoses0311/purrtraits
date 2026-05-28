@@ -1,0 +1,74 @@
+---
+// Fig. — Lens height vs portrait yield. Three vignettes:
+// STANDING — FAIL · KNEEL — OK · EYE-LINE — PASS. Each shows a
+// camera-on-tripod at a height, a dog silhouette, and a sight line
+// drawn at the angle. Mirrors the prototype's blog-tips-spec.jsx Fig.02.
+---
+
+<svg viewBox="0 0 1200 240" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  <line x1="40" y1="200" x2="1160" y2="200" stroke="#2D1F1A" stroke-width="2"/>
+  {[0, 1, 2].map((i) => {
+    const x = 80 + i * 380;
+    const camHeights = [40, 130, 168];
+    const labels = ["STANDING — FAIL", "KNEEL — OK", "EYE-LINE — PASS"];
+    const angles = ["↓ 65°", "↓ 25°", "→ 0°"];
+    const colors = ["#C8826E", "#D9A867", "#6FA877"];
+    return (
+      <g>
+        {/* dog */}
+        <ellipse cx={x + 220} cy={185} rx={60} ry={20} fill="#5C4A3F" />
+        <ellipse cx={x + 192} cy={168} rx={20} ry={16} fill="#5C4A3F" />
+        <path
+          d={`M ${x + 170} ${156} L ${x + 166} ${142} L ${x + 184} ${162} Z M ${x + 212} ${156} L ${x + 216} ${142} L ${x + 198} ${162} Z`}
+          fill="#5C4A3F"
+        />
+        <circle cx={x + 188} cy={166} r="2" fill="#fff" />
+        {/* camera + tripod */}
+        <rect x={x + 30} y={camHeights[i]} width="36" height="22" rx="2" fill="#2D1F1A" />
+        <circle cx={x + 48} cy={camHeights[i] + 11} r="6" fill="#fff" stroke="#2D1F1A" stroke-width="1.5" />
+        <line
+          x1={x + 48}
+          y1={camHeights[i] + 22}
+          x2={x + 48}
+          y2="198"
+          stroke="#2D1F1A"
+          stroke-width="1.5"
+          stroke-dasharray="4 3"
+        />
+        {/* sight line */}
+        <line
+          x1={x + 66}
+          y1={camHeights[i] + 11}
+          x2={x + 188}
+          y2={166}
+          stroke={colors[i]}
+          stroke-width="1.5"
+          stroke-dasharray={i === 2 ? "0" : "6 4"}
+        />
+        <text
+          x={x + 100}
+          y={camHeights[i] + 4}
+          font-family="ui-monospace, Menlo, Consolas, monospace"
+          font-size="11"
+          fill={colors[i]}
+          font-weight="700"
+        >
+          {angles[i]}
+        </text>
+        <text
+          x={x + 130}
+          y="225"
+          font-family="ui-monospace, Menlo, Consolas, monospace"
+          font-size="11"
+          fill={colors[i]}
+          font-weight="700"
+          text-anchor="middle"
+        >
+          {labels[i]}
+        </text>
+      </g>
+    );
+  })}
+  <line x1="430" y1="20" x2="430" y2="210" stroke="#C4A882" stroke-width="1" stroke-dasharray="4 3" />
+  <line x1="810" y1="20" x2="810" y2="210" stroke="#C4A882" stroke-width="1" stroke-dasharray="4 3" />
+</svg>

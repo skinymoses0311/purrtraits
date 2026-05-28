@@ -1,0 +1,37 @@
+---
+// Fig. — Crop guides. Three side-by-side frames at different
+// tightness: TIGHT — FAIL, SAFE — PASS, LOOSE — PASS. Each frame
+// contains a dog silhouette with rule-of-thirds grid faded inside.
+// Mirrors the prototype's blog-tips-spec.jsx Fig.05.
+---
+
+<svg viewBox="0 0 900 260" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  {[
+    { label: "TIGHT — FAIL", color: "#C8826E", x: 30, y: 40, w: 200, h: 200, note: "chin cropped", dogCY: 0.55, dogScale: 1.5 },
+    { label: "SAFE — PASS", color: "#6FA877", x: 290, y: 20, w: 260, h: 220, note: "head + chest", dogCY: 0.42, dogScale: 1.0 },
+    { label: "LOOSE — PASS", color: "#6FA877", x: 600, y: 10, w: 280, h: 240, note: "extra reframe room", dogCY: 0.42, dogScale: 0.85 },
+  ].map(({ label, color, x, y, w, h, note, dogCY, dogScale }) => {
+    const cx = x + w / 2;
+    const cy = y + h * dogCY;
+    return (
+      <g>
+        <rect x={x} y={y} width={w} height={h} fill="#F2EBE0" stroke={color} stroke-width="2.5" />
+        {/* rule of thirds */}
+        <line x1={x + w / 3} y1={y} x2={x + w / 3} y2={y + h} stroke={color} stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5" />
+        <line x1={x + (2 * w) / 3} y1={y} x2={x + (2 * w) / 3} y2={y + h} stroke={color} stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5" />
+        <line x1={x} y1={y + h / 3} x2={x + w} y2={y + h / 3} stroke={color} stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5" />
+        <line x1={x} y1={y + (2 * h) / 3} x2={x + w} y2={y + (2 * h) / 3} stroke={color} stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5" />
+        {/* dog silhouette */}
+        <g transform={`translate(${cx}, ${cy}) scale(${dogScale})`}>
+          <ellipse cx="0" cy="22" rx="38" ry="14" fill="#5C4A3F" />
+          <ellipse cx="-12" cy="-4" rx="18" ry="16" fill="#5C4A3F" />
+          <path d="M -28 -18 L -32 -32 L -16 -10 Z M 4 -18 L 8 -32 L -8 -10 Z" fill="#5C4A3F" />
+          <circle cx="-16" cy="-4" r="1.5" fill="#fff" />
+          <circle cx="-6" cy="-4" r="1.5" fill="#fff" />
+        </g>
+        <text x={cx} y={y + h + 22} font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill={color} font-weight="700" text-anchor="middle">{label}</text>
+        <text x={cx} y={y + h + 38} font-family="DM Sans, sans-serif" font-size="11" fill="#8A7766" text-anchor="middle">{note}</text>
+      </g>
+    );
+  })}
+</svg>

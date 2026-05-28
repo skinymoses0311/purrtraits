@@ -2,22 +2,108 @@
 import Layout from "../../layouts/Layout.astro";
 import FramedPlate from "../../components/blog/FramedPlate.astro";
 import { getCollection } from "astro:content";
+import type { ImageMetadata } from "astro";
 
-// The Gallery Wall is data-driven from the blog collection. Each plate links
-// to its post and uses the post's heroImage (PetArt is the fallback when a
-// post hasn't specified an image yet).
-const allPosts = await getCollection("blog");
-const breedPosts = allPosts.filter((p) => p.data.category === "breeds");
+// The Gallery Wall is data-driven from BOTH the breeds and photo-tips
+// collections. Each plate links to its post and uses the post's hero image;
+// PetArt is the fallback when a post hasn't specified one.
 
-// Featured posts first, then newest publishDate. Stable for ties.
+// ── Breeds collection ───────────────────────────────────────────
+const allBreedPosts = await getCollection("blog");
+const breedPosts = allBreedPosts.filter((p) => p.data.category === "breeds");
+
+// Featured first, then newest publishDate. Stable for ties.
 const sortedBreeds = [...breedPosts].sort((a, b) => {
   if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
   return b.data.publishDate.getTime() - a.data.publishDate.getTime();
 });
 
-// Curated slot geometry — preserves the design's asymmetric layout. Posts are
-// zipped into these slots in order; if there are fewer posts than slots, the
-// trailing slots simply don't render.
+// ── Photo Tips collection ───────────────────────────────────────
+const photoTipsPosts = await getCollection("photoTips");
+
+// Filename order: leading "01-" through "10-" prefix on each .md file.
+// Astro exposes the absolute path as `filePath`; we read the basename's
+// numeric prefix off it.
+function filePrefix(p: { filePath?: string }): number {
+  const fp = p.filePath ?? "";
+  const basename = fp.split(/[\\/]/).pop() ?? "";
+  const m = /^(\d+)/.exec(basename);
+  return m ? parseInt(m[1], 10) : 9999;
+}
+const sortedPhotoTips = [...photoTipsPosts].sort(
+  (a, b) => filePrefix(a) - filePrefix(b),
+);
+
+// Photo-tips hero paths are stored as raw strings (e.g.
+// "src/assets/blog/<slug>/01-hero.jpg") so we can route them through Vite's
+// glob URL map at render time — same lookup the article template uses.
+// `?url` returns a plain URL string (no Sharp re-encode; the JPGs are
+// already sized).
+const ptImgMap = import.meta.glob<string>(
+  "/src/assets/blog/**/*.{jpg,jpeg,png,webp}",
+  { eager: true, query: "?url", import: "default" },
+);
+function ptHeroUrl(file: string): string | undefined {
+  const key = file.startsWith("/") ? file : `/${file}`;
+  return ptImgMap[key];
+}
+
+// ── Unified wall item ───────────────────────────────────────────
+// Both kinds of post are normalized into this shape before being zipped into
+// slot geometry. Breeds carry an `image` (ImageMetadata, optimized by Astro);
+// Photo Tips carry an `imageUrl` (plain string URL from import.meta.glob).
+type WallItem = {
+  href: string;
+  image?: ImageMetadata;
+  imageUrl?: string;
+  alt: string;
+  kicker: string;
+  kickerColour: string;
+  no: string;
+  label: string;
+  heroVariant?: number;
+  heroBreed?: "pointy" | "floppy";
+};
+
+const breedItems: WallItem[] = sortedBreeds.map((p) => ({
+  href: `/blog/breeds/${p.id}`,
+  image: p.data.heroImage,
+  alt: p.data.heroAlt ?? `${p.data.title} ${p.data.subtitle}`,
+  kicker: "BREED SPOTLIGHT",
+  kickerColour: "#D88A9A", // pinkDeep
+  no: `No. ${p.data.issueNo} · ${p.data.readTime}`,
+  label: p.data.subtitle,
+  heroVariant: p.data.heroVariant,
+  heroBreed: p.data.heroBreed,
+}));
+
+const photoTipsItems: WallItem[] = sortedPhotoTips.map((p) => {
+  const issueNum = String(filePrefix(p)).padStart(3, "0");
+  const readMin = p.data.wordCount
+    ? Math.max(3, Math.round(p.data.wordCount / 225))
+    : 5;
+  return {
+    href: `/blog/photo-tips/${p.data.slug}`,
+    imageUrl: ptHeroUrl(p.data.images.hero.file),
+    alt: p.data.images.hero.alt,
+    kicker: "PHOTO TIPS",
+    kickerColour: "#9FB39A", // sage
+    no: `No. ${issueNum} · ${readMin} min`,
+    label: p.data.title,
+  };
+});
+
+// Round-robin interleave starting with a breed, so the feature slot (gw-1)
+// is always a breed cover-story. Falls through cleanly if either list is
+// shorter than the other.
+const interleaved: WallItem[] = [];
+const maxLen = Math.max(breedItems.length, photoTipsItems.length);
+for (let i = 0; i < maxLen; i++) {
+  if (breedItems[i]) interleaved.push(breedItems[i]);
+  if (photoTipsItems[i]) interleaved.push(photoTipsItems[i]);
+}
+
+// ── Curated slot geometry — 20 plates across 5 rows ─────────────
 type Wood = "natural" | "gold" | "white" | "dark";
 type Slot = { height: number; wood: Wood; tilt: number };
 const slots: Slot[] = [
@@ -31,29 +117,37 @@ const slots: Slot[] = [
   { height: 340, wood: "natural", tilt:  0.4 },
   { height: 400, wood: "gold",    tilt: -0.3 },
   { height: 320, wood: "white",   tilt:  0.5 },
-  // Row 3 — small plates, up to four
+  // Row 3 — four small plates (4)
   { height: 240, wood: "natural", tilt: -0.3 },
   { height: 240, wood: "white",   tilt:  0.2 },
   { height: 240, wood: "gold",    tilt: -0.4 },
   { height: 240, wood: "dark",    tilt:  0.3 },
+  // Row 4 — four medium plates (4)
+  { height: 260, wood: "white",   tilt:  0.4 },
+  { height: 260, wood: "dark",    tilt: -0.3 },
+  { height: 260, wood: "natural", tilt:  0.5 },
+  { height: 260, wood: "gold",    tilt: -0.2 },
+  // Row 5 — four small plates (4)
+  { height: 220, wood: "gold",    tilt: -0.4 },
+  { height: 220, wood: "natural", tilt:  0.3 },
+  { height: 220, wood: "white",   tilt: -0.5 },
+  { height: 220, wood: "dark",    tilt:  0.2 },
 ];
 
-const wall = sortedBreeds.slice(0, slots.length).map((post, i) => ({
-  post,
+const wall = interleaved.slice(0, slots.length).map((item, i) => ({
+  ...item,
   ...slots[i],
-  kicker: "BREED SPOTLIGHT",
-  no: `No. ${post.data.issueNo} · ${post.data.readTime}`,
-  label: post.data.subtitle,
-  href: `/blog/breeds/${post.id}`,
-  alt: post.data.heroAlt ?? `${post.data.title} ${post.data.subtitle}`,
+  id: `gw-${i}`,
 }));
 
 // Split by row for the staged grids the design uses.
-const row1 = wall.slice(0, 5); // feature + 2 stacks
-const row2 = wall.slice(5, 8);
-const row3 = wall.slice(8, 12);
+const row1 = wall.slice(0, 5);  // feature + 2 stacks
+const row2 = wall.slice(5, 8);  // three even
+const row3 = wall.slice(8, 12); // four small
+const row4 = wall.slice(12, 16); // four medium
+const row5 = wall.slice(16, 20); // four small
 
-// Category chips reflect reality: hide a chip until that category has posts.
+// ── Category chips ──────────────────────────────────────────────
 type ChipColour = "ink" | "pinkDeep" | "sage" | "ochre";
 const colourHex: Record<ChipColour, string> = {
   ink: "#1F1612",
@@ -63,19 +157,19 @@ const colourHex: Record<ChipColour, string> = {
 };
 const totals = {
   breeds: breedPosts.length,
-  "photo-tips": allPosts.filter((p) => p.data.category === "photo-tips").length,
-  decor: allPosts.filter((p) => p.data.category === "decor").length,
-  gifts: allPosts.filter((p) => p.data.category === "gifts").length,
-  personality: allPosts.filter((p) => p.data.category === "personality").length,
+  "photo-tips": photoTipsPosts.length,
+  decor: allBreedPosts.filter((p) => p.data.category === "decor").length,
+  gifts: allBreedPosts.filter((p) => p.data.category === "gifts").length,
+  personality: allBreedPosts.filter((p) => p.data.category === "personality").length,
 };
 const totalAll = Object.values(totals).reduce((a, b) => a + b, 0);
 const chips: { label: string; active: boolean; colour: ChipColour }[] = [
   { label: `ALL · ${totalAll}`, active: true, colour: "ink" },
-  ...(totals.breeds       > 0 ? [{ label: `BREEDS · ${totals.breeds}`,             active: false, colour: "pinkDeep" as ChipColour }] : []),
-  ...(totals["photo-tips"] > 0 ? [{ label: `PHOTO TIPS · ${totals["photo-tips"]}`,   active: false, colour: "sage"     as ChipColour }] : []),
-  ...(totals.decor        > 0 ? [{ label: `HOME & DÉCOR · ${totals.decor}`,         active: false, colour: "ochre"    as ChipColour }] : []),
-  ...(totals.gifts        > 0 ? [{ label: `GIFTS · ${totals.gifts}`,                active: false, colour: "pinkDeep" as ChipColour }] : []),
-  ...(totals.personality  > 0 ? [{ label: `PERSONALITY · ${totals.personality}`,    active: false, colour: "sage"     as ChipColour }] : []),
+  ...(totals.breeds        > 0 ? [{ label: `BREEDS · ${totals.breeds}`,            active: false, colour: "pinkDeep" as ChipColour }] : []),
+  ...(totals["photo-tips"] > 0 ? [{ label: `PHOTO TIPS · ${totals["photo-tips"]}`, active: false, colour: "sage"     as ChipColour }] : []),
+  ...(totals.decor         > 0 ? [{ label: `HOME & DÉCOR · ${totals.decor}`,       active: false, colour: "ochre"    as ChipColour }] : []),
+  ...(totals.gifts         > 0 ? [{ label: `GIFTS · ${totals.gifts}`,              active: false, colour: "pinkDeep" as ChipColour }] : []),
+  ...(totals.personality   > 0 ? [{ label: `PERSONALITY · ${totals.personality}`,  active: false, colour: "sage"     as ChipColour }] : []),
 ];
 ---
 
@@ -116,36 +210,40 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
           <div class="gw-row gw-row--1">
             {row1[0] && (
               <FramedPlate
-                id="gw-1"
+                id={row1[0].id}
                 height={row1[0].height}
                 wood={row1[0].wood}
                 tilt={row1[0].tilt}
                 kicker={row1[0].kicker}
+                kickerColour={row1[0].kickerColour}
                 no={row1[0].no}
                 label={row1[0].label}
-                image={row1[0].post.data.heroImage}
+                image={row1[0].image}
+                imageUrl={row1[0].imageUrl}
                 alt={row1[0].alt}
-                variant={row1[0].post.data.heroVariant}
-                breed={row1[0].post.data.heroBreed}
+                variant={row1[0].heroVariant}
+                breed={row1[0].heroBreed}
                 href={row1[0].href}
               />
             )}
             {(row1[1] || row1[2]) && (
               <div class="gw-stack">
-                {[row1[1], row1[2]].map((s, i) =>
+                {[row1[1], row1[2]].map((s) =>
                   s ? (
                     <FramedPlate
-                      id={`gw-2-${i}`}
+                      id={s.id}
                       height={s.height}
                       wood={s.wood}
                       tilt={s.tilt}
                       kicker={s.kicker}
+                      kickerColour={s.kickerColour}
                       no={s.no}
                       label={s.label}
-                      image={s.post.data.heroImage}
+                      image={s.image}
+                      imageUrl={s.imageUrl}
                       alt={s.alt}
-                      variant={s.post.data.heroVariant}
-                      breed={s.post.data.heroBreed}
+                      variant={s.heroVariant}
+                      breed={s.heroBreed}
                       href={s.href}
                     />
                   ) : null,
@@ -154,20 +252,22 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
             )}
             {(row1[3] || row1[4]) && (
               <div class="gw-stack">
-                {[row1[3], row1[4]].map((s, i) =>
+                {[row1[3], row1[4]].map((s) =>
                   s ? (
                     <FramedPlate
-                      id={`gw-3-${i}`}
+                      id={s.id}
                       height={s.height}
                       wood={s.wood}
                       tilt={s.tilt}
                       kicker={s.kicker}
+                      kickerColour={s.kickerColour}
                       no={s.no}
                       label={s.label}
-                      image={s.post.data.heroImage}
+                      image={s.image}
+                      imageUrl={s.imageUrl}
                       alt={s.alt}
-                      variant={s.post.data.heroVariant}
-                      breed={s.post.data.heroBreed}
+                      variant={s.heroVariant}
+                      breed={s.heroBreed}
                       href={s.href}
                     />
                   ) : null,
@@ -192,19 +292,21 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
       {
         row2.length > 0 && (
           <div class:list={["gw-row", `gw-row--2`, `gw-row--cols-${row2.length}`]}>
-            {row2.map((s, i) => (
+            {row2.map((s) => (
               <FramedPlate
-                id={`gw-r2-${i}`}
+                id={s.id}
                 height={s.height}
                 wood={s.wood}
                 tilt={s.tilt}
                 kicker={s.kicker}
+                kickerColour={s.kickerColour}
                 no={s.no}
                 label={s.label}
-                image={s.post.data.heroImage}
+                image={s.image}
+                imageUrl={s.imageUrl}
                 alt={s.alt}
-                variant={s.post.data.heroVariant}
-                breed={s.post.data.heroBreed}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
                 href={s.href}
               />
             ))}
@@ -216,19 +318,73 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
       {
         row3.length > 0 && (
           <div class:list={["gw-row", `gw-row--3`, `gw-row--cols-${row3.length}`]}>
-            {row3.map((s, i) => (
+            {row3.map((s) => (
               <FramedPlate
-                id={`gw-r3-${i}`}
+                id={s.id}
                 height={s.height}
                 wood={s.wood}
                 tilt={s.tilt}
                 kicker={s.kicker}
+                kickerColour={s.kickerColour}
                 no={s.no}
                 label={s.label}
-                image={s.post.data.heroImage}
+                image={s.image}
+                imageUrl={s.imageUrl}
                 alt={s.alt}
-                variant={s.post.data.heroVariant}
-                breed={s.post.data.heroBreed}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
+                href={s.href}
+              />
+            ))}
+          </div>
+        )
+      }
+
+      <!-- Row 4 — medium plates, up to four -->
+      {
+        row4.length > 0 && (
+          <div class:list={["gw-row", `gw-row--4`, `gw-row--cols-${row4.length}`]}>
+            {row4.map((s) => (
+              <FramedPlate
+                id={s.id}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                kickerColour={s.kickerColour}
+                no={s.no}
+                label={s.label}
+                image={s.image}
+                imageUrl={s.imageUrl}
+                alt={s.alt}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
+                href={s.href}
+              />
+            ))}
+          </div>
+        )
+      }
+
+      <!-- Row 5 — small plates, up to four -->
+      {
+        row5.length > 0 && (
+          <div class:list={["gw-row", `gw-row--5`, `gw-row--cols-${row5.length}`]}>
+            {row5.map((s) => (
+              <FramedPlate
+                id={s.id}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                kickerColour={s.kickerColour}
+                no={s.no}
+                label={s.label}
+                image={s.image}
+                imageUrl={s.imageUrl}
+                alt={s.alt}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
                 href={s.href}
               />
             ))}
@@ -366,6 +522,19 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
   .gw-row--3.gw-row--cols-3 { grid-template-columns: repeat(3, 1fr); }
   .gw-row--3.gw-row--cols-2 { grid-template-columns: repeat(2, 1fr); }
   .gw-row--3.gw-row--cols-1 { grid-template-columns: 1fr; }
+  /* Extended rows for the 20-plate wall: same column-count rules as row 3
+     so partial rows stay balanced. Larger top-margin between rows gives the
+     wall some breathing room as it gets longer. */
+  .gw-row--4,
+  .gw-row--5 { gap: 40px; margin-top: 72px; }
+  .gw-row--4.gw-row--cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .gw-row--4.gw-row--cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .gw-row--4.gw-row--cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .gw-row--4.gw-row--cols-1 { grid-template-columns: 1fr; }
+  .gw-row--5.gw-row--cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .gw-row--5.gw-row--cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .gw-row--5.gw-row--cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .gw-row--5.gw-row--cols-1 { grid-template-columns: 1fr; }
   .gw-stack {
     display: flex;
     flex-direction: column;
@@ -539,7 +708,9 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
     .gw-row,
     .gw-row--1,
     .gw-row--2,
-    .gw-row--3 {
+    .gw-row--3,
+    .gw-row--4,
+    .gw-row--5 {
       grid-template-columns: 1fr;
       gap: 36px;
       margin-top: 36px;

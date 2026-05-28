@@ -1,0 +1,1352 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import { getCollection } from "astro:content";
+import PinPhoto from "../../../components/blog/spec/PinPhoto.astro";
+import Caption from "../../../components/blog/spec/Caption.astro";
+import PinLegend from "../../../components/blog/spec/PinLegend.astro";
+import Diagram from "../../../components/blog/spec/diagrams/Diagram.astro";
+import { parseBody, splitBoldLeader } from "../../../lib/photoTipsParse";
+
+// ── Routing ─────────────────────────────────────────────────────
+// Use the manifest's `slug` field as the URL — it's what the
+// `related` cross-links in other posts point at, and it's the
+// stable identifier the design refers to (not the filename).
+export async function getStaticPaths() {
+  const posts = await getCollection("photoTips");
+  return posts.map((post) => ({
+    params: { slug: post.data.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const d = post.data;
+
+// ── Asset lookup ────────────────────────────────────────────────
+// Manifest paths look like "src/assets/blog/<slug>/<id>.jpg". The
+// glob keys come from Vite as "/src/assets/blog/<slug>/<id>.jpg",
+// so we prefix with a slash. Eager+url gives a plain string URL
+// (no Sharp re-encode — these JPGs are already sized).
+const imgMap = import.meta.glob<string>(
+  "/src/assets/blog/**/*.{jpg,jpeg,png,webp}",
+  { eager: true, query: "?url", import: "default" },
+);
+const url = (file: string): string => {
+  const key = file.startsWith("/") ? file : `/${file}`;
+  const u = imgMap[key];
+  if (!u) {
+    throw new Error(
+      `[photo-tips] missing asset for "${file}" (post: ${d.slug}). ` +
+        `Expected key "${key}" in import.meta.glob map.`,
+    );
+  }
+  return u;
+};
+
+// ── Body ────────────────────────────────────────────────────────
+const parsed = parseBody(post.body ?? "");
+
+// Map pairs and diagrams by step number for O(1) lookup inside the
+// step loop.
+const pairByStep = new Map(d.images.pairs.map((p) => [p.step, p]));
+const diagramByStep = new Map(d.diagrams.map((dg) => [dg.step, dg]));
+
+// ── TOC ─────────────────────────────────────────────────────────
+const toc: { mark: string; title: string; href: string }[] = [];
+if (parsed.whyThisMatters) {
+  toc.push({ mark: "00", title: "Why this matters", href: "#why-this-matters" });
+}
+if (parsed.procedure) {
+  for (const s of parsed.procedure.steps) {
+    toc.push({ mark: s.no, title: s.title, href: `#step-${s.no}` });
+  }
+}
+if (parsed.commonMistakes) {
+  toc.push({ mark: "—", title: parsed.commonMistakes.title, href: "#common-mistakes" });
+}
+if (parsed.checklist) {
+  toc.push({ mark: "✓", title: "Pre-flight checklist", href: "#checklist" });
+}
+toc.push({ mark: "→", title: "Ready to upload", href: "#ready" });
+
+// Step prose split: first paragraph becomes the "action" line
+// (a stand-in for the design's DO row), the rest is the explainer.
+function splitStepProse(html: string): { action: string; rest: string } {
+  const match = /^<p>([\s\S]*?)<\/p>([\s\S]*)$/.exec(html.trim());
+  if (!match) return { action: "", rest: html };
+  return { action: match[1], rest: match[2].trim() };
+}
+
+// Common-mistakes title/desc per card. Front-matter thumbs (post 01
+// only) are zipped with the bullets in body order; if thumbs are
+// absent, the cards render with a placeholder ✗ square so the grid
+// still reads as a grid.
+const commonMistakeCards =
+  parsed.commonMistakes?.bullets?.map((line, i) => {
+    const { title, rest } = splitBoldLeader(line);
+    const thumb = d.images.commonMistakeThumbs[i];
+    return { code: `E${String(i + 1).padStart(2, "0")}`, title, desc: rest, thumb };
+  }) ?? [];
+
+// Related links: photo-tips → /blog/photo-tips/<slug>, breed →
+// /blog/breeds/<slug>. The breed slugs in these manifests are all
+// already-published breed posts, so the links resolve.
+const relatedHref = (r: { type: string; slug: string }): string =>
+  r.type === "breed" ? `/blog/breeds/${r.slug}` : `/blog/photo-tips/${r.slug}`;
+
+// Issue display: front-matter has "TBC" while posts are in draft —
+// fall back to the post's filename prefix (01-… → "001"). The glob
+// loader uses the front-matter `slug` as `post.id`, so we read the
+// numeric prefix off `post.filePath` instead, which Astro exposes
+// as the absolute path of the source markdown file.
+const issueDisplay = (() => {
+  if (d.issue && d.issue !== "TBC") return d.issue.padStart(3, "0");
+  const fp = post.filePath ?? "";
+  const basename = fp.split(/[\\/]/).pop() ?? "";
+  const m = /^(\d+)/.exec(basename);
+  return m ? m[1].padStart(3, "0") : "—";
+})();
+
+// Author initial for the avatar disc.
+const authorInitial = d.author.slice(0, 1).toUpperCase();
+
+// Reading time estimate — wordCount / 225 wpm.
+const readMinutes = d.wordCount ? Math.max(3, Math.round(d.wordCount / 225)) : 6;
+---
+
+<Layout title={d.metaTitle} description={d.metaDescription} noindex={false}>
+  <article class="ps">
+    <!-- Crumb -->
+    <div class="ps-crumb">
+      BLOG · PHOTO TIPS · {issueDisplay} / HOW-TO
+    </div>
+
+    <!-- HEADER: H1 + spec table -->
+    <header class="ps-header">
+      <div class="ps-header__left">
+        <span class="ps-header__pill">HOW-TO · {readMinutes} MIN READ</span>
+        <h1 class="ps-h1">{d.title}</h1>
+        <p class="ps-header__lede">{d.metaDescription}</p>
+      </div>
+      <aside class="ps-spec">
+        <div class="ps-spec__head">
+          <span>SPEC SHEET</span>
+          <span class="ps-spec__no">NO. {issueDisplay}</span>
+        </div>
+        {d.specTable.map((row) => (
+          <div class="ps-spec__row">
+            <span class="ps-spec__k">{row.label}</span>
+            <span class="ps-spec__v">{row.value}</span>
+          </div>
+        ))}
+        <div class="ps-spec__author">
+          <span class="ps-spec__avatar">{authorInitial}</span>
+          <div>
+            <div class="ps-spec__author-name">{d.author}</div>
+            <div class="ps-spec__author-meta">STUDIO PHOTOGRAPHER</div>
+          </div>
+        </div>
+      </aside>
+    </header>
+
+    <!-- HERO -->
+    <div class="ps-hero">
+      <div class="ps-hero__frame">
+        <img
+          src={url(d.images.hero.file)}
+          srcset={`${url(d.images.hero.file)} 1x, ${url(d.images.hero.file2x)} 2x`}
+          alt={d.images.hero.alt}
+          loading="eager"
+          decoding="async"
+        />
+        <span class="ps-hero__badge">{d.images.hero.badge}</span>
+      </div>
+    </div>
+
+    <!-- TWO-COL: TOC sidebar + main -->
+    <div class="ps-body">
+      <!-- SIDEBAR -->
+      <aside class="ps-aside">
+        <div class="ps-aside__sticky">
+          <nav class="ps-toc" aria-label="Contents">
+            <div class="ps-toc__head">CONTENTS</div>
+            {toc.map((row, i) => (
+              <a
+                class:list={["ps-toc__row", { "ps-toc__row--last": i === toc.length - 1 }]}
+                href={row.href}
+              >
+                <span class="ps-toc__mark">{row.mark}</span>
+                <span class="ps-toc__title">{row.title}</span>
+              </a>
+            ))}
+          </nav>
+          <div class="ps-aside__cta">
+            <div class="ps-aside__kicker">REFERENCE</div>
+            <div class="ps-aside__title">Done reading?<br />Try a photo now.</div>
+            <div class="ps-aside__sub">Free preview in 60 seconds.</div>
+            <a href="/upload" class="ps-aside__btn">UPLOAD A PHOTO →</a>
+          </div>
+          <div class="ps-ad ps-ad--mrec">
+            <span class="ps-ad__label">ADVERTISEMENT</span>
+            <span class="ps-ad__txt">300 × 250</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="ps-article">
+        {parsed.intro && (
+          <div class="ps-intro" set:html={parsed.intro} />
+        )}
+
+        {parsed.whyThisMatters && (
+          <section id="why-this-matters">
+            <header class="ps-h2-block">
+              <div class="ps-h2-block__kicker">CONTEXT · 00</div>
+              <h2 class="ps-h2">{parsed.whyThisMatters.title}</h2>
+            </header>
+            <div class="ps-why">
+              <div class="ps-why__prose" set:html={parsed.whyThisMatters.html} />
+              {d.stats.length > 0 && (
+                <div class="ps-stats">
+                  <div class="ps-stats__head">INTERNAL DATA · {new Date().getFullYear()}</div>
+                  {d.stats.map((s, i) => (
+                    <div class:list={["ps-stats__row", { "ps-stats__row--first": i === 0 }]}>
+                      <div class="ps-stats__v">{s.value}</div>
+                      <div class="ps-stats__l">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {parsed.procedure && (
+          <section>
+            <header class="ps-h2-block">
+              <div class="ps-h2-block__kicker">
+                PROCEDURE · 01–{String(parsed.procedure.steps.length).padStart(2, "0")}
+              </div>
+              <h2 class="ps-h2">{parsed.procedure.h2Title}</h2>
+            </header>
+            {parsed.procedure.intro && (
+              <div class="ps-proc-intro" set:html={parsed.procedure.intro} />
+            )}
+
+            {parsed.procedure.steps.map((step) => {
+              const { action, rest } = splitStepProse(step.html);
+              const pair = pairByStep.get(step.no);
+              const dg = diagramByStep.get(step.no);
+              return (
+                <div class="ps-step" id={`step-${step.no}`}>
+                  <div class="ps-step__head">
+                    <div class="ps-step__no">
+                      <span class="ps-step__label">STEP</span>
+                      <span class="ps-step__num">{step.no}</span>
+                    </div>
+                    <div class="ps-step__title-block">
+                      <h3 class="ps-step__title">{step.title}</h3>
+                    </div>
+                  </div>
+
+                  {action && (
+                    <div class="ps-step__action">
+                      <span class="ps-step__action-verb">DO</span>
+                      <span class="ps-step__action-body" set:html={action} />
+                    </div>
+                  )}
+
+                  {pair && (
+                    <div class="ps-pair">
+                      <div class="ps-pair__cell">
+                        <PinPhoto
+                          src={url(pair.good.file)}
+                          src2x={url(pair.good.file2x)}
+                          alt={pair.good.alt}
+                          status={pair.good.status}
+                          pins={pair.good.pins.map((p) => ({ n: p.n, x: p.x, y: p.y, note: p.note }))}
+                        />
+                        <Caption no={`${pair.step}a`} label={pair.good.caption} status={pair.good.status} />
+                        {pair.good.pins.length > 0 && (
+                          <PinLegend
+                            status={pair.good.status}
+                            items={pair.good.pins.map((p) => ({ n: p.n, note: p.note }))}
+                          />
+                        )}
+                      </div>
+                      <div class="ps-pair__cell">
+                        <PinPhoto
+                          src={url(pair.bad.file)}
+                          src2x={url(pair.bad.file2x)}
+                          alt={pair.bad.alt}
+                          status={pair.bad.status}
+                          pins={pair.bad.pins.map((p) => ({ n: p.n, x: p.x, y: p.y, note: p.note }))}
+                        />
+                        <Caption no={`${pair.step}b`} label={pair.bad.caption} status={pair.bad.status} />
+                        {pair.bad.pins.length > 0 && (
+                          <PinLegend
+                            status={pair.bad.status}
+                            items={pair.bad.pins.map((p) => ({ n: p.n, note: p.note }))}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {dg && <Diagram archetype={dg.archetype} label={dg.label} />}
+
+                  {rest && <div class="ps-step__prose" set:html={rest} />}
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {parsed.commonMistakes && (
+          <section id="common-mistakes">
+            <header class="ps-h2-block">
+              <div class="ps-h2-block__kicker">ERRATA</div>
+              <h2 class="ps-h2">{parsed.commonMistakes.title}</h2>
+            </header>
+            {commonMistakeCards.length > 0 ? (
+              <div class="ps-mistakes">
+                {commonMistakeCards.map((card) => (
+                  <div class="ps-mistake">
+                    <div class="ps-mistake__thumb">
+                      {card.thumb ? (
+                        <img
+                          src={url(card.thumb.file)}
+                          srcset={`${url(card.thumb.file)} 1x, ${url(card.thumb.file2x)} 2x`}
+                          alt={card.title}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <div class="ps-mistake__thumb-placeholder">✗</div>
+                      )}
+                      <div class="ps-mistake__x">✗</div>
+                    </div>
+                    <div class="ps-mistake__body">
+                      <div class="ps-mistake__code">{card.code}</div>
+                      <div class="ps-mistake__title">{card.title}</div>
+                      <div class="ps-mistake__desc">{card.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div class="ps-mistakes-prose" set:html={parsed.commonMistakes.html} />
+            )}
+          </section>
+        )}
+
+        {parsed.checklist && (
+          <section id="checklist">
+            <header class="ps-h2-block">
+              <div class="ps-h2-block__kicker">REFERENCE · TEAR-OUT</div>
+              <h2 class="ps-h2">Pre-flight checklist</h2>
+              <div class="ps-h2-block__tag">Screenshot this. We made it for that.</div>
+            </header>
+            <div class="ps-check">
+              <div class="ps-check__perf"></div>
+              <div class="ps-check__corner">
+                PURRTRAITS<br /><span>v.2026.05</span>
+              </div>
+              <div class="ps-check__pill">PRE-FLIGHT CHECKLIST</div>
+              <h3 class="ps-check__title">Before you upload,<br />run these checks.</h3>
+              <div class="ps-check__grid">
+                {(parsed.checklist.bullets ?? []).map((line, i) => {
+                  const { title, rest } = splitBoldLeader(line);
+                  const text = rest ? `${title} — ${rest}` : title;
+                  return (
+                    <div class="ps-check__row">
+                      <span class="ps-check__box">✓</span>
+                      <div>
+                        <div class="ps-check__n">{String(i + 1).padStart(2, "0")}</div>
+                        <div class="ps-check__t">{text}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div class="ps-check__foot">
+                <div>
+                  <div class="ps-check__foot-k">NEXT STEP</div>
+                  <div class="ps-check__foot-t">Upload at purrtraits.com/upload</div>
+                </div>
+                <a href="/upload" class="ps-check__cta">get the shot →</a>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {parsed.inlineCta && (
+          <div class="ps-inline">
+            <div>
+              <div class="ps-inline__kicker">CHECKLIST DONE? §</div>
+              <div class="ps-inline__title">Get a preview before you commit.</div>
+              <div class="ps-inline__body" set:html={parsed.inlineCta} />
+            </div>
+            <a href="/upload" class="ps-inline__btn">UPLOAD A PHOTO →</a>
+          </div>
+        )}
+
+        {parsed.readyToUpload && (
+          <section id="ready" class="ps-fin">
+            <div class="ps-fin__mark">FIN · {issueDisplay}</div>
+            <h2 class="ps-fin__h2">Ready to upload?</h2>
+            <div class="ps-fin__body" set:html={parsed.readyToUpload} />
+            <div class="ps-fin__cta">
+              <a href="/upload" class="ps-fin__btn">UPLOAD YOUR PHOTO →</a>
+              <a href="/gallery" class="ps-fin__btn ps-fin__btn--ghost">SEE SAMPLE STYLES</a>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+
+    <!-- RELATED -->
+    {d.related.length > 0 && (
+      <section class="ps-related">
+        <div class="ps-related__head">FURTHER READING</div>
+        <div class="ps-related__grid">
+          {d.related.map((r) => (
+            <a class="ps-rel" href={relatedHref(r)}>
+              <div class="ps-rel__art" aria-hidden="true"></div>
+              <div class="ps-rel__kicker">
+                {r.type === "breed" ? "BREED SPOTLIGHT" : "PHOTO TIPS"}
+              </div>
+              <div class="ps-rel__title">{r.title}</div>
+              <div class="ps-rel__meta">READ →</div>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+  </article>
+</Layout>
+
+<style is:global>
+  /* ── Spec Sheet design tokens ──────────────────────────────── */
+  /* These are defined globally only on .ps so the scoped child
+     components (PinPhoto, Caption, PinLegend, Diagram) can
+     reference --ps-mono / --ps-ink / --ps-ink-mute. */
+  .ps {
+    --ps-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --ps-ink: #2D1F1A;
+    --ps-ink-soft: #5C4A3F;
+    --ps-ink-mute: #8A7766;
+    --ps-cream: #FFFDF8;
+    --ps-cream-deep: #F2EBE0;
+    --ps-stroke: #C4A882;
+    --ps-pink: #E8A4B8;
+    --ps-pink-deep: #D88A9A;
+    --ps-pink-soft: #F7E8EE;
+  }
+</style>
+
+<style>
+  /* ── Article wrapper ───────────────────────────────────────── */
+  .ps {
+    background: var(--ps-cream);
+    color: var(--ps-ink);
+    font-family: var(--font-body);
+    display: block;
+  }
+
+  /* ── Crumb + header ────────────────────────────────────────── */
+  .ps-crumb {
+    padding: 24px 56px 0;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.8px;
+    color: var(--ps-ink-mute);
+    font-weight: 700;
+  }
+
+  .ps-header {
+    padding: 18px 56px 0;
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 48px;
+    align-items: end;
+  }
+  .ps-header__pill {
+    display: inline-block;
+    padding: 5px 10px;
+    background: var(--ps-ink);
+    color: var(--ps-cream);
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-weight: 700;
+  }
+  .ps-h1 {
+    font-family: var(--font-body);
+    font-size: clamp(38px, 6vw, 84px);
+    font-weight: 800;
+    color: var(--ps-ink);
+    line-height: 0.95;
+    margin-top: 14px;
+    letter-spacing: -2px;
+  }
+  .ps-header__lede {
+    font-family: var(--font-body);
+    font-size: 18px;
+    color: var(--ps-ink-soft);
+    margin-top: 18px;
+    line-height: 1.5;
+    max-width: 540px;
+  }
+
+  /* ── Spec table ────────────────────────────────────────────── */
+  .ps-spec {
+    border: 1px solid var(--ps-ink);
+    background: #fff;
+  }
+  .ps-spec__head {
+    padding: 10px 16px;
+    border-bottom: 1.5px solid var(--ps-ink);
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    color: var(--ps-ink);
+    display: flex;
+    justify-content: space-between;
+  }
+  .ps-spec__no { color: var(--ps-pink-deep); }
+  .ps-spec__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px dashed var(--ps-ink-mute);
+  }
+  .ps-spec__k {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-ink-mute);
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .ps-spec__v {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ps-ink);
+    font-weight: 600;
+  }
+  .ps-spec__author {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ps-spec__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--ps-pink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ps-pink-deep);
+  }
+  .ps-spec__author-name {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ps-ink);
+  }
+  .ps-spec__author-meta {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-ink-mute);
+    margin-top: 1px;
+  }
+
+  /* ── Hero ──────────────────────────────────────────────────── */
+  .ps-hero { padding: 36px 56px 0; }
+  .ps-hero__frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #E4D2B6;
+  }
+  .ps-hero__frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ps-hero__badge {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    padding: 8px 12px;
+    background: rgba(20, 15, 12, 0.78);
+    color: #F8EAD0;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+
+  /* ── Body grid ─────────────────────────────────────────────── */
+  .ps-body {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 48px;
+    padding: 48px 56px 0;
+    align-items: start;
+  }
+  .ps-article { min-width: 0; }
+  .ps-aside { align-self: stretch; }
+  .ps-aside__sticky {
+    position: sticky;
+    top: 88px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* ── TOC ───────────────────────────────────────────────────── */
+  .ps-toc {
+    border: 2px solid var(--ps-ink);
+    background: #fff;
+    padding: 18px 18px;
+  }
+  .ps-toc__head {
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--ps-ink);
+    font-weight: 700;
+    border-bottom: 1.5px solid var(--ps-ink);
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+  .ps-toc__row {
+    display: flex;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px dashed var(--ps-stroke);
+    text-decoration: none;
+    color: inherit;
+  }
+  .ps-toc__row--last { border-bottom: none; }
+  .ps-toc__row:hover .ps-toc__title { color: var(--ps-pink-deep); }
+  .ps-toc__mark {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+    width: 18px;
+  }
+  .ps-toc__title {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ps-ink);
+    font-weight: 500;
+    transition: color 0.15s;
+  }
+
+  /* ── Sidebar CTA + ad ──────────────────────────────────────── */
+  .ps-aside__cta {
+    border: 1px solid var(--ps-ink);
+    background: var(--ps-pink-soft);
+    padding: 16px 16px;
+  }
+  .ps-aside__kicker {
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+  }
+  .ps-aside__title {
+    font-family: var(--font-body);
+    font-size: 18px;
+    color: var(--ps-ink);
+    margin-top: 6px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .ps-aside__sub {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--ps-ink-soft);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+  .ps-aside__btn {
+    display: block;
+    text-align: center;
+    margin-top: 12px;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--ps-ink);
+    border: none;
+    padding: 10px;
+    letter-spacing: 1.5px;
+    text-decoration: none;
+  }
+
+  .ps-ad {
+    border: 1px dashed #C9B89A;
+    background: rgba(232, 217, 184, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .ps-ad--mrec { width: 100%; height: 250px; }
+  .ps-ad__label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-family: var(--ps-mono);
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    color: var(--ps-ink-mute);
+    text-transform: uppercase;
+  }
+  .ps-ad__txt {
+    font-family: var(--ps-mono);
+    font-size: 11px;
+    color: var(--ps-ink-mute);
+    font-style: italic;
+  }
+
+  /* ── Intro ─────────────────────────────────────────────────── */
+  .ps-intro :global(p) {
+    font-family: var(--font-body);
+    font-size: 20px;
+    color: var(--ps-ink);
+    line-height: 1.55;
+    font-weight: 500;
+    max-width: 680px;
+  }
+  .ps-intro :global(p + p) { margin-top: 14px; }
+
+  /* ── H2 blocks ─────────────────────────────────────────────── */
+  .ps-h2-block {
+    margin-top: 48px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--ps-ink);
+  }
+  .ps-h2-block__kicker {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--ps-ink-mute);
+    font-weight: 700;
+  }
+  .ps-h2 {
+    font-family: var(--font-body);
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    color: var(--ps-ink);
+    line-height: 1.05;
+    margin-top: 6px;
+    letter-spacing: -1px;
+  }
+  .ps-h2-block__tag {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--ps-ink-mute);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ── Why this matters ─────────────────────────────────────── */
+  .ps-why {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 32px;
+  }
+  .ps-why__prose :global(p) {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--ps-ink-soft);
+    line-height: 1.65;
+  }
+  .ps-why__prose :global(p + p) { margin-top: 14px; }
+
+  .ps-stats {
+    background: #fff;
+    border: 1.5px solid var(--ps-ink);
+    padding: 18px 20px;
+    align-self: start;
+  }
+  .ps-stats__head {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+  }
+  .ps-stats__row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px dashed var(--ps-stroke);
+    margin-top: 4px;
+  }
+  .ps-stats__row--first { border-top: none; padding-top: 14px; }
+  .ps-stats__v {
+    font-family: var(--font-body);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ps-pink-deep);
+    line-height: 1;
+    width: 60px;
+    flex-shrink: 0;
+  }
+  .ps-stats__l {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ps-ink);
+    line-height: 1.4;
+  }
+
+  /* ── Procedure intro ──────────────────────────────────────── */
+  .ps-proc-intro {
+    margin-top: 20px;
+  }
+  .ps-proc-intro :global(p) {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--ps-ink-soft);
+    line-height: 1.65;
+    max-width: 680px;
+  }
+  .ps-proc-intro :global(p + p) { margin-top: 12px; }
+
+  /* ── Step block ───────────────────────────────────────────── */
+  .ps-step { margin-top: 8px; }
+  .ps-step__head {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+    margin-top: 64px;
+    padding-bottom: 18px;
+    border-bottom: 1.5px solid var(--ps-ink);
+  }
+  .ps-step__no {
+    flex-shrink: 0;
+    width: 84px;
+    padding: 10px 0;
+    background: var(--ps-ink);
+    color: var(--ps-cream);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .ps-step__label {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    opacity: 0.7;
+  }
+  .ps-step__num {
+    font-family: var(--font-body);
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .ps-step__title-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .ps-step__title {
+    font-family: var(--font-body);
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 800;
+    color: var(--ps-ink);
+    line-height: 1.1;
+    letter-spacing: -0.4px;
+  }
+
+  /* ── Step action row (substitutes for the design's DO row) ── */
+  .ps-step__action {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 18px;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--ps-ink-mute);
+  }
+  .ps-step__action-verb {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+    padding-top: 4px;
+  }
+  .ps-step__action-body {
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: var(--ps-ink);
+    line-height: 1.4;
+    font-weight: 500;
+  }
+  .ps-step__action-body :global(strong) { font-weight: 700; }
+
+  /* ── Pair ─────────────────────────────────────────────────── */
+  .ps-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 22px;
+  }
+
+  .ps-step__prose {
+    margin-top: 18px;
+    max-width: 680px;
+  }
+  .ps-step__prose :global(p) {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--ps-ink-soft);
+    line-height: 1.65;
+  }
+  .ps-step__prose :global(p + p) { margin-top: 12px; }
+
+  /* ── Common-mistakes grid ─────────────────────────────────── */
+  .ps-mistakes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+  .ps-mistake {
+    border: 1px solid var(--ps-stroke);
+    background: #fff;
+    display: grid;
+    grid-template-columns: 90px 1fr;
+  }
+  .ps-mistake__thumb {
+    position: relative;
+    border-right: 1px solid var(--ps-stroke);
+    background: #1a1410;
+    aspect-ratio: 1;
+  }
+  .ps-mistake__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ps-mistake__thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #5C4A3F, #2D1F1A);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6a5040;
+    font-size: 28px;
+  }
+  .ps-mistake__x {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 15, 12, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ps-mono);
+    font-size: 32px;
+    color: #fff;
+    font-weight: 700;
+  }
+  .ps-mistake__body { padding: 14px 16px; }
+  .ps-mistake__code {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-pink-deep);
+    letter-spacing: 1.5px;
+    font-weight: 700;
+  }
+  .ps-mistake__title {
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: var(--ps-ink);
+    font-weight: 700;
+    margin-top: 4px;
+    line-height: 1.2;
+  }
+  .ps-mistake__desc {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ps-ink-soft);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .ps-mistakes-prose {
+    margin-top: 18px;
+    max-width: 760px;
+  }
+  .ps-mistakes-prose :global(p) {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--ps-ink-soft);
+    line-height: 1.65;
+  }
+  .ps-mistakes-prose :global(ul) {
+    margin-top: 14px;
+    padding-left: 0;
+    list-style: none;
+  }
+  .ps-mistakes-prose :global(li) {
+    padding: 12px 0;
+    border-top: 1px dashed var(--ps-stroke);
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--ps-ink-soft);
+    line-height: 1.55;
+  }
+  .ps-mistakes-prose :global(li strong) {
+    color: var(--ps-ink);
+    font-weight: 700;
+  }
+
+  /* ── Checklist (screenshot-friendly card) ─────────────────── */
+  .ps-check {
+    background: #FFFDF6;
+    border: 3px solid var(--ps-ink);
+    padding: 32px 36px 36px;
+    position: relative;
+    margin-top: 24px;
+  }
+  .ps-check__perf {
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    height: 12px;
+    background-image: radial-gradient(circle, var(--ps-cream) 2.5px, transparent 3px);
+    background-size: 14px 12px;
+    background-position: center;
+  }
+  .ps-check__corner {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--ps-ink-mute);
+    font-weight: 700;
+    text-align: right;
+  }
+  .ps-check__corner span { color: var(--ps-pink-deep); }
+  .ps-check__pill {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--ps-ink);
+    color: var(--ps-cream);
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    font-weight: 700;
+  }
+  .ps-check__title {
+    font-family: var(--font-body);
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 800;
+    color: var(--ps-ink);
+    line-height: 1.05;
+    margin-top: 14px;
+    letter-spacing: -0.8px;
+  }
+  .ps-check__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 28px;
+    margin-top: 24px;
+  }
+  .ps-check__row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-top: 1px solid var(--ps-stroke);
+  }
+  .ps-check__box {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--ps-ink);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ps-ink);
+    margin-top: 2px;
+  }
+  .ps-check__n {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .ps-check__t {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--ps-ink);
+    margin-top: 2px;
+    line-height: 1.35;
+    font-weight: 500;
+  }
+  .ps-check__foot {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 2px solid var(--ps-ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ps-check__foot-k {
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    color: var(--ps-ink-mute);
+    letter-spacing: 1.5px;
+    font-weight: 700;
+  }
+  .ps-check__foot-t {
+    font-family: var(--font-body);
+    font-size: 18px;
+    color: var(--ps-ink);
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .ps-check__cta {
+    font-family: var(--font-display);
+    font-size: 32px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+    transform: rotate(-3deg);
+    text-decoration: none;
+  }
+
+  /* ── Inline CTA card ──────────────────────────────────────── */
+  .ps-inline {
+    margin-top: 48px;
+    border: 2px solid var(--ps-ink);
+    padding: 24px 28px;
+    background: var(--ps-cream);
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 32px;
+    align-items: center;
+  }
+  .ps-inline__kicker {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+  }
+  .ps-inline__title {
+    font-family: var(--font-body);
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--ps-ink);
+    margin-top: 6px;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+  }
+  .ps-inline__body :global(p) {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--ps-ink-soft);
+    margin-top: 8px;
+    line-height: 1.5;
+    max-width: 480px;
+  }
+  .ps-inline__btn {
+    font-family: var(--ps-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--ps-ink);
+    border: none;
+    padding: 18px 22px;
+    cursor: pointer;
+    letter-spacing: 1.5px;
+    text-decoration: none;
+    text-align: center;
+  }
+
+  /* ── Ready to upload (dark final section) ─────────────────── */
+  .ps-fin {
+    margin-top: 64px;
+    padding: 48px 44px;
+    background: var(--ps-ink);
+    color: #F8EAD0;
+    position: relative;
+    overflow: hidden;
+  }
+  .ps-fin__mark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--ps-pink);
+    font-weight: 700;
+    padding: 10px 14px;
+    border-right: 1px solid #4A3A30;
+    border-bottom: 1px solid #4A3A30;
+  }
+  .ps-fin__h2 {
+    font-family: var(--font-body);
+    font-size: clamp(36px, 5vw, 54px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -1.5px;
+    margin-top: 28px;
+  }
+  .ps-fin__body :global(p) {
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: #D8C8B0;
+    margin-top: 16px;
+    line-height: 1.55;
+    max-width: 560px;
+  }
+  .ps-fin__cta {
+    display: flex;
+    gap: 14px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .ps-fin__btn {
+    font-family: var(--ps-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ps-ink);
+    background: #F8EAD0;
+    border: none;
+    padding: 16px 26px;
+    cursor: pointer;
+    letter-spacing: 1.5px;
+    text-decoration: none;
+  }
+  .ps-fin__btn--ghost {
+    color: #F8EAD0;
+    background: transparent;
+    border: 1px solid #F8EAD0;
+  }
+
+  /* ── Related ───────────────────────────────────────────────── */
+  .ps-related { padding: 56px 56px 0; }
+  .ps-related__head {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--ps-ink-mute);
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--ps-ink);
+  }
+  .ps-related__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 32px;
+    margin-top: 24px;
+    padding-bottom: 48px;
+  }
+  .ps-rel {
+    border-top: 1px solid var(--ps-ink);
+    padding-top: 14px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .ps-rel__art {
+    aspect-ratio: 4 / 3;
+    background: linear-gradient(135deg, #E4D2B6, #C8B89A);
+    margin-bottom: 12px;
+  }
+  .ps-rel__kicker {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--ps-pink-deep);
+    font-weight: 700;
+  }
+  .ps-rel__title {
+    font-family: var(--font-body);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ps-ink);
+    margin-top: 4px;
+    line-height: 1.15;
+    letter-spacing: -0.3px;
+  }
+  .ps-rel__meta {
+    font-family: var(--ps-mono);
+    font-size: 10px;
+    color: var(--ps-ink-mute);
+    margin-top: 10px;
+  }
+
+  /* ── Responsive ───────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .ps-crumb,
+    .ps-header,
+    .ps-hero,
+    .ps-body,
+    .ps-related { padding-left: 32px; padding-right: 32px; }
+    .ps-header { grid-template-columns: 1fr; gap: 24px; }
+    .ps-body { grid-template-columns: 1fr; gap: 32px; }
+    .ps-aside__sticky { position: static; }
+    .ps-why { grid-template-columns: 1fr; gap: 18px; }
+    .ps-related__grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .ps-crumb,
+    .ps-header,
+    .ps-hero,
+    .ps-body,
+    .ps-related { padding-left: 18px; padding-right: 18px; }
+    .ps-step__head { gap: 12px; margin-top: 40px; padding-bottom: 14px; }
+    .ps-step__no { width: 56px; padding: 6px 0; }
+    .ps-step__num { font-size: 32px; }
+    .ps-step__action { grid-template-columns: 1fr; gap: 6px; }
+    .ps-step__action-body { font-size: 15px; }
+    .ps-pair { grid-template-columns: 1fr; gap: 14px; }
+    .ps-mistakes { grid-template-columns: 1fr; }
+    .ps-check { padding: 20px 18px 22px; }
+    .ps-check__title { font-size: 28px; }
+    .ps-check__grid { grid-template-columns: 1fr; gap: 10px; }
+    .ps-inline { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+    .ps-inline__title { font-size: 20px; }
+    .ps-inline__btn { width: 100%; padding: 14px; font-size: 11px; }
+    .ps-fin { padding: 24px 20px; margin-top: 32px; }
+    .ps-fin__btn { width: 100%; padding: 14px; text-align: center; }
+    .ps-related__grid { grid-template-columns: 1fr; }
+  }
+</style>

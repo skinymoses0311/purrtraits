@@ -1,0 +1,54 @@
+---
+// Fig. — Framing distance. Three pairings: CLOSE — face detail,
+// SAFE — head + chest, FULL — whole dog. Each shows what fits in
+// frame at that distance. Same visual grammar as CropGuide but the
+// dog scales DOWN as the frame holds the same size (i.e. the camera
+// moves back).
+---
+
+<svg viewBox="0 0 900 260" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  {[
+    { label: "CLOSE — DETAIL", color: "#D9A867", dogScale: 2.0, dogCY: 0.5, note: "face only — needs the wider shot too" },
+    { label: "SAFE — PASS", color: "#6FA877", dogScale: 1.0, dogCY: 0.45, note: "head + chest, room on every side" },
+    { label: "FULL BODY — PASS", color: "#6FA877", dogScale: 0.55, dogCY: 0.55, note: "whole dog — proportion and posture" },
+  ].map(({ label, color, dogScale, dogCY, note }, i) => {
+    const x = 30 + i * 290;
+    const y = 30;
+    const w = 250;
+    const h = 200;
+    const cx = x + w / 2;
+    const cy = y + h * dogCY;
+    return (
+      <g>
+        <rect x={x} y={y} width={w} height={h} fill="#F2EBE0" stroke={color} stroke-width="2.5" />
+        {/* dog silhouette — scales to show different framing */}
+        <g transform={`translate(${cx}, ${cy}) scale(${dogScale})`}>
+          {dogScale < 0.8 ? (
+            /* full-body silhouette */
+            <g>
+              <ellipse cx="0" cy="42" rx="56" ry="14" fill="#5C4A3F" />
+              <ellipse cx="-22" cy="22" rx="26" ry="20" fill="#5C4A3F" />
+              <ellipse cx="-32" cy="6" rx="14" ry="12" fill="#5C4A3F" />
+              <path d="M -42 -6 L -46 -20 L -28 -2 Z M -22 -6 L -18 -20 L -36 -2 Z" fill="#5C4A3F" />
+              <circle cx="-32" cy="6" r="1.5" fill="#fff" />
+              {/* legs */}
+              <rect x="-26" y="48" width="6" height="14" fill="#5C4A3F" />
+              <rect x="18" y="48" width="6" height="14" fill="#5C4A3F" />
+            </g>
+          ) : (
+            /* head + chest */
+            <g>
+              <ellipse cx="0" cy="22" rx="38" ry="14" fill="#5C4A3F" />
+              <ellipse cx="-10" cy="-4" rx="20" ry="18" fill="#5C4A3F" />
+              <path d="M -28 -20 L -32 -34 L -16 -10 Z M 4 -20 L 8 -34 L -8 -10 Z" fill="#5C4A3F" />
+              <circle cx="-16" cy="-4" r="1.7" fill="#fff" />
+              <circle cx="-4" cy="-4" r="1.7" fill="#fff" />
+            </g>
+          )}
+        </g>
+        <text x={cx} y={y + h + 22} font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill={color} font-weight="700" text-anchor="middle">{label}</text>
+        <text x={cx} y={y + h + 38} font-family="DM Sans, sans-serif" font-size="10" fill="#8A7766" text-anchor="middle">{note}</text>
+      </g>
+    );
+  })}
+</svg>

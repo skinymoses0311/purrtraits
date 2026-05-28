@@ -1,0 +1,59 @@
+---
+// Tinted legend list under a PinPhoto. Each numbered note is keyed
+// to its matching pin marker by the same numeral.
+interface Item { n: number; note: string }
+interface Props {
+  status: "PASS" | "FAIL";
+  items: Item[];
+  small?: boolean;
+}
+const { status, items, small = false } = Astro.props;
+const ok = status === "PASS";
+---
+
+<div class:list={["ps-leg", ok ? "ps-leg--pass" : "ps-leg--fail", { "ps-leg--sm": small }]}>
+  {items.map((it) => (
+    <div class="ps-leg__row">
+      <span class="ps-leg__pin">{it.n}</span>
+      <span class="ps-leg__note">{it.note}</span>
+    </div>
+  ))}
+</div>
+
+<style>
+  .ps-leg {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-width: 1px;
+    border-style: solid;
+  }
+  .ps-leg--pass { background: #E8F0E5; border-color: #A8C5A0; }
+  .ps-leg--fail { background: #F4DCD2; border-color: #D8A898; }
+  .ps-leg__row {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .ps-leg--sm .ps-leg__row { font-size: 11px; }
+  .ps-leg--pass .ps-leg__row { color: #3F6646; }
+  .ps-leg--fail .ps-leg__row { color: #7A3820; }
+  .ps-leg__pin {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ps-mono);
+    font-size: 9px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .ps-leg--pass .ps-leg__pin { background: #6FA877; }
+  .ps-leg--fail .ps-leg__pin { background: #C8826E; }
+</style>

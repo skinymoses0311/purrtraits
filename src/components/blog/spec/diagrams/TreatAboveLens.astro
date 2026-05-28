@@ -1,0 +1,67 @@
+---
+// Fig. — Treat held just above the lens. Side view: a phone in
+// hand, a treat held a few inches above the top edge of the phone,
+// and the dog's eyeline drawn to the treat (which the lens then
+// captures from just below). The angle is small enough that the
+// dog still reads as looking "at the lens".
+---
+
+<svg viewBox="0 0 900 320" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  {/* ground */}
+  <line x1="40" y1="280" x2="860" y2="280" stroke="#2D1F1A" stroke-width="2"/>
+
+  {/* photographer's hand + phone (silhouette) */}
+  <g transform="translate(180, 130)">
+    {/* phone body */}
+    <rect x="-40" y="0" width="80" height="140" rx="10" fill="#2D1F1A" />
+    {/* screen */}
+    <rect x="-34" y="6" width="68" height="120" rx="4" fill="#3A2A20" />
+    {/* lens cluster (top edge) */}
+    <circle cx="-22" cy="-4" r="6" fill="#1A1410" stroke="#fff" stroke-width="0.8" />
+    <circle cx="-6" cy="-4" r="6" fill="#1A1410" stroke="#fff" stroke-width="0.8" />
+    {/* hand grip */}
+    <path d="M -50 60 Q -76 80 -68 130 L -40 130 L -40 70 Z" fill="#5C4A3F" />
+  </g>
+
+  {/* treat (above the phone) */}
+  <g transform="translate(180, 80)">
+    <ellipse cx="0" cy="0" rx="12" ry="8" fill="#A87248" stroke="#5C4A3F" stroke-width="1" />
+    <text x="0" y="3" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10" fill="#fff" font-weight="700" text-anchor="middle">TREAT</text>
+  </g>
+
+  {/* dog (looking at treat) */}
+  <g transform="translate(640, 230)">
+    {/* body */}
+    <ellipse cx="0" cy="40" rx="58" ry="18" fill="#5C4A3F" />
+    {/* head */}
+    <ellipse cx="-30" cy="10" rx="26" ry="22" fill="#5C4A3F" />
+    {/* ears */}
+    <path d="M -52 -8 L -56 -22 L -38 -2 Z M -22 -8 L -18 -22 L -36 -2 Z" fill="#5C4A3F" />
+    {/* eyes */}
+    <circle cx="-40" cy="8" r="2.2" fill="#fff" />
+    <circle cx="-26" cy="8" r="2.2" fill="#fff" />
+    {/* nose */}
+    <ellipse cx="-52" cy="14" rx="3" ry="2" fill="#1A1410" />
+  </g>
+
+  {/* gaze line: dog → treat */}
+  <line x1="592" y1="234" x2="194" y2="84" stroke="#6FA877" stroke-width="1.5" stroke-dasharray="0" marker-end="url(#tal-arrow)" />
+  {/* small ~2° offset note: lens-line is just below gaze-line */}
+  <line x1="592" y1="234" x2="194" y2="100" stroke="#D9A867" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#tal-arrow-warn)" />
+
+  <defs>
+    <marker id="tal-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6FA877" />
+    </marker>
+    <marker id="tal-arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#D9A867" />
+    </marker>
+  </defs>
+
+  {/* labels */}
+  <text x="220" y="76" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10" fill="#6FA877" font-weight="700">GAZE LINE → TREAT</text>
+  <text x="220" y="118" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="10" fill="#D9A867" font-weight="700">LENS LINE (≈ 2° below)</text>
+
+  <text x="640" y="296" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#6FA877" font-weight="700" text-anchor="middle">DOG ALERT — EYES UP</text>
+  <text x="180" y="296" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#2D1F1A" font-weight="700" text-anchor="middle">PHONE — STEADY, BOTH HANDS</text>
+</svg>

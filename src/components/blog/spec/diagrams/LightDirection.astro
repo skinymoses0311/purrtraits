@@ -1,0 +1,52 @@
+---
+// Fig. — Light direction. Overhead plan view: dog in centre, sun /
+// window at three positions — front (FAIL — flat), side (PASS —
+// form), back (FAIL — silhouette). Arrows show light direction.
+---
+
+<svg viewBox="0 0 900 280" style="width:100%; display:block; height:auto;" aria-hidden="true">
+  {[
+    { label: "FRONT — FAIL", color: "#C8826E", note: "flat, washed-out face", angle: 0, sx: 0, sy: -100 },
+    { label: "SIDE — PASS", color: "#6FA877", note: "form, depth, catchlight", angle: 270, sx: -110, sy: 0 },
+    { label: "BACK — FAIL", color: "#C8826E", note: "silhouette, no detail", angle: 180, sx: 0, sy: 100 },
+  ].map(({ label, color, note, sx, sy }, i) => {
+    const cx = 150 + i * 300;
+    const cy = 120;
+    return (
+      <g>
+        {/* compass frame */}
+        <circle cx={cx} cy={cy} r={92} fill="#F2EBE0" stroke="#C4A882" stroke-width="1" stroke-dasharray="3 3" />
+
+        {/* dog silhouette (overhead plan) */}
+        <ellipse cx={cx} cy={cy} rx={22} ry={36} fill="#5C4A3F" />
+        <circle cx={cx} cy={cy - 24} r={14} fill="#5C4A3F" />
+        {/* nose marker (facing up = north) */}
+        <circle cx={cx} cy={cy - 36} r={3} fill="#2D1F1A" />
+
+        {/* light source disc */}
+        <circle cx={cx + sx} cy={cy + sy} r={14} fill="#F8E1A8" stroke={color} stroke-width="1.5" />
+        <text x={cx + sx} y={cy + sy + 4} font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#7A5A20" font-weight="700" text-anchor="middle">☀</text>
+
+        {/* arrow from light toward dog */}
+        <line
+          x1={cx + sx + (sx > 0 ? -14 : sx < 0 ? 14 : 0)}
+          y1={cy + sy + (sy > 0 ? -14 : sy < 0 ? 14 : 0)}
+          x2={cx + (sx === 0 ? 0 : sx > 0 ? 22 : -22)}
+          y2={cy + (sy === 0 ? 0 : sy > 0 ? 36 : -36)}
+          stroke={color}
+          stroke-width="1.5"
+          marker-end={`url(#ld-arrow-${i})`}
+        />
+        <defs>
+          <marker id={`ld-arrow-${i}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+          </marker>
+        </defs>
+
+        {/* labels */}
+        <text x={cx} y={cy + 130} font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill={color} font-weight="700" text-anchor="middle">{label}</text>
+        <text x={cx} y={cy + 146} font-family="DM Sans, sans-serif" font-size="10" fill="#8A7766" text-anchor="middle">{note}</text>
+      </g>
+    );
+  })}
+</svg>
