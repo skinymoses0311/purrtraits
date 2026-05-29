@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import FramedPlate from "../../components/blog/FramedPlate.astro";
+import WallView, { type WallSlot } from "../../components/blog/WallView.astro";
 import { getCollection } from "astro:content";
 import type { ImageMetadata } from "astro";
 
@@ -135,18 +135,21 @@ const slots: Slot[] = [
   { height: 220, wood: "dark",    tilt:  0.2 },
 ];
 
-const wall = interleaved.slice(0, slots.length).map((item, i) => ({
-  ...item,
-  ...slots[i],
-  id: `gw-${i}`,
-}));
+// Zip a list of items onto the curated slot geometry. The `prefix` keeps
+// SVG `<defs>` ids unique across the three pre-rendered wall views (when
+// filtering, all three are in the DOM at once; duplicate ids would break
+// SVG references on hidden walls). Trailing slots simply don't render.
+function zipWall(items: WallItem[], prefix: string): WallSlot[] {
+  return items.slice(0, slots.length).map((item, i) => ({
+    ...item,
+    ...slots[i],
+    id: `gw-${prefix}-${i}`,
+  }));
+}
 
-// Split by row for the staged grids the design uses.
-const row1 = wall.slice(0, 5);  // feature + 2 stacks
-const row2 = wall.slice(5, 8);  // three even
-const row3 = wall.slice(8, 12); // four small
-const row4 = wall.slice(12, 16); // four medium
-const row5 = wall.slice(16, 20); // four small
+const wallAll = zipWall(interleaved, "all");
+const wallBreeds = zipWall(breedItems, "breeds");
+const wallPhotoTips = zipWall(photoTipsItems, "photo-tips");
 
 // ── Category chips ──────────────────────────────────────────────
 type ChipColour = "ink" | "pinkDeep" | "sage" | "ochre";
@@ -164,13 +167,16 @@ const totals = {
   personality: allBreedPosts.filter((p) => p.data.category === "personality").length,
 };
 const totalAll = Object.values(totals).reduce((a, b) => a + b, 0);
-const chips: { label: string; active: boolean; colour: ChipColour }[] = [
-  { label: `ALL · ${totalAll}`, active: true, colour: "ink" },
-  ...(totals.breeds        > 0 ? [{ label: `BREEDS · ${totals.breeds}`,            active: false, colour: "pinkDeep" as ChipColour }] : []),
-  ...(totals["photo-tips"] > 0 ? [{ label: `PHOTO TIPS · ${totals["photo-tips"]}`, active: false, colour: "sage"     as ChipColour }] : []),
-  ...(totals.decor         > 0 ? [{ label: `HOME & DÉCOR · ${totals.decor}`,       active: false, colour: "ochre"    as ChipColour }] : []),
-  ...(totals.gifts         > 0 ? [{ label: `GIFTS · ${totals.gifts}`,              active: false, colour: "pinkDeep" as ChipColour }] : []),
-  ...(totals.personality   > 0 ? [{ label: `PERSONALITY · ${totals.personality}`,  active: false, colour: "sage"     as ChipColour }] : []),
+// Each chip carries a `filter` slug that matches a wall section's
+// data-filter attribute; the inline script wires click → wall toggle.
+type Chip = { label: string; active: boolean; colour: ChipColour; filter: string };
+const chips: Chip[] = [
+  { label: `ALL · ${totalAll}`, active: true, colour: "ink", filter: "all" },
+  ...(totals.breeds        > 0 ? [{ label: `BREEDS · ${totals.breeds}`,            active: false, colour: "pinkDeep" as ChipColour, filter: "breeds" }] : []),
+  ...(totals["photo-tips"] > 0 ? [{ label: `PHOTO TIPS · ${totals["photo-tips"]}`, active: false, colour: "sage"     as ChipColour, filter: "photo-tips" }] : []),
+  ...(totals.decor         > 0 ? [{ label: `HOME & DÉCOR · ${totals.decor}`,       active: false, colour: "ochre"    as ChipColour, filter: "decor" }] : []),
+  ...(totals.gifts         > 0 ? [{ label: `GIFTS · ${totals.gifts}`,              active: false, colour: "pinkDeep" as ChipColour, filter: "gifts" }] : []),
+  ...(totals.personality   > 0 ? [{ label: `PERSONALITY · ${totals.personality}`,  active: false, colour: "sage"     as ChipColour, filter: "personality" }] : []),
 ];
 ---
 
@@ -187,10 +193,15 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
         {totalAll} plates hung this season. Each is an article — on a breed, a photographic angle,
         a wall to hang it on, a dog to commission a painting of. Walk the room.
       </p>
-      <div class="gw-chips">
+      <div class="gw-chips" role="tablist" aria-label="Filter the wall by category">
         {
           chips.map((c) => (
             <button
+              type="button"
+              role="tab"
+              aria-selected={c.active ? "true" : "false"}
+              aria-controls={`gw-wall-${c.filter}`}
+              data-filter={c.filter}
               class:list={["gw-chip", { "gw-chip--active": c.active }]}
               style={`--chip-c:${colourHex[c.colour]};`}
             >
@@ -201,202 +212,35 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
       </div>
     </section>
 
-    <!-- The Wall -->
-    <section class="gw-wall">
-      <div class="gw-rail"></div>
-
-      <!-- Row 1 — feature + two stacks -->
-      {
-        row1.length > 0 && (
-          <div class="gw-row gw-row--1">
-            {row1[0] && (
-              <FramedPlate
-                id={row1[0].id}
-                height={row1[0].height}
-                wood={row1[0].wood}
-                tilt={row1[0].tilt}
-                kicker={row1[0].kicker}
-                kickerColour={row1[0].kickerColour}
-                no={row1[0].no}
-                label={row1[0].label}
-                image={row1[0].image}
-                imageUrl={row1[0].imageUrl}
-                alt={row1[0].alt}
-                variant={row1[0].heroVariant}
-                breed={row1[0].heroBreed}
-                href={row1[0].href}
-              />
-            )}
-            {(row1[1] || row1[2]) && (
-              <div class="gw-stack">
-                {[row1[1], row1[2]].map((s) =>
-                  s ? (
-                    <FramedPlate
-                      id={s.id}
-                      height={s.height}
-                      wood={s.wood}
-                      tilt={s.tilt}
-                      kicker={s.kicker}
-                      kickerColour={s.kickerColour}
-                      no={s.no}
-                      label={s.label}
-                      image={s.image}
-                      imageUrl={s.imageUrl}
-                      alt={s.alt}
-                      variant={s.heroVariant}
-                      breed={s.heroBreed}
-                      href={s.href}
-                    />
-                  ) : null,
-                )}
-              </div>
-            )}
-            {(row1[3] || row1[4]) && (
-              <div class="gw-stack">
-                {[row1[3], row1[4]].map((s) =>
-                  s ? (
-                    <FramedPlate
-                      id={s.id}
-                      height={s.height}
-                      wood={s.wood}
-                      tilt={s.tilt}
-                      kicker={s.kicker}
-                      kickerColour={s.kickerColour}
-                      no={s.no}
-                      label={s.label}
-                      image={s.image}
-                      imageUrl={s.imageUrl}
-                      alt={s.alt}
-                      variant={s.heroVariant}
-                      breed={s.heroBreed}
-                      href={s.href}
-                    />
-                  ) : null,
-                )}
-              </div>
-            )}
-          </div>
-        )
-      }
-
-      <!-- Pull-quote -->
-      <figure class="gw-quote">
-        <div class="gw-quote__kicker">A NOTE FROM THE CURATOR</div>
-        <blockquote class="gw-quote__text">
-          "The right plate often becomes obvious only when you see the dog you know rendered in
-          a way you don't."
-        </blockquote>
-        <figcaption class="gw-quote__by">— Marcus Tate, on the cover story</figcaption>
-      </figure>
-
-      <!-- Row 2 — three, even -->
-      {
-        row2.length > 0 && (
-          <div class:list={["gw-row", `gw-row--2`, `gw-row--cols-${row2.length}`]}>
-            {row2.map((s) => (
-              <FramedPlate
-                id={s.id}
-                height={s.height}
-                wood={s.wood}
-                tilt={s.tilt}
-                kicker={s.kicker}
-                kickerColour={s.kickerColour}
-                no={s.no}
-                label={s.label}
-                image={s.image}
-                imageUrl={s.imageUrl}
-                alt={s.alt}
-                variant={s.heroVariant}
-                breed={s.heroBreed}
-                href={s.href}
-              />
-            ))}
-          </div>
-        )
-      }
-
-      <!-- Row 3 — small plates, up to four -->
-      {
-        row3.length > 0 && (
-          <div class:list={["gw-row", `gw-row--3`, `gw-row--cols-${row3.length}`]}>
-            {row3.map((s) => (
-              <FramedPlate
-                id={s.id}
-                height={s.height}
-                wood={s.wood}
-                tilt={s.tilt}
-                kicker={s.kicker}
-                kickerColour={s.kickerColour}
-                no={s.no}
-                label={s.label}
-                image={s.image}
-                imageUrl={s.imageUrl}
-                alt={s.alt}
-                variant={s.heroVariant}
-                breed={s.heroBreed}
-                href={s.href}
-              />
-            ))}
-          </div>
-        )
-      }
-
-      <!-- Row 4 — medium plates, up to four -->
-      {
-        row4.length > 0 && (
-          <div class:list={["gw-row", `gw-row--4`, `gw-row--cols-${row4.length}`]}>
-            {row4.map((s) => (
-              <FramedPlate
-                id={s.id}
-                height={s.height}
-                wood={s.wood}
-                tilt={s.tilt}
-                kicker={s.kicker}
-                kickerColour={s.kickerColour}
-                no={s.no}
-                label={s.label}
-                image={s.image}
-                imageUrl={s.imageUrl}
-                alt={s.alt}
-                variant={s.heroVariant}
-                breed={s.heroBreed}
-                href={s.href}
-              />
-            ))}
-          </div>
-        )
-      }
-
-      <!-- Row 5 — small plates, up to four -->
-      {
-        row5.length > 0 && (
-          <div class:list={["gw-row", `gw-row--5`, `gw-row--cols-${row5.length}`]}>
-            {row5.map((s) => (
-              <FramedPlate
-                id={s.id}
-                height={s.height}
-                wood={s.wood}
-                tilt={s.tilt}
-                kicker={s.kicker}
-                kickerColour={s.kickerColour}
-                no={s.no}
-                label={s.label}
-                image={s.image}
-                imageUrl={s.imageUrl}
-                alt={s.alt}
-                variant={s.heroVariant}
-                breed={s.heroBreed}
-                href={s.href}
-              />
-            ))}
-          </div>
-        )
-      }
-
-      <div class="gw-more">
-        <button class="gw-more__btn">WALK THE NEXT ROOM →</button>
-        <div class="gw-more__sub">134 more plates in the archive</div>
-      </div>
+    <!-- The Wall — three filter views, all in DOM, only one visible. -->
+    <section
+      class="gw-wall"
+      data-filter="all"
+      id="gw-wall-all"
+      role="tabpanel"
+      aria-label="All plates"
+    >
+      <WallView wall={wallAll} archiveCount="134 more plates in the archive" />
+    </section>
+    <section
+      class="gw-wall"
+      data-filter="breeds"
+      id="gw-wall-breeds"
+      role="tabpanel"
+      aria-label="Breed Spotlight plates"
+      hidden
+    >
+      <WallView wall={wallBreeds} archiveCount={`${totals.breeds} breed spotlights in the archive`} />
+    </section>
+    <section
+      class="gw-wall"
+      data-filter="photo-tips"
+      id="gw-wall-photo-tips"
+      role="tabpanel"
+      aria-label="Photo Tips plates"
+      hidden
+    >
+      <WallView wall={wallPhotoTips} archiveCount={`${totals["photo-tips"]} photo tips in the archive`} />
     </section>
 
     <!-- Commission strip -->
@@ -727,18 +571,79 @@ const chips: { label: string; active: boolean; colour: ChipColour }[] = [
 </style>
 
 <script>
+  // ── Plate reveal animation ────────────────────────────────────
   // Rise + hover reveal, mirroring the design's IntersectionObserver. Plates
   // start translated/rotated-flat and settle into their tilt as they enter.
-  const obs = new IntersectionObserver(
+  // Observes every plate across all three wall views; hidden walls' plates
+  // simply never intersect until their wall is shown.
+  const revealObs = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
         if (e.isIntersecting) {
           e.target.classList.add("in");
-          obs.unobserve(e.target);
+          revealObs.unobserve(e.target);
         }
       }
     },
     { threshold: 0.06, rootMargin: "0px 0px -4% 0px" },
   );
-  document.querySelectorAll(".gw-plate").forEach((el) => obs.observe(el));
+  document.querySelectorAll(".gw-plate").forEach((el) => revealObs.observe(el));
+
+  // ── Chip filtering ────────────────────────────────────────────
+  // Clicking a chip swaps which <section class="gw-wall"> is visible. The
+  // active filter is mirrored to the ?category= query param so a filtered
+  // view is shareable (and survives a refresh) without breaking the back
+  // button — we use replaceState on chip clicks and read the param on load.
+  type Chip = HTMLButtonElement;
+  const chips = Array.from(
+    document.querySelectorAll<Chip>(".gw-chip[data-filter]"),
+  );
+  const walls = Array.from(
+    document.querySelectorAll<HTMLElement>(".gw-wall[data-filter]"),
+  );
+  const wallByFilter = new Map<string, HTMLElement>(
+    walls.map((w) => [w.dataset.filter ?? "", w]),
+  );
+
+  function activate(filter: string, pushUrl = true) {
+    // Only switch if we actually rendered a wall for that filter. Other
+    // category chips (décor/gifts/personality) will appear once their posts
+    // exist; until they do, clicking them is a no-op rather than a 404 view.
+    const targetWall = wallByFilter.get(filter);
+    if (!targetWall) return;
+
+    for (const w of walls) {
+      const isTarget = w === targetWall;
+      w.hidden = !isTarget;
+      // Replay reveal animations next time the wall is shown.
+      if (isTarget) {
+        for (const plate of w.querySelectorAll(".gw-plate.in")) {
+          plate.classList.remove("in");
+          revealObs.observe(plate);
+        }
+      }
+    }
+    for (const c of chips) {
+      const isActive = c.dataset.filter === filter;
+      c.classList.toggle("gw-chip--active", isActive);
+      c.setAttribute("aria-selected", isActive ? "true" : "false");
+    }
+
+    if (pushUrl) {
+      const url = new URL(window.location.href);
+      if (filter === "all") url.searchParams.delete("category");
+      else url.searchParams.set("category", filter);
+      history.replaceState({}, "", url);
+    }
+  }
+
+  for (const c of chips) {
+    c.addEventListener("click", () => activate(c.dataset.filter ?? "all"));
+  }
+
+  // Honour ?category=… on initial load (e.g. someone landing from a share).
+  const initial = new URL(window.location.href).searchParams.get("category");
+  if (initial && wallByFilter.has(initial) && initial !== "all") {
+    activate(initial, false);
+  }
 </script>

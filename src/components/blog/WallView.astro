@@ -1,0 +1,239 @@
+---
+// One "view" of the Gallery Wall — rail + the five staggered rows of framed
+// plates + the curator's pull-quote + the "WALK THE NEXT ROOM" CTA.
+//
+// The homepage renders three of these (all / breeds / photo-tips), each
+// pre-zipped against its own subset of posts, and toggles which one is
+// visible based on the chip the visitor clicks. Pre-rendering preserves the
+// curated slot geometry for each filter mode rather than leaving gaps where
+// hidden plates used to be.
+import FramedPlate from "./FramedPlate.astro";
+import type { ImageMetadata } from "astro";
+
+export type WallSlot = {
+  id: string;
+  href: string;
+  image?: ImageMetadata;
+  imageUrl?: string;
+  alt: string;
+  kicker: string;
+  kickerColour: string;
+  no: string;
+  label: string;
+  heroVariant?: number;
+  heroBreed?: "pointy" | "floppy";
+  height: number;
+  wood: "natural" | "gold" | "white" | "dark";
+  tilt: number;
+};
+
+interface Props {
+  wall: WallSlot[];
+  /** Tail text under the "WALK THE NEXT ROOM" button — copy varies per
+   *  filter view so we can be honest about how many plates are off-screen. */
+  archiveCount?: string;
+}
+const { wall, archiveCount = "134 more plates in the archive" } = Astro.props;
+
+// Split the zipped wall by row using the same geometry the homepage defines.
+const row1 = wall.slice(0, 5); // feature + 2 stacks
+const row2 = wall.slice(5, 8); // three
+const row3 = wall.slice(8, 12); // four small
+const row4 = wall.slice(12, 16); // four medium
+const row5 = wall.slice(16, 20); // four small
+---
+
+<div class="gw-rail"></div>
+
+<!-- Row 1 — feature + two stacks -->
+{
+  row1.length > 0 && (
+    <div class="gw-row gw-row--1">
+      {row1[0] && (
+        <FramedPlate
+          id={row1[0].id}
+          height={row1[0].height}
+          wood={row1[0].wood}
+          tilt={row1[0].tilt}
+          kicker={row1[0].kicker}
+          kickerColour={row1[0].kickerColour}
+          no={row1[0].no}
+          label={row1[0].label}
+          image={row1[0].image}
+          imageUrl={row1[0].imageUrl}
+          alt={row1[0].alt}
+          variant={row1[0].heroVariant}
+          breed={row1[0].heroBreed}
+          href={row1[0].href}
+        />
+      )}
+      {(row1[1] || row1[2]) && (
+        <div class="gw-stack">
+          {[row1[1], row1[2]].map((s) =>
+            s ? (
+              <FramedPlate
+                id={s.id}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                kickerColour={s.kickerColour}
+                no={s.no}
+                label={s.label}
+                image={s.image}
+                imageUrl={s.imageUrl}
+                alt={s.alt}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
+                href={s.href}
+              />
+            ) : null,
+          )}
+        </div>
+      )}
+      {(row1[3] || row1[4]) && (
+        <div class="gw-stack">
+          {[row1[3], row1[4]].map((s) =>
+            s ? (
+              <FramedPlate
+                id={s.id}
+                height={s.height}
+                wood={s.wood}
+                tilt={s.tilt}
+                kicker={s.kicker}
+                kickerColour={s.kickerColour}
+                no={s.no}
+                label={s.label}
+                image={s.image}
+                imageUrl={s.imageUrl}
+                alt={s.alt}
+                variant={s.heroVariant}
+                breed={s.heroBreed}
+                href={s.href}
+              />
+            ) : null,
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+<!-- Pull-quote (always shown) -->
+<figure class="gw-quote">
+  <div class="gw-quote__kicker">A NOTE FROM THE CURATOR</div>
+  <blockquote class="gw-quote__text">
+    "The right plate often becomes obvious only when you see the dog you know rendered in
+    a way you don't."
+  </blockquote>
+  <figcaption class="gw-quote__by">— Marcus Tate, on the cover story</figcaption>
+</figure>
+
+<!-- Row 2 — three, even -->
+{
+  row2.length > 0 && (
+    <div class:list={["gw-row", `gw-row--2`, `gw-row--cols-${row2.length}`]}>
+      {row2.map((s) => (
+        <FramedPlate
+          id={s.id}
+          height={s.height}
+          wood={s.wood}
+          tilt={s.tilt}
+          kicker={s.kicker}
+          kickerColour={s.kickerColour}
+          no={s.no}
+          label={s.label}
+          image={s.image}
+          imageUrl={s.imageUrl}
+          alt={s.alt}
+          variant={s.heroVariant}
+          breed={s.heroBreed}
+          href={s.href}
+        />
+      ))}
+    </div>
+  )
+}
+
+<!-- Row 3 — small plates, up to four -->
+{
+  row3.length > 0 && (
+    <div class:list={["gw-row", `gw-row--3`, `gw-row--cols-${row3.length}`]}>
+      {row3.map((s) => (
+        <FramedPlate
+          id={s.id}
+          height={s.height}
+          wood={s.wood}
+          tilt={s.tilt}
+          kicker={s.kicker}
+          kickerColour={s.kickerColour}
+          no={s.no}
+          label={s.label}
+          image={s.image}
+          imageUrl={s.imageUrl}
+          alt={s.alt}
+          variant={s.heroVariant}
+          breed={s.heroBreed}
+          href={s.href}
+        />
+      ))}
+    </div>
+  )
+}
+
+<!-- Row 4 — medium plates, up to four -->
+{
+  row4.length > 0 && (
+    <div class:list={["gw-row", `gw-row--4`, `gw-row--cols-${row4.length}`]}>
+      {row4.map((s) => (
+        <FramedPlate
+          id={s.id}
+          height={s.height}
+          wood={s.wood}
+          tilt={s.tilt}
+          kicker={s.kicker}
+          kickerColour={s.kickerColour}
+          no={s.no}
+          label={s.label}
+          image={s.image}
+          imageUrl={s.imageUrl}
+          alt={s.alt}
+          variant={s.heroVariant}
+          breed={s.heroBreed}
+          href={s.href}
+        />
+      ))}
+    </div>
+  )
+}
+
+<!-- Row 5 — small plates, up to four -->
+{
+  row5.length > 0 && (
+    <div class:list={["gw-row", `gw-row--5`, `gw-row--cols-${row5.length}`]}>
+      {row5.map((s) => (
+        <FramedPlate
+          id={s.id}
+          height={s.height}
+          wood={s.wood}
+          tilt={s.tilt}
+          kicker={s.kicker}
+          kickerColour={s.kickerColour}
+          no={s.no}
+          label={s.label}
+          image={s.image}
+          imageUrl={s.imageUrl}
+          alt={s.alt}
+          variant={s.heroVariant}
+          breed={s.heroBreed}
+          href={s.href}
+        />
+      ))}
+    </div>
+  )
+}
+
+<div class="gw-more">
+  <button class="gw-more__btn">WALK THE NEXT ROOM →</button>
+  <div class="gw-more__sub">{archiveCount}</div>
+</div>
