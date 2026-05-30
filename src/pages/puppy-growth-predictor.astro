@@ -1,37 +1,11 @@
 ---
 import Layout from "../layouts/Layout.astro";
 
-// ─── Breed table ─────────────────────────────────────────────────
-// Adult weight (kg), height-at-shoulder (cm), size class, age (months)
-// at which the breed is typically considered fully grown. Mirrors
-// PG_BREEDS in the puppy-growth-shared.jsx design handoff.
-const BREEDS = [
-  { name: "Cavalier King Charles Spaniel", wMin: 5.4, wMax: 8.2, hMin: 30, hMax: 33, size: "small",  full: 12 },
-  { name: "Cockapoo",                      wMin: 5,   wMax: 11,  hMin: 25, hMax: 38, size: "small",  full: 12 },
-  { name: "Cocker Spaniel",                wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
-  { name: "Border Collie",                 wMin: 14,  wMax: 20,  hMin: 46, hMax: 56, size: "medium", full: 15 },
-  { name: "Border Terrier",                wMin: 5,   wMax: 7,   hMin: 25, hMax: 30, size: "small",  full: 11 },
-  { name: "Chihuahua",                     wMin: 1.5, wMax: 3,   hMin: 15, hMax: 23, size: "toy",    full: 9  },
-  { name: "Dachshund (Miniature)",         wMin: 4,   wMax: 5,   hMin: 13, hMax: 18, size: "small",  full: 11 },
-  { name: "French Bulldog",                wMin: 8,   wMax: 14,  hMin: 28, hMax: 33, size: "small",  full: 12 },
-  { name: "Golden Retriever",              wMin: 25,  wMax: 34,  hMin: 51, hMax: 61, size: "large",  full: 16 },
-  { name: "Great Dane",                    wMin: 50,  wMax: 82,  hMin: 71, hMax: 86, size: "giant",  full: 22 },
-  { name: "Greyhound",                     wMin: 27,  wMax: 32,  hMin: 69, hMax: 76, size: "large",  full: 14 },
-  { name: "Jack Russell Terrier",          wMin: 6,   wMax: 8,   hMin: 25, hMax: 38, size: "small",  full: 11 },
-  { name: "Labrador Retriever",            wMin: 25,  wMax: 36,  hMin: 55, hMax: 62, size: "large",  full: 16 },
-  { name: "Pomeranian",                    wMin: 1.9, wMax: 3.5, hMin: 18, hMax: 30, size: "toy",    full: 10 },
-  { name: "Pug",                           wMin: 6,   wMax: 8,   hMin: 25, hMax: 33, size: "small",  full: 11 },
-  { name: "Springer Spaniel",              wMin: 18,  wMax: 25,  hMin: 46, hMax: 51, size: "medium", full: 15 },
-  { name: "Staffordshire Bull Terrier",    wMin: 11,  wMax: 17,  hMin: 36, hMax: 41, size: "medium", full: 14 },
-  { name: "St. Bernard",                   wMin: 55,  wMax: 90,  hMin: 66, hMax: 76, size: "giant",  full: 22 },
-  { name: "Whippet",                       wMin: 7,   wMax: 14,  hMin: 44, hMax: 51, size: "medium", full: 13 },
-  { name: "Yorkshire Terrier",             wMin: 2,   wMax: 3.2, hMin: 18, hMax: 23, size: "toy",    full: 10 },
-] as const;
-
-const DEFAULT_BREED_IDX = 8; // Golden Retriever
+// SSR-side initial values for the placeholder render. The client script
+// re-derives these on hydration from the same breed-stats table.
+const DEFAULT_BREED = "Golden Retriever";
 const DEFAULT_AGE = 4;
 const DEFAULT_WEIGHT = 11;
-const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
 ---
 
 <Layout
@@ -65,15 +39,33 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
         </div>
 
         <div class="pgp__field">
-          <label class="pgp__overline" for="pgp-breed">Breed</label>
-          <div class="pgp__select-wrap">
-            <select id="pgp-breed" class="pgp__select">
-              {BREEDS.map((b, i) => (
-                <option value={i} selected={i === DEFAULT_BREED_IDX}>{b.name}</option>
-              ))}
-            </select>
-            <span class="pgp__select-caret" aria-hidden="true">▾</span>
+          <div class="pgp__breed-head">
+            <label class="pgp__overline" for="pgp-breed-input">Breed</label>
+            <span class="pgp__breed-counter" id="pgp-breed-counter">1 / 4</span>
           </div>
+          <div class="pgp__breed-chips" id="pgp-breed-chips">
+            <span class="pgp__chip" data-breed={DEFAULT_BREED}>
+              <span>{DEFAULT_BREED}</span>
+              <button type="button" class="pgp__chip-x" aria-label={`Remove ${DEFAULT_BREED}`}>×</button>
+            </span>
+          </div>
+          <div class="pgp__breed-search">
+            <input
+              id="pgp-breed-input"
+              type="text"
+              class="pgp__breed-input"
+              placeholder="Add another for a crossbreed…"
+              autocomplete="off"
+              aria-label="Search breeds"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="pgp-breed-list"
+            />
+            <ul id="pgp-breed-list" class="pgp__breed-list" role="listbox" hidden></ul>
+          </div>
+          <p class="pgp__breed-hint" id="pgp-breed-hint">
+            Got a crossbreed? Add up to 4 breeds to predict the mix.
+          </p>
         </div>
 
         <div class="pgp__field">
@@ -137,7 +129,7 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
         <div class="pgp__result-head">
           <div>
             <div class="pgp__overline">The forecast — full grown</div>
-            <div class="pgp__result-breed" id="pgp-breed-name">{defaultBreed.name}</div>
+            <div class="pgp__result-breed" id="pgp-breed-name">{DEFAULT_BREED}</div>
           </div>
           <div class="pgp__size-pill" id="pgp-size-pill">Large breed</div>
         </div>
@@ -254,40 +246,227 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   // Single calculator controller. Pure DOM + a tiny SVG chart renderer
   // so the page ships zero framework JS. All result fields, the chart,
   // the size pill, the compare bars and the CTA stay in sync from one
-  // render() pass driven by three inputs: breedIdx, ageMonths, currentKg.
+  // render() pass driven by three inputs: selectedBreeds[], ageMonths,
+  // currentKg. Crossbreeds are supported by averaging breed stats.
+
+  import { DOG_BREEDS } from "../lib/dogBreeds.ts";
 
   type SizeId = "toy" | "small" | "medium" | "large" | "giant";
 
-  type Breed = {
-    name: string;
+  type BreedStats = {
     wMin: number; wMax: number;
     hMin: number; hMax: number;
     size: SizeId;
     full: number;
   };
 
-  const BREEDS: Breed[] = [
-    { name: "Cavalier King Charles Spaniel", wMin: 5.4, wMax: 8.2, hMin: 30, hMax: 33, size: "small",  full: 12 },
-    { name: "Cockapoo",                      wMin: 5,   wMax: 11,  hMin: 25, hMax: 38, size: "small",  full: 12 },
-    { name: "Cocker Spaniel",                wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
-    { name: "Border Collie",                 wMin: 14,  wMax: 20,  hMin: 46, hMax: 56, size: "medium", full: 15 },
-    { name: "Border Terrier",                wMin: 5,   wMax: 7,   hMin: 25, hMax: 30, size: "small",  full: 11 },
-    { name: "Chihuahua",                     wMin: 1.5, wMax: 3,   hMin: 15, hMax: 23, size: "toy",    full: 9  },
-    { name: "Dachshund (Miniature)",         wMin: 4,   wMax: 5,   hMin: 13, hMax: 18, size: "small",  full: 11 },
-    { name: "French Bulldog",                wMin: 8,   wMax: 14,  hMin: 28, hMax: 33, size: "small",  full: 12 },
-    { name: "Golden Retriever",              wMin: 25,  wMax: 34,  hMin: 51, hMax: 61, size: "large",  full: 16 },
-    { name: "Great Dane",                    wMin: 50,  wMax: 82,  hMin: 71, hMax: 86, size: "giant",  full: 22 },
-    { name: "Greyhound",                     wMin: 27,  wMax: 32,  hMin: 69, hMax: 76, size: "large",  full: 14 },
-    { name: "Jack Russell Terrier",          wMin: 6,   wMax: 8,   hMin: 25, hMax: 38, size: "small",  full: 11 },
-    { name: "Labrador Retriever",            wMin: 25,  wMax: 36,  hMin: 55, hMax: 62, size: "large",  full: 16 },
-    { name: "Pomeranian",                    wMin: 1.9, wMax: 3.5, hMin: 18, hMax: 30, size: "toy",    full: 10 },
-    { name: "Pug",                           wMin: 6,   wMax: 8,   hMin: 25, hMax: 33, size: "small",  full: 11 },
-    { name: "Springer Spaniel",              wMin: 18,  wMax: 25,  hMin: 46, hMax: 51, size: "medium", full: 15 },
-    { name: "Staffordshire Bull Terrier",    wMin: 11,  wMax: 17,  hMin: 36, hMax: 41, size: "medium", full: 14 },
-    { name: "St. Bernard",                   wMin: 55,  wMax: 90,  hMin: 66, hMax: 76, size: "giant",  full: 22 },
-    { name: "Whippet",                       wMin: 7,   wMax: 14,  hMin: 44, hMax: 51, size: "medium", full: 13 },
-    { name: "Yorkshire Terrier",             wMin: 2,   wMax: 3.2, hMin: 18, hMax: 23, size: "toy",    full: 10 },
-  ];
+  // Hand-tuned weight (kg), height-at-shoulder (cm), size class and
+  // typical full-grown age (months) for the most common UK/AKC breeds.
+  // Keys must match strings in DOG_BREEDS. Anything missing falls back
+  // to a size-class default derived from the breed name (see inferSize).
+  const BREED_DATA: Record<string, BreedStats> = {
+    // toys
+    "Chihuahua":                 { wMin: 1.5, wMax: 3,   hMin: 15, hMax: 23, size: "toy",   full: 9  },
+    "Pomeranian":                { wMin: 1.9, wMax: 3.5, hMin: 18, hMax: 30, size: "toy",   full: 10 },
+    "Yorkshire Terrier":         { wMin: 2,   wMax: 3.2, hMin: 18, hMax: 23, size: "toy",   full: 10 },
+    "Maltese":                   { wMin: 2,   wMax: 4,   hMin: 18, hMax: 25, size: "toy",   full: 10 },
+    "Papillon":                  { wMin: 2,   wMax: 4.5, hMin: 20, hMax: 28, size: "toy",   full: 10 },
+    "Toy Poodle":                { wMin: 2,   wMax: 4,   hMin: 18, hMax: 25, size: "toy",   full: 10 },
+    "Chinese Crested":           { wMin: 2.5, wMax: 5,   hMin: 23, hMax: 33, size: "toy",   full: 10 },
+    "Havanese":                  { wMin: 3,   wMax: 6,   hMin: 22, hMax: 29, size: "toy",   full: 11 },
+    "Pekingese":                 { wMin: 3,   wMax: 6,   hMin: 15, hMax: 23, size: "toy",   full: 10 },
+    "Japanese Chin":             { wMin: 3,   wMax: 6,   hMin: 20, hMax: 28, size: "toy",   full: 10 },
+    "Affenpinscher":             { wMin: 3,   wMax: 6,   hMin: 23, hMax: 30, size: "toy",   full: 10 },
+    "Brussels Griffon":          { wMin: 3,   wMax: 6,   hMin: 18, hMax: 25, size: "toy",   full: 10 },
+    "Italian Greyhound":         { wMin: 3,   wMax: 6,   hMin: 33, hMax: 38, size: "toy",   full: 11 },
+
+    // small
+    "Cavalier King Charles Spaniel": { wMin: 5.4, wMax: 8.2, hMin: 30, hMax: 33, size: "small", full: 12 },
+    "Cockapoo":                  { wMin: 5,   wMax: 11,  hMin: 25, hMax: 38, size: "small", full: 12 },
+    "Cavapoo":                   { wMin: 5,   wMax: 11,  hMin: 23, hMax: 36, size: "small", full: 12 },
+    "Maltipoo":                  { wMin: 3,   wMax: 9,   hMin: 20, hMax: 36, size: "small", full: 11 },
+    "Border Terrier":            { wMin: 5,   wMax: 7,   hMin: 25, hMax: 30, size: "small", full: 11 },
+    "Miniature Dachshund":       { wMin: 4,   wMax: 5,   hMin: 13, hMax: 18, size: "small", full: 11 },
+    "Dachshund":                 { wMin: 7,   wMax: 14,  hMin: 20, hMax: 23, size: "small", full: 12 },
+    "French Bulldog":            { wMin: 8,   wMax: 14,  hMin: 28, hMax: 33, size: "small", full: 12 },
+    "Jack Russell Terrier":      { wMin: 6,   wMax: 8,   hMin: 25, hMax: 38, size: "small", full: 11 },
+    "Russell Terrier":           { wMin: 4,   wMax: 7,   hMin: 25, hMax: 30, size: "small", full: 11 },
+    "Parson Russell Terrier":    { wMin: 6,   wMax: 8,   hMin: 33, hMax: 36, size: "small", full: 11 },
+    "Pug":                       { wMin: 6,   wMax: 8,   hMin: 25, hMax: 33, size: "small", full: 11 },
+    "Shih Tzu":                  { wMin: 4,   wMax: 7,   hMin: 20, hMax: 28, size: "small", full: 11 },
+    "Boston Terrier":            { wMin: 5,   wMax: 11,  hMin: 38, hMax: 43, size: "small", full: 12 },
+    "Bichon Frise":              { wMin: 5,   wMax: 8,   hMin: 24, hMax: 30, size: "small", full: 11 },
+    "Miniature Schnauzer":       { wMin: 5,   wMax: 9,   hMin: 30, hMax: 36, size: "small", full: 12 },
+    "Miniature Poodle":          { wMin: 5,   wMax: 9,   hMin: 28, hMax: 36, size: "small", full: 12 },
+    "Pembroke Welsh Corgi":      { wMin: 10,  wMax: 14,  hMin: 25, hMax: 30, size: "small", full: 12 },
+    "Cardigan Welsh Corgi":      { wMin: 11,  wMax: 17,  hMin: 27, hMax: 32, size: "small", full: 13 },
+    "Scottish Terrier":          { wMin: 8,   wMax: 10,  hMin: 25, hMax: 28, size: "small", full: 12 },
+    "West Highland White Terrier": { wMin: 7, wMax: 10,  hMin: 25, hMax: 28, size: "small", full: 12 },
+    "Cairn Terrier":             { wMin: 6,   wMax: 8,   hMin: 25, hMax: 30, size: "small", full: 11 },
+    "Norfolk Terrier":           { wMin: 5,   wMax: 6,   hMin: 23, hMax: 25, size: "small", full: 11 },
+    "Norwich Terrier":           { wMin: 5,   wMax: 6,   hMin: 23, hMax: 25, size: "small", full: 11 },
+    "Shiba Inu":                 { wMin: 7,   wMax: 11,  hMin: 33, hMax: 43, size: "small", full: 12 },
+    "Lhasa Apso":                { wMin: 6,   wMax: 8,   hMin: 25, hMax: 28, size: "small", full: 12 },
+    "Schipperke":                { wMin: 4,   wMax: 9,   hMin: 25, hMax: 33, size: "small", full: 12 },
+    "Pomsky":                    { wMin: 7,   wMax: 14,  hMin: 25, hMax: 38, size: "small", full: 13 },
+    "Puggle":                    { wMin: 8,   wMax: 14,  hMin: 25, hMax: 38, size: "small", full: 12 },
+    "Tibetan Terrier":           { wMin: 8,   wMax: 14,  hMin: 36, hMax: 43, size: "small", full: 13 },
+    "Tibetan Spaniel":           { wMin: 4,   wMax: 7,   hMin: 23, hMax: 26, size: "small", full: 11 },
+
+    // medium
+    "Cocker Spaniel":            { wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
+    "English Cocker Spaniel":    { wMin: 12,  wMax: 16,  hMin: 38, hMax: 43, size: "medium", full: 14 },
+    "American Cocker Spaniel":   { wMin: 10,  wMax: 14,  hMin: 33, hMax: 38, size: "medium", full: 14 },
+    "Border Collie":             { wMin: 14,  wMax: 20,  hMin: 46, hMax: 56, size: "medium", full: 15 },
+    "English Springer Spaniel":  { wMin: 18,  wMax: 25,  hMin: 46, hMax: 51, size: "medium", full: 15 },
+    "Welsh Springer Spaniel":    { wMin: 16,  wMax: 25,  hMin: 43, hMax: 48, size: "medium", full: 15 },
+    "Staffordshire Bull Terrier": { wMin: 11, wMax: 17,  hMin: 36, hMax: 41, size: "medium", full: 14 },
+    "American Staffordshire Terrier": { wMin: 18, wMax: 32, hMin: 43, hMax: 48, size: "medium", full: 15 },
+    "American Pit Bull Terrier": { wMin: 14,  wMax: 27,  hMin: 43, hMax: 53, size: "medium", full: 15 },
+    "Bull Terrier":              { wMin: 22,  wMax: 32,  hMin: 53, hMax: 56, size: "medium", full: 15 },
+    "Whippet":                   { wMin: 7,   wMax: 14,  hMin: 44, hMax: 51, size: "medium", full: 13 },
+    "Beagle":                    { wMin: 9,   wMax: 14,  hMin: 33, hMax: 41, size: "medium", full: 13 },
+    "Basset Hound":              { wMin: 18,  wMax: 30,  hMin: 33, hMax: 38, size: "medium", full: 14 },
+    "Bulldog":                   { wMin: 18,  wMax: 25,  hMin: 31, hMax: 40, size: "medium", full: 14 },
+    "English Bulldog":           { wMin: 18,  wMax: 25,  hMin: 31, hMax: 40, size: "medium", full: 14 },
+    "American Bulldog":          { wMin: 27,  wMax: 45,  hMin: 51, hMax: 71, size: "large",  full: 16 },
+    "Australian Shepherd":       { wMin: 16,  wMax: 29,  hMin: 46, hMax: 58, size: "medium", full: 15 },
+    "Australian Cattle Dog":     { wMin: 15,  wMax: 22,  hMin: 43, hMax: 51, size: "medium", full: 14 },
+    "Dalmatian":                 { wMin: 20,  wMax: 32,  hMin: 48, hMax: 61, size: "medium", full: 15 },
+    "Brittany":                  { wMin: 14,  wMax: 18,  hMin: 43, hMax: 52, size: "medium", full: 14 },
+    "Standard Schnauzer":        { wMin: 14,  wMax: 20,  hMin: 43, hMax: 51, size: "medium", full: 14 },
+    "Soft Coated Wheaten Terrier": { wMin: 13, wMax: 18, hMin: 43, hMax: 49, size: "medium", full: 14 },
+    "Portuguese Water Dog":      { wMin: 16,  wMax: 27,  hMin: 43, hMax: 57, size: "medium", full: 15 },
+    "Samoyed":                   { wMin: 16,  wMax: 30,  hMin: 48, hMax: 60, size: "medium", full: 15 },
+    "Standard Poodle":           { wMin: 20,  wMax: 32,  hMin: 45, hMax: 60, size: "medium", full: 16 },
+    "Poodle":                    { wMin: 20,  wMax: 32,  hMin: 45, hMax: 60, size: "medium", full: 16 },
+    "Bearded Collie":            { wMin: 20,  wMax: 27,  hMin: 51, hMax: 56, size: "medium", full: 15 },
+    "Collie":                    { wMin: 23,  wMax: 34,  hMin: 56, hMax: 66, size: "large",  full: 16 },
+    "Chinese Shar-Pei":          { wMin: 18,  wMax: 27,  hMin: 46, hMax: 51, size: "medium", full: 15 },
+    "Keeshond":                  { wMin: 16,  wMax: 20,  hMin: 43, hMax: 46, size: "medium", full: 14 },
+    "Chow Chow":                 { wMin: 20,  wMax: 32,  hMin: 43, hMax: 51, size: "large",  full: 16 },
+    "Finnish Spitz":             { wMin: 11,  wMax: 16,  hMin: 39, hMax: 50, size: "medium", full: 14 },
+
+    // large
+    "Golden Retriever":          { wMin: 25,  wMax: 34,  hMin: 51, hMax: 61, size: "large", full: 16 },
+    "Labrador Retriever":        { wMin: 25,  wMax: 36,  hMin: 55, hMax: 62, size: "large", full: 16 },
+    "Flat-Coated Retriever":     { wMin: 25,  wMax: 32,  hMin: 56, hMax: 62, size: "large", full: 16 },
+    "Chesapeake Bay Retriever":  { wMin: 25,  wMax: 36,  hMin: 53, hMax: 66, size: "large", full: 16 },
+    "Nova Scotia Duck Tolling Retriever": { wMin: 16, wMax: 23, hMin: 43, hMax: 53, size: "medium", full: 15 },
+    "Greyhound":                 { wMin: 27,  wMax: 32,  hMin: 69, hMax: 76, size: "large", full: 14 },
+    "Saluki":                    { wMin: 18,  wMax: 27,  hMin: 58, hMax: 71, size: "large", full: 15 },
+    "Borzoi":                    { wMin: 27,  wMax: 48,  hMin: 66, hMax: 81, size: "large", full: 18 },
+    "Afghan Hound":              { wMin: 23,  wMax: 27,  hMin: 64, hMax: 74, size: "large", full: 16 },
+    "German Shepherd":           { wMin: 23,  wMax: 40,  hMin: 55, hMax: 65, size: "large", full: 18 },
+    "Dutch Shepherd":            { wMin: 23,  wMax: 32,  hMin: 56, hMax: 62, size: "large", full: 16 },
+    "Belgian Malinois":          { wMin: 18,  wMax: 36,  hMin: 56, hMax: 66, size: "large", full: 16 },
+    "Belgian Tervuren":          { wMin: 20,  wMax: 30,  hMin: 56, hMax: 66, size: "large", full: 16 },
+    "Anatolian Shepherd":        { wMin: 36,  wMax: 65,  hMin: 66, hMax: 81, size: "giant", full: 20 },
+    "Rottweiler":                { wMin: 35,  wMax: 60,  hMin: 56, hMax: 69, size: "large", full: 18 },
+    "Boxer":                     { wMin: 25,  wMax: 32,  hMin: 53, hMax: 64, size: "large", full: 16 },
+    "Doberman Pinscher":         { wMin: 27,  wMax: 45,  hMin: 61, hMax: 71, size: "large", full: 18 },
+    "German Pinscher":           { wMin: 11,  wMax: 20,  hMin: 43, hMax: 51, size: "medium", full: 14 },
+    "Siberian Husky":            { wMin: 16,  wMax: 27,  hMin: 51, hMax: 60, size: "large", full: 15 },
+    "Alaskan Malamute":          { wMin: 32,  wMax: 39,  hMin: 58, hMax: 64, size: "large", full: 18 },
+    "Vizsla":                    { wMin: 20,  wMax: 30,  hMin: 53, hMax: 61, size: "large", full: 15 },
+    "Weimaraner":                { wMin: 25,  wMax: 40,  hMin: 58, hMax: 69, size: "large", full: 16 },
+    "Rhodesian Ridgeback":       { wMin: 29,  wMax: 41,  hMin: 61, hMax: 69, size: "large", full: 16 },
+    "Akita":                     { wMin: 32,  wMax: 59,  hMin: 61, hMax: 71, size: "large", full: 18 },
+    "Irish Setter":              { wMin: 27,  wMax: 32,  hMin: 61, hMax: 67, size: "large", full: 16 },
+    "English Setter":            { wMin: 20,  wMax: 36,  hMin: 58, hMax: 69, size: "large", full: 16 },
+    "Gordon Setter":             { wMin: 20,  wMax: 36,  hMin: 58, hMax: 69, size: "large", full: 16 },
+    "Pointer":                   { wMin: 20,  wMax: 34,  hMin: 56, hMax: 71, size: "large", full: 16 },
+    "German Shorthaired Pointer": { wMin: 20, wMax: 32,  hMin: 53, hMax: 64, size: "large", full: 16 },
+    "German Wirehaired Pointer": { wMin: 23,  wMax: 32,  hMin: 56, hMax: 66, size: "large", full: 16 },
+    "Old English Sheepdog":      { wMin: 27,  wMax: 45,  hMin: 53, hMax: 61, size: "large", full: 18 },
+    "Airedale Terrier":          { wMin: 23,  wMax: 32,  hMin: 56, hMax: 61, size: "large", full: 15 },
+    "Goldendoodle":              { wMin: 20,  wMax: 36,  hMin: 51, hMax: 66, size: "large", full: 16 },
+    "Labradoodle":               { wMin: 20,  wMax: 30,  hMin: 53, hMax: 65, size: "large", full: 16 },
+    "Bernedoodle":               { wMin: 25,  wMax: 40,  hMin: 50, hMax: 70, size: "large", full: 18 },
+    "Bouvier des Flandres":      { wMin: 32,  wMax: 50,  hMin: 59, hMax: 70, size: "large", full: 17 },
+    "Cane Corso":                { wMin: 40,  wMax: 50,  hMin: 60, hMax: 70, size: "large", full: 19 },
+    "Dogo Argentino":            { wMin: 36,  wMax: 45,  hMin: 60, hMax: 68, size: "large", full: 18 },
+    "Giant Schnauzer":           { wMin: 25,  wMax: 48,  hMin: 60, hMax: 70, size: "large", full: 18 },
+
+    // giant
+    "Great Dane":                { wMin: 50,  wMax: 82,  hMin: 71, hMax: 86, size: "giant", full: 22 },
+    "Saint Bernard":             { wMin: 55,  wMax: 90,  hMin: 66, hMax: 76, size: "giant", full: 22 },
+    "Mastiff":                   { wMin: 54,  wMax: 100, hMin: 70, hMax: 84, size: "giant", full: 22 },
+    "Bullmastiff":               { wMin: 45,  wMax: 59,  hMin: 61, hMax: 69, size: "giant", full: 20 },
+    "Tibetan Mastiff":           { wMin: 32,  wMax: 73,  hMin: 61, hMax: 76, size: "giant", full: 24 },
+    "Neapolitan Mastiff":        { wMin: 50,  wMax: 70,  hMin: 60, hMax: 75, size: "giant", full: 20 },
+    "Dogue de Bordeaux":         { wMin: 45,  wMax: 60,  hMin: 58, hMax: 69, size: "giant", full: 20 },
+    "Newfoundland":              { wMin: 45,  wMax: 70,  hMin: 66, hMax: 71, size: "giant", full: 22 },
+    "Bernese Mountain Dog":      { wMin: 32,  wMax: 52,  hMin: 58, hMax: 70, size: "giant", full: 20 },
+    "Greater Swiss Mountain Dog": { wMin: 38, wMax: 64,  hMin: 60, hMax: 72, size: "giant", full: 20 },
+    "Great Pyrenees":            { wMin: 38,  wMax: 60,  hMin: 65, hMax: 81, size: "giant", full: 22 },
+    "Irish Wolfhound":           { wMin: 48,  wMax: 70,  hMin: 76, hMax: 88, size: "giant", full: 22 },
+    "Scottish Deerhound":        { wMin: 34,  wMax: 50,  hMin: 71, hMax: 81, size: "giant", full: 20 },
+    "Leonberger":                { wMin: 41,  wMax: 77,  hMin: 65, hMax: 80, size: "giant", full: 22 },
+    "Komondor":                  { wMin: 36,  wMax: 60,  hMin: 65, hMax: 80, size: "giant", full: 22 },
+    "Kuvasz":                    { wMin: 32,  wMax: 52,  hMin: 66, hMax: 76, size: "giant", full: 22 },
+  };
+
+  // Fallback when a breed isn't in BREED_DATA: a generic average for
+  // each size class. Used by inferBreedStats below.
+  const SIZE_DEFAULTS: Record<SizeId, BreedStats> = {
+    toy:    { wMin: 2,   wMax: 4,    hMin: 18, hMax: 28, size: "toy",    full: 10 },
+    small:  { wMin: 5,   wMax: 10,   hMin: 25, hMax: 38, size: "small",  full: 12 },
+    medium: { wMin: 11,  wMax: 23,   hMin: 38, hMax: 56, size: "medium", full: 14 },
+    large:  { wMin: 24,  wMax: 40,   hMin: 55, hMax: 68, size: "large",  full: 16 },
+    giant:  { wMin: 41,  wMax: 75,   hMin: 66, hMax: 85, size: "giant",  full: 22 },
+  };
+
+  // Best-effort size class for breeds we don't have hand-tuned data for.
+  // Keyword-based: giant hints win first, then toy, then large hints,
+  // then small; everything else lands at medium.
+  function inferSize(name: string): SizeId {
+    const n = name.toLowerCase();
+    if (/\b(mastiff|wolfhound|leonberger|kuvasz|komondor|bernese|swiss mountain|pyrenees|saint|st\.|newfoundland|deerhound|borzoi|otterhound|dane|great)\b/.test(n)) return "giant";
+    if (/\b(toy|teacup|tiny|miniature|mini|chin|papillon|maltese|pekingese|pomeranian|chihuahua|brussels|affenpinscher|havanese|coton|chinese crested|english toy|xolo|biewer|silky|sloughi)\b/.test(n)) return "toy";
+    if (/\b(retriever|shepherd|setter|pointer|husky|malamute|akita|boxer|doberman|rottweiler|ridgeback|weimaraner|vizsla|samoyed|chow|standard poodle|airedale|collie|bouvier|cane corso|dogo|giant schnauzer|catahoula|bluetick|coonhound|foxhound|harrier|saluki|afghan|ibizan|pharaoh)\b/.test(n)) return "large";
+    if (/\b(terrier|spaniel|beagle|corgi|dachshund|pug|bulldog|schipperke|frise|shih tzu|lhasa|whippet|basenji|shiba|sheltie|scottie|cavalier|cockapoo|cavapoo|maltipoo|miniature poodle|miniature schnauzer|miniature pinscher|rat terrier|tibetan|chin|griffon|lowchen)\b/.test(n)) return "small";
+    return "medium";
+  }
+
+  function breedStats(name: string): BreedStats {
+    return BREED_DATA[name] ?? SIZE_DEFAULTS[inferSize(name)];
+  }
+
+  // Aggregate stats across N selected breeds. For crossbreeds we average
+  // each numeric range and derive the size class from the averaged adult
+  // weight — so a Chihuahua × Great Dane lands in medium/large territory
+  // rather than being mis-classified as toy or giant on its own.
+  type AggregateStats = BreedStats & { displayName: string; isCross: boolean };
+
+  function aggregateStats(names: string[]): AggregateStats {
+    if (names.length === 0) {
+      // Defensive default — UI prevents this, but render() shouldn't crash.
+      return { ...SIZE_DEFAULTS.medium, displayName: "Your pup", isCross: false };
+    }
+    if (names.length === 1) {
+      return { ...breedStats(names[0]!), displayName: names[0]!, isCross: false };
+    }
+    const infos = names.map(breedStats);
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const wMin = avg(infos.map((i) => i.wMin));
+    const wMax = avg(infos.map((i) => i.wMax));
+    const hMin = avg(infos.map((i) => i.hMin));
+    const hMax = avg(infos.map((i) => i.hMax));
+    const full = Math.round(avg(infos.map((i) => i.full)));
+    const adult = (wMin + wMax) / 2;
+    const size: SizeId =
+      adult < 4 ? "toy" : adult < 11 ? "small" : adult < 24 ? "medium" : adult < 41 ? "large" : "giant";
+    return { wMin, wMax, hMin, hMax, size, full, displayName: names.join(" × "), isCross: true };
+  }
+
+  // Breeds available in the search dropdown. Exclude the "Other / Unsure"
+  // sentinel from the canonical list — this calculator needs a real breed
+  // to predict against, and the user explicitly opted out of an unknown
+  // option.
+  const SEARCH_BREEDS = DOG_BREEDS.filter((b) => b !== "Other / Unsure");
+  const MIN_BREEDS = 1;
+  const MAX_BREEDS = 4;
 
   // % of adult weight at age (months), per size class. Vet/breeder averages.
   const GROWTH_CURVE: Record<SizeId, [number, number][]> = {
@@ -322,23 +501,23 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
     sizeClass: SizeId;
   };
 
-  function predict(breed: Breed, ageMonths: number, currentKg: number): Prediction {
-    const pct = curvePctAt(breed.size, ageMonths);
-    const breedAvg = (breed.wMin + breed.wMax) / 2;
+  function predict(stats: BreedStats, ageMonths: number, currentKg: number): Prediction {
+    const pct = curvePctAt(stats.size, ageMonths);
+    const breedAvg = (stats.wMin + stats.wMax) / 2;
     // Trust puppy formula more after ~4 months; trust breed avg earlier on.
     const fromPuppy = currentKg > 0 ? (currentKg / Math.max(pct, 4)) * 100 : breedAvg;
     const w = Math.max(0, Math.min(0.8, (ageMonths - 1) / 8));
     const predicted = breedAvg * (1 - w) + fromPuppy * w;
-    const spread = Math.max(0.08, (breed.wMax - breed.wMin) / breedAvg / 2.4);
+    const spread = Math.max(0.08, (stats.wMax - stats.wMin) / breedAvg / 2.4);
     return {
       pct,
       predicted,
       min: predicted * (1 - spread),
       max: predicted * (1 + spread),
-      height: (breed.hMin + breed.hMax) / 2,
-      fullGrownAt: breed.full,
-      monthsToGo: Math.max(0, breed.full - ageMonths),
-      sizeClass: breed.size,
+      height: (stats.hMin + stats.hMax) / 2,
+      fullGrownAt: stats.full,
+      monthsToGo: Math.max(0, stats.full - ageMonths),
+      sizeClass: stats.size,
     };
   }
 
@@ -353,7 +532,10 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   }
 
   // ─── State ────────────────────────────────────────────────────
-  let breedIdx = 8;
+  // selectedBreeds: 1 entry = purebreed prediction, 2-4 entries = cross.
+  // Keep it as a deduped, order-preserving array — the order shows up in
+  // the result label (e.g. "Labrador × Poodle").
+  let selectedBreeds: string[] = ["Golden Retriever"];
   let ageMonths = 4;
   let currentKg = 11;
   let unit: "kg" | "lb" = "kg";
@@ -367,7 +549,11 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
     document.getElementById(id) as T;
 
-  const breedSel       = $<HTMLSelectElement>("pgp-breed");
+  const breedInput     = $<HTMLInputElement>("pgp-breed-input");
+  const breedList      = $<HTMLUListElement>("pgp-breed-list");
+  const breedChipsEl   = $("pgp-breed-chips");
+  const breedHint      = $("pgp-breed-hint");
+  const breedCounter   = $("pgp-breed-counter");
   const ageInput       = $<HTMLInputElement>("pgp-age-input");
   const weightInput    = $<HTMLInputElement>("pgp-weight-input");
   const ageOut         = $("pgp-age");
@@ -592,11 +778,11 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   let lastPredicted = -1, lastSize: SizeId | "" = "";
 
   function render() {
-    const breed = BREEDS[breedIdx]!;
-    const r = predict(breed, ageMonths, currentKg);
+    const agg = aggregateStats(selectedBreeds);
+    const r = predict(agg, ageMonths, currentKg);
 
-    breedNameOut.textContent = breed.name;
-    sizePillOut.textContent = `${SIZE_LABEL[r.sizeClass]} breed`;
+    breedNameOut.textContent = agg.displayName;
+    sizePillOut.textContent = `${SIZE_LABEL[r.sizeClass]}${agg.isCross ? " mix" : " breed"}`;
 
     const predictedDisp = toDisplayWeight(r.predicted);
     const minDisp       = toDisplayWeight(r.min);
@@ -608,7 +794,7 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
     predictedUnit.textContent    = u;
     rangeOut.textContent         = `Expected range ${fmt(minDisp)} – ${fmt(maxDisp)} ${u}`;
     heightOut.textContent        = `${fmt(r.height, 0)} cm`;
-    heightSubOut.textContent     = `at the shoulder · ${breed.hMin}–${breed.hMax} cm`;
+    heightSubOut.textContent     = `at the shoulder · ${fmt(agg.hMin, 0)}–${fmt(agg.hMax, 0)} cm`;
     monthsToGoOut.textContent    = r.monthsToGo < 0.5 ? "Almost there" : `~${fmt(r.monthsToGo, 0)} mo`;
     grownSubOut.textContent      = r.monthsToGo < 0.5 ? "Already at adult size" : `around ${r.fullGrownAt} months old`;
 
@@ -621,8 +807,9 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
 
     setTodayBar(currentKg, r.predicted);
 
-    chartSubOut.textContent =
-      `${breed.name}s reach about 100% of their adult weight by month ${breed.full}.`;
+    chartSubOut.textContent = agg.isCross
+      ? `Your ${SIZE_LABEL[r.sizeClass].toLowerCase()} mix should reach about 100% of adult weight by month ${agg.full}.`
+      : `${agg.displayName}s reach about 100% of their adult weight by month ${agg.full}.`;
 
     renderChart(r.sizeClass, ageMonths, r.pct);
 
@@ -637,22 +824,187 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
     lastSize      = r.sizeClass;
   }
 
-  // ─── Wire up inputs ───────────────────────────────────────────
-  breedSel.addEventListener("change", () => {
-    breedIdx = parseInt(breedSel.value, 10);
-    const breed = BREEDS[breedIdx]!;
-    // Adjust slider domains to suit the breed: age max scales with
-    // typical full-grown age, weight max with the breed's adult range.
-    const ageMax = Math.max(18, breed.full + 2);
-    const weightMax = Math.max(20, breed.wMax * 1.1);
+  // ─── Slider bounds (shared by init + breed changes + unit flip) ──
+  // Recompute slider max from whichever stats are currently active so
+  // big breeds (Great Dane) and tiny ones (Chihuahua) both get a sane
+  // weight axis. Age max scales with typical full-grown age + a buffer.
+  function applySliderBounds() {
+    const agg = aggregateStats(selectedBreeds);
+    const ageMax = Math.max(18, agg.full + 2);
+    const kgMax  = Math.max(20, agg.wMax * 1.1);
     ageInput.max = String(ageMax);
-    weightInput.max = String(weightMax);
     if (ageMonths > ageMax) { ageMonths = ageMax; ageInput.value = String(ageMax); }
-    if (currentKg > weightMax) { currentKg = weightMax; weightInput.value = String(weightMax); }
+    weightInput.min  = String(toDisplayWeight(0.5).toFixed(1));
+    weightInput.max  = String(toDisplayWeight(kgMax).toFixed(1));
+    weightInput.step = unit === "kg" ? "0.1" : "0.2";
+    const kgVal = Math.min(currentKg, kgMax);
+    if (kgVal !== currentKg) currentKg = kgVal;
+    weightInput.value = String(toDisplayWeight(currentKg).toFixed(1));
     syncSliderVisual(ageInput, ageFill, ageThumb);
     syncSliderVisual(weightInput, weightFill, weightThumb);
     refreshWeightMarks();
+  }
+
+  // ─── Breed chips + search controller ──────────────────────────
+  // Single source of truth = selectedBreeds[]. renderChips() and
+  // renderBreedUi() paint from that array; everything else just
+  // mutates the array and calls these.
+  function renderChips() {
+    breedChipsEl.innerHTML = selectedBreeds
+      .map((b) => `
+        <span class="pgp__chip" data-breed="${escapeHtml(b)}">
+          <span>${escapeHtml(b)}</span>
+          <button type="button" class="pgp__chip-x" aria-label="Remove ${escapeHtml(b)}">×</button>
+        </span>`)
+      .join("");
+  }
+
+  function renderBreedUi() {
+    const n = selectedBreeds.length;
+    breedCounter.textContent = `${n} / ${MAX_BREEDS}`;
+    breedInput.disabled = n >= MAX_BREEDS;
+    breedInput.placeholder = n === 0
+      ? "Search breeds…"
+      : n >= MAX_BREEDS
+        ? "That's the max — 4 breeds"
+        : n === 1
+          ? "Add another for a crossbreed…"
+          : "Add another breed…";
+    if (n === 0) {
+      breedHint.textContent = "Pick at least one breed to forecast.";
+    } else if (n === 1) {
+      breedHint.textContent = "Got a crossbreed? Add up to 4 breeds to predict the mix.";
+    } else if (n >= MAX_BREEDS) {
+      breedHint.textContent = "That's the max — remove a chip to swap in another.";
+    } else {
+      breedHint.textContent = `${n} breeds selected — add up to ${MAX_BREEDS - n} more for the mix.`;
+    }
+  }
+
+  function addBreed(name: string) {
+    if (selectedBreeds.includes(name) || selectedBreeds.length >= MAX_BREEDS) return;
+    selectedBreeds = [...selectedBreeds, name];
+    breedInput.value = "";
+    closeBreedList();
+    renderChips();
+    renderBreedUi();
+    applySliderBounds();
     render();
+    if (selectedBreeds.length < MAX_BREEDS) breedInput.focus();
+  }
+
+  function removeBreed(name: string) {
+    selectedBreeds = selectedBreeds.filter((b) => b !== name);
+    renderChips();
+    renderBreedUi();
+    // Re-derive slider bounds, then re-render. With 0 breeds, render()
+    // still works via aggregateStats's defensive fallback.
+    if (selectedBreeds.length >= MIN_BREEDS) applySliderBounds();
+    render();
+  }
+
+  // Suggestion dropdown
+  let activeSuggestionIdx = -1;
+
+  function suggestionItems() {
+    return Array.from(breedList.querySelectorAll<HTMLLIElement>(".pgp__breed-opt"));
+  }
+
+  function highlightSuggestion(i: number) {
+    const opts = suggestionItems();
+    activeSuggestionIdx = i;
+    opts.forEach((el, idx) => el.classList.toggle("is-active", idx === i));
+    if (i >= 0 && opts[i]) opts[i].scrollIntoView({ block: "nearest" });
+  }
+
+  function closeBreedList() {
+    breedList.hidden = true;
+    breedList.innerHTML = "";
+    activeSuggestionIdx = -1;
+    breedInput.setAttribute("aria-expanded", "false");
+  }
+
+  function openBreedList(matches: string[]) {
+    breedList.innerHTML = matches
+      .map((b) => `<li class="pgp__breed-opt" role="option" data-v="${escapeHtml(b)}">${escapeHtml(b)}</li>`)
+      .join("");
+    breedList.hidden = false;
+    activeSuggestionIdx = -1;
+    breedInput.setAttribute("aria-expanded", "true");
+  }
+
+  function updateSuggestions() {
+    if (selectedBreeds.length >= MAX_BREEDS) { closeBreedList(); return; }
+    const q = breedInput.value.trim().toLowerCase();
+    if (!q) { closeBreedList(); return; }
+    const taken = new Set(selectedBreeds);
+    // Prioritise prefix matches over substring matches so typing "lab"
+    // shows Labrador Retriever before Black Russian Terrier etc.
+    const starts = SEARCH_BREEDS.filter(
+      (b) => !taken.has(b) && b.toLowerCase().startsWith(q),
+    );
+    const contains = SEARCH_BREEDS.filter(
+      (b) => !taken.has(b) && !b.toLowerCase().startsWith(q) && b.toLowerCase().includes(q),
+    );
+    const matches = [...starts, ...contains].slice(0, 8);
+    if (matches.length === 0) { closeBreedList(); return; }
+    openBreedList(matches);
+  }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+    );
+  }
+
+  breedInput.addEventListener("input", updateSuggestions);
+  breedInput.addEventListener("focus", updateSuggestions);
+  breedInput.addEventListener("blur", () => {
+    // Delay so a click on a list item registers before we tear the list down.
+    setTimeout(() => closeBreedList(), 120);
+  });
+  breedInput.addEventListener("keydown", (e) => {
+    const opts = suggestionItems();
+    if (e.key === "ArrowDown") {
+      if (breedList.hidden) { updateSuggestions(); return; }
+      e.preventDefault();
+      highlightSuggestion(Math.min(activeSuggestionIdx + 1, opts.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      highlightSuggestion(Math.max(activeSuggestionIdx - 1, 0));
+    } else if (e.key === "Enter") {
+      if (!breedList.hidden && activeSuggestionIdx >= 0) {
+        e.preventDefault();
+        const v = opts[activeSuggestionIdx]?.dataset.v;
+        if (v) addBreed(v);
+      } else if (!breedList.hidden && opts[0]?.dataset.v) {
+        // Enter with no explicit highlight picks the top suggestion.
+        e.preventDefault();
+        addBreed(opts[0].dataset.v);
+      }
+    } else if (e.key === "Escape") {
+      closeBreedList();
+    } else if (e.key === "Backspace" && breedInput.value === "" && selectedBreeds.length > 0) {
+      // Empty backspace pops the last chip — common combo-box pattern.
+      removeBreed(selectedBreeds[selectedBreeds.length - 1]!);
+    }
+  });
+
+  breedList.addEventListener("mousedown", (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLLIElement>(".pgp__breed-opt");
+    if (!target?.dataset.v) return;
+    // mousedown (not click) so the input's blur handler doesn't close the
+    // list before our selection registers.
+    e.preventDefault();
+    addBreed(target.dataset.v);
+  });
+
+  breedChipsEl.addEventListener("click", (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLButtonElement>(".pgp__chip-x");
+    if (!target) return;
+    const chip = target.closest<HTMLElement>(".pgp__chip");
+    const b = chip?.dataset.breed;
+    if (b) removeBreed(b);
   });
 
   ageInput.addEventListener("input", () => {
@@ -663,7 +1015,7 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   });
 
   weightInput.addEventListener("input", () => {
-    currentKg = parseFloat(weightInput.value);
+    currentKg = fromDisplayWeight(parseFloat(weightInput.value));
     weightOut.textContent = fmt(toDisplayWeight(currentKg));
     syncSliderVisual(weightInput, weightFill, weightThumb);
     render();
@@ -671,7 +1023,7 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
 
   // Weight unit toggle: rescale the slider's min/max/step/value into the
   // display unit so the range covers the same physical span (0.5 kg →
-  // breed.wMax * 1.1) in lb too. State is still kept in kg internally.
+  // wMax * 1.1) in lb too. State is still kept in kg internally.
   function applyUnit(next: "kg" | "lb") {
     if (next === unit) return;
     unit = next;
@@ -680,23 +1032,15 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
       b.classList.toggle("pgp__unit-btn--active", active);
       b.setAttribute("aria-checked", String(active));
     });
-    // Rebuild the weight slider's bounds in display units.
-    const breed = BREEDS[breedIdx]!;
-    const kgMax = Math.max(20, breed.wMax * 1.1);
-    weightInput.min  = String(toDisplayWeight(0.5).toFixed(1));
-    weightInput.max  = String(toDisplayWeight(kgMax).toFixed(1));
-    weightInput.step = unit === "kg" ? "0.1" : "0.2";
-    weightInput.value = String(toDisplayWeight(currentKg).toFixed(1));
     weightUnitOut.textContent = ` ${weightUnitLabel()}`;
+    applySliderBounds();
     weightOut.textContent = fmt(toDisplayWeight(currentKg));
-    syncSliderVisual(weightInput, weightFill, weightThumb);
-    refreshWeightMarks();
     render();
   }
 
   function refreshWeightMarks() {
-    const breed = BREEDS[breedIdx]!;
-    const kgMax = Math.max(20, breed.wMax * 1.1);
+    const agg = aggregateStats(selectedBreeds);
+    const kgMax = Math.max(20, agg.wMax * 1.1);
     const marks = [0.5, kgMax * 0.25, kgMax * 0.5, kgMax * 0.75 + 0.1].map((kg) =>
       `${fmt(toDisplayWeight(kg), 0)}`
     );
@@ -713,12 +1057,9 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   // Seed slider domains for the default breed, then run one render so
   // the chart, bars and stats match the SSR'd placeholder values.
   (function init() {
-    const breed = BREEDS[breedIdx]!;
-    ageInput.max = String(Math.max(18, breed.full + 2));
-    weightInput.max = String(Math.max(20, breed.wMax * 1.1));
-    syncSliderVisual(ageInput, ageFill, ageThumb);
-    syncSliderVisual(weightInput, weightFill, weightThumb);
-    refreshWeightMarks();
+    renderChips();
+    renderBreedUi();
+    applySliderBounds();
     render();
   })();
 
@@ -881,32 +1222,99 @@ const defaultBreed = BREEDS[DEFAULT_BREED_IDX];
   }
   .pgp__unit-btn--active:hover { background: var(--pgp-pink-deep); }
 
-  /* Breed select */
-  .pgp__select-wrap { position: relative; }
-  .pgp__select {
+  /* Breed search + chips */
+  .pgp__breed-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+  }
+  .pgp__breed-counter {
+    font-size: 11px; letter-spacing: 1.4px; font-weight: 700;
+    color: var(--pgp-ink-mute); text-transform: uppercase;
+  }
+  .pgp__breed-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .pgp__breed-chips:empty { display: none; }
+  /* Match the quiz's chip-tag look: pink-soft fill, pink (not pink-deep)
+     border, ink-coloured close button that turns pink on hover.
+     :global() because renderChips() recreates these via innerHTML, which
+     strips Astro's data-astro-cid attribute that scoped selectors need. */
+  :global(.pgp__chip) {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 8px 6px 12px;
+    background: var(--pgp-pink-soft, #F7E8EE);
+    border: 1.5px solid var(--pgp-pink, #E8A4B8);
+    border-radius: 999px;
+    font-family: var(--font-body); font-size: 14px; font-weight: 500;
+    color: var(--pgp-ink, #2D1F1A);
+    animation: pgp-chip-in 220ms cubic-bezier(0.2, 0.65, 0.25, 1) both;
+  }
+  @keyframes pgp-chip-in {
+    from { opacity: 0; transform: scale(0.82); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  :global(.pgp__chip-x) {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 0 4px;
+    color: var(--pgp-ink, #2D1F1A);
+    transition: color 150ms cubic-bezier(0.2, 0.65, 0.25, 1);
+  }
+  :global(.pgp__chip-x:hover) { color: var(--pgp-pink, #E8A4B8); }
+
+  .pgp__breed-search { position: relative; }
+  .pgp__breed-input {
     width: 100%;
-    appearance: none; -webkit-appearance: none;
     font-family: var(--font-display);
-    font-size: 24px; font-weight: 600;
+    font-size: 22px; font-weight: 600;
     color: var(--pgp-ink);
     background: #fff;
     border: 1px solid var(--pgp-rule);
     border-radius: 14px;
-    padding: 14px 44px 14px 18px;
-    cursor: pointer;
+    padding: 14px 18px;
     line-height: 1.1;
     transition: border-color 200ms var(--pgp-ease), box-shadow 200ms var(--pgp-ease);
   }
-  .pgp__select:focus {
+  .pgp__breed-input::placeholder { color: var(--pgp-ink-mute); font-style: italic; }
+  .pgp__breed-input:focus {
     outline: none;
     border-color: var(--pgp-pink-deep);
     box-shadow: 0 0 0 4px var(--pgp-pink-soft);
   }
-  .pgp__select-caret {
-    position: absolute; right: 18px; top: 50%;
-    transform: translateY(-50%);
-    font-size: 14px; color: var(--pgp-ink-mute);
-    pointer-events: none;
+  .pgp__breed-input:disabled {
+    background: var(--pgp-panel); cursor: not-allowed;
+    color: var(--pgp-ink-mute);
+  }
+
+  .pgp__breed-list {
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+    list-style: none; padding: 8px; margin: 0;
+    background: #fff;
+    border: 1px solid var(--pgp-rule);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px -10px rgba(60, 40, 20, 0.18),
+                0 6px 14px rgba(60, 40, 20, 0.08);
+    max-height: 320px; overflow-y: auto;
+    z-index: 20;
+    /* Vertical breathing room between items — gap on a flex column reads
+       cleaner than per-item margins when the list scrolls. */
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .pgp__breed-list[hidden] { display: none; }
+  /* :global() because openBreedList() builds these via innerHTML and
+     loses the Astro scoping data attribute. */
+  :global(.pgp__breed-opt) {
+    padding: 11px 14px; border-radius: 8px;
+    font-family: var(--font-body); font-size: 15px; line-height: 1.3;
+    color: var(--pgp-ink, #2D1F1A);
+    cursor: pointer;
+    transition: background 120ms cubic-bezier(0.2, 0.65, 0.25, 1);
+  }
+  :global(.pgp__breed-opt:hover),
+  :global(.pgp__breed-opt.is-active) { background: var(--pgp-pink-soft, #F7E8EE); }
+
+  .pgp__breed-hint {
+    font-size: 12px; color: var(--pgp-ink-mute);
+    margin: 0; line-height: 1.5;
   }
 
   /* Slider — custom track with hidden native input on top for input  */
