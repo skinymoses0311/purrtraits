@@ -169,7 +169,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
         {steps.map((s, i) => (
           <>
             <a
-              href={s.icon === "quiz" ? "/quiz" : s.icon === "upload" ? "/upload" : "#"}
+              href={s.icon === "quiz" || s.icon === "upload" ? "/upload" : "#"}
               class="how-step"
               data-step={s.n}
               aria-label={`Step ${s.n}: ${s.title}`}
@@ -228,7 +228,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
         {steps.map((s, i) => (
           <>
             <a
-              href={s.icon === "quiz" ? "/quiz" : s.icon === "upload" ? "/upload" : "#"}
+              href={s.icon === "quiz" || s.icon === "upload" ? "/upload" : "#"}
               class="how-step how-step--mobile"
               aria-label={`Step ${s.n}: ${s.title}`}
             >
