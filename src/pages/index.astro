@@ -21,7 +21,9 @@ const homeJsonLd = {
 // Hero gallery wall — frame compositions for desktop (10) and mobile (6).
 // Widths are percentages of the wall so the layout scales with the hero
 // width; the inner image always renders at a 3:4 aspect ratio. Variants
-// 0–6 map to /public/hero-wall/portrait-0{1..7}.jpg.
+// 0–6 map through HERO_PORTRAIT_ARTISTS (below) into
+// /public/samples/artists/<artist>.jpg, so the hero shares its source
+// images with the Artists tab.
 type Frame = {
   x: number;          // left % within the stage
   y: number;          // top % within the stage
@@ -50,8 +52,22 @@ const heroMobile: Frame[] = [
   { x: 64, y: 56, w: 23.1, kind: "poster",                  v: 4 },
   { x: -2, y: 64, w: 23.1, kind: "canvas",                  v: 6 },
 ];
+// Hero-wall portraits are now drawn from the Artists tab samples. The
+// catalog ships 10 artist examples; the wall only needs 7, so we keep a
+// curated pick that maximises stylistic variety (no two close cousins
+// like davinci / vermeer / cassatt both selected). Order is indexed by
+// the `v` field on each Frame above.
+const HERO_PORTRAIT_ARTISTS = [
+  "vangogh",   // v=0 — swirling impasto
+  "monet",     // v=1 — soft impressionist
+  "klimt",     // v=2 — gold mosaic
+  "hokusai",   // v=3 — Japanese woodblock
+  "mucha",     // v=4 — Art Nouveau line
+  "rembrandt", // v=5 — Baroque chiaroscuro
+  "seurat",    // v=6 — pointillist
+] as const;
 const portraitSrc = (v: number) =>
-  `/hero-wall/portrait-0${v + 1}.jpg`;
+  `/samples/artists/${HERO_PORTRAIT_ARTISTS[v]}.jpg`;
 
 // "How it works" — 5 steps; matches the live flow which routes through
 // /quiz between upload and style-pick.
