@@ -31,7 +31,12 @@ import AuthGate from "../components/AuthGate.tsx";
             Your previously generated art lives in your account — sign in to
             pick up where you left off.
           </p>
-          <AuthGate client:load next="/gallery" />
+          <!-- client:visible (not client:load) so AuthGate only hydrates
+               when the banner is actually shown. Otherwise a signed-in
+               visit to /gallery would mount AuthGate, see the user is
+               already authed, and trigger linkAndContinue() — which
+               redirects to /gallery and loops forever. -->
+          <AuthGate client:visible next="/gallery" />
         </div>
       </div>
     </section>
