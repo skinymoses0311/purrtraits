@@ -386,7 +386,7 @@ function doc1() {
     bulletKV("Gelato", "print-on-demand fulfilment. Uses both the Order API (v4) and Product API (v3). Receives status webhooks (no signature — URL is the secret)."),
     bulletKV("Brevo", "transactional email (templates 1–6: confirmation, inProduction, inTransit, delivered, cancellation, welcome)."),
     bulletKV("Google Tag Manager (GTM-MHRPN2P3)", "loaded in Layout.astro head; all events flow through window.dataLayer"),
-    bulletKV("Google AdSense (ca-pub-5797288699504998)", "ad slots embedded via the AdUnit.astro component"),
+    bulletKV("Ezoic", "ad management. Privacy/CMP + standalone header script in Layout.astro head; ad placements managed via the Ezoic dashboard once site review completes."),
     bulletKV("Google OAuth", "Auth.js Google provider (AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET)"),
   );
 
@@ -427,7 +427,6 @@ function doc1() {
       "    │   ├── Nav.astro               sticky nav, cart badge, auth widget",
       "    │   ├── Footer.astro",
       "    │   ├── AuthGate.tsx            React island used on /sign-up (Convex Auth UI)",
-      "    │   ├── AdUnit.astro            AdSense slot wrapper",
       "    │   ├── ProductPreview.astro    'how it'll look' mock-up on PDP",
       "    │   └── Welcome.astro",
       "    ├── lib/",
@@ -1589,7 +1588,6 @@ function doc8() {
         ["Nav.astro", "Sticky top nav. Logo, How-it-works, My gallery, Create Portrait CTA, auth widget (replaced at runtime once we know whether the user is signed in — hidden by default to avoid flashing 'Sign in' for an authed user), cart badge, mobile menu."],
         ["Footer.astro", "Standard footer with legal links."],
         ["AuthGate.tsx", "React island for /sign-up. Wraps ConvexAuthProvider, renders sign-up/sign-in tabs + Google button, handles the OAuth callback, links the anonymous session to the new user, fires sign_up / login events, redirects to ?next."],
-        ["AdUnit.astro", "Reusable AdSense slot wrapper. Reserves the exact pixel box up-front to protect CLS. Per-viewport visibility (desktop/mobile), optional sticky positioning hint (top/bottom/rail). Each slot push is matchMedia-gated so we don't request fill on the device class we're not showing."],
         ["ProductPreview.astro", "'How it'll look' mock-up that appears on the PDP under the hero image (not always rendered)."],
         ["Welcome.astro", "Vestigial component from the Astro starter, not used in the live flow."],
       ],
@@ -1672,12 +1670,10 @@ function doc8() {
     bullet("On /generate, sample tiles for each chosen style are pre-rendered as the loading state from a build-time scan of public/samples/styles/*.{jpg,png,webp}. The picker keys by `${activity}_${mood}_${style}` and falls back to the always-generated `adventuring_playful_*` set."),
   );
 
-  c.push(h1("13. AdSense conventions"));
+  c.push(h1("13. Ad management"));
   c.push(
-    bullet("Single AdSense script tag in Layout.astro <head> (with preconnect) — never per-component."),
-    bullet("Every slot uses the AdUnit.astro wrapper which sets explicit pixel dimensions on the wrapper to protect CLS, gates adsbygoogle.push by matchMedia so we don't fire fill on hidden viewports, and emits a /* ad: <label> */ HTML comment for debugging in the rendered DOM."),
-    bullet("Per-viewport variants are written as separate <AdUnit viewport=\"desktop\" /> + <AdUnit viewport=\"mobile\" /> in the page; CSS media queries hide the wrong one."),
-    bullet("Sticky placement is signaled via the `sticky` prop (\"top\", \"bottom\", \"rail\") and styled by the parent page (e.g. .gen-anchor on /generate)."),
+    bullet("Ezoic. Privacy/CMP scripts (gatekeeperconsent.com) + standalone header script (ezojs.com/ezoic/sa.min.js) + analytics (ezoicanalytics.com) are loaded at the top of Layout.astro <head>. Preconnects warm TLS to www.ezojs.com plus the Google ad endpoints (Ezoic uses AdSense as a demand partner)."),
+    bullet("Ad placements themselves are managed in the Ezoic dashboard once site review completes — no per-component ad markup in this repo."),
   );
 
   c.push(h1("14. Page-script idioms worth knowing"));

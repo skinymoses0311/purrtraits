@@ -20,6 +20,18 @@ const { title, description, image, noindex, canonical, hideNav = false } = Astro
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Ezoic: privacy (CMP) scripts must load before the header script and
+         before any other ad/consent code. data-cfasync="false" keeps Cloudflare
+         from reordering them. -->
+    <script is:inline data-cfasync="false" src="https://cmp.gatekeeperconsent.com/min.js"></script>
+    <script is:inline data-cfasync="false" src="https://the.gatekeeperconsent.com/cmp.min.js"></script>
+    <!-- Ezoic header / standalone init -->
+    <script is:inline async src="//www.ezojs.com/ezoic/sa.min.js"></script>
+    <script is:inline>
+      window.ezstandalone = window.ezstandalone || {};
+      ezstandalone.cmd = ezstandalone.cmd || [];
+    </script>
+    <script is:inline src="//ezoicanalytics.com/analytics.js"></script>
     <SeoMeta {title} {description} {image} {noindex} {canonical}>
       <slot name="jsonld" slot="jsonld" />
     </SeoMeta>
@@ -35,12 +47,12 @@ const { title, description, image, noindex, canonical, hideNav = false } = Astro
       })(window,document,'script','dataLayer','GTM-MHRPN2P3');
     </script>
     <!-- End Google Tag Manager -->
-    <!-- AdSense: preconnect cuts ~100-200ms off the first ad request by
-         setting up TLS to the ad CDNs in parallel with HTML parsing. -->
+    <!-- Ezoic: preconnect warms TLS in parallel with HTML parsing. ezojs.com
+         serves the async header script (sa.min.js); the Google ad endpoints
+         still apply because Ezoic uses AdSense as a demand partner. -->
+    <link rel="preconnect" href="https://www.ezojs.com" crossorigin />
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin />
     <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin />
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5797288699504998"
-         crossorigin="anonymous"></script>
     <style>
       /* Sticky-footer scaffold: body is a column flex container, the main
          <slot> content flexes to fill, and the footer sits below — so on
