@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import AuthGate from "../components/AuthGate.tsx";
 ---
 
 <Layout
@@ -8,6 +9,34 @@ import Layout from "../layouts/Layout.astro";
   noindex
 >
   <main class="page container">
+    <!-- Logged-out gate. Hidden by default; the client script reveals it
+         and hides the rest of the page when the user has no auth tokens. -->
+    <section class="g-loggedout" id="loggedout" hidden>
+      <div class="g-loggedout__grid">
+        <div class="g-loggedout__panel g-loggedout__panel--cta">
+          <p class="g-loggedout__eyebrow">New here?</p>
+          <h2 class="g-loggedout__title">Start generating your portrait</h2>
+          <p class="g-loggedout__copy">
+            Answer a few quick questions about your pet and we'll create four
+            one-of-a-kind portraits in different styles.
+          </p>
+          <a href="/quiz" class="btn btn--primary btn--lg g-loggedout__cta">
+            ✨ Take the quiz
+          </a>
+        </div>
+        <div class="g-loggedout__panel g-loggedout__panel--auth">
+          <p class="g-loggedout__eyebrow">Already made some?</p>
+          <h2 class="g-loggedout__title">Sign in to see your portraits</h2>
+          <p class="g-loggedout__copy">
+            Your previously generated art lives in your account — sign in to
+            pick up where you left off.
+          </p>
+          <AuthGate client:load next="/gallery" />
+        </div>
+      </div>
+    </section>
+
+    <div id="gallery-body" hidden>
     <header class="g-head">
       <div>
         <h1>Your gallery</h1>
@@ -75,6 +104,7 @@ import Layout from "../layouts/Layout.astro";
         </div>
       </div>
     </div>
+    </div><!-- /gallery-body -->
   </main>
 </Layout>
 
@@ -157,9 +187,20 @@ import Layout from "../layouts/Layout.astro";
     },
   ];
 
+  // Logged-out users no longer see session-scoped portraits — the gallery is
+  // now an account-only view. Show the sign-in / quiz banner and skip the
+  // gallery data load entirely.
+  if (!isSignedIn()) {
+    document.getElementById("loggedout")!.hidden = false;
+  } else {
+    document.getElementById("gallery-body")!.hidden = false;
+    await runGallery();
+  }
+
+  async function runGallery() {
+  const userScoped = true;
   const sessionId = getSessionId();
-  const userScoped = isSignedIn();
-  const client = userScoped ? makeAuthedClient() : makeClient();
+  const client = makeAuthedClient();
 
   const grid = document.getElementById("grid")!;
   const empty = document.getElementById("empty")!;
@@ -736,12 +777,71 @@ import Layout from "../layouts/Layout.astro";
       });
     });
   }
+  } // end runGallery
 </script>
 
 <style is:global>
   /* These styles target gallery markup that's injected dynamically via
      innerHTML; Astro's default scoping would silently miss those nodes
      because they don't carry the per-component class hash. */
+
+  /* Logged-out gate -------------------------------------------- */
+  .g-loggedout[hidden] { display: none; }
+  .g-loggedout { margin: 32px 0; }
+  .g-loggedout__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 860px) {
+    .g-loggedout__grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+  }
+  .g-loggedout__panel {
+    background: var(--c-white);
+    border: 1.5px solid var(--c-stroke-light);
+    border-radius: var(--r-md);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  @media (min-width: 860px) {
+    .g-loggedout__panel { padding: 36px 32px; }
+  }
+  .g-loggedout__panel--cta {
+    background: var(--c-fill);
+  }
+  .g-loggedout__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-pink);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .g-loggedout__title {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3vw, 1.9rem);
+    line-height: 1.15;
+    color: var(--c-dark);
+    margin: 0;
+  }
+  .g-loggedout__copy {
+    font-size: 14px;
+    color: var(--c-light);
+    margin: 0 0 8px;
+  }
+  .g-loggedout__cta {
+    align-self: flex-start;
+    padding: 12px 24px;
+    margin-top: auto;
+  }
+  .g-loggedout__panel--auth .auth {
+    margin-top: 4px;
+  }
 
   .g-empty[hidden] { display: none; }
 
