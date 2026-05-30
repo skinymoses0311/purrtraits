@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/ads.txt",
+      "destination": "https://srv.adstxtmanager.com/19390/purrtraits.shop",
+      "statusCode": 301
+    }
+  ]
+}
