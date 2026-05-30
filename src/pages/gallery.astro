@@ -88,6 +88,9 @@ import AuthGate from "../components/AuthGate.tsx";
     <!-- Card grid -->
     <div class="g-grid" id="grid"></div>
 
+    <!-- Pagination (rendered when total pages > 1) -->
+    <nav class="g-pagination" id="pagination" aria-label="Gallery pages" hidden></nav>
+
     <p class="g-foot">
       Portraits are saved for this session ·
       <a href="/upload" class="g-foot__link">Make another portrait →</a>
@@ -225,6 +228,38 @@ import AuthGate from "../components/AuthGate.tsx";
   const sheetReset = document.getElementById("sheet-reset") as HTMLButtonElement;
   const sheetApply = document.getElementById("sheet-apply") as HTMLButtonElement;
   const noresultsClear = document.getElementById("noresults-clear") as HTMLButtonElement;
+  const pagination = document.getElementById("pagination")!;
+
+  // 30 portraits per page. Page state lives both in module memory (so
+  // re-renders don't have to re-parse the URL) and in ?page=N (so the
+  // back button + bookmarks + reloads land on the right slice).
+  const PAGE_SIZE = 30;
+  function readPageFromUrl(): number {
+    const raw = new URLSearchParams(window.location.search).get("page");
+    const n = parseInt(raw ?? "1", 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  }
+  let currentPage = readPageFromUrl();
+  function writePageToUrl(page: number, replace: boolean) {
+    const url = new URL(window.location.href);
+    if (page <= 1) url.searchParams.delete("page");
+    else url.searchParams.set("page", String(page));
+    const next = url.pathname + (url.search ? url.search : "") + url.hash;
+    if (replace) window.history.replaceState({}, "", next);
+    else window.history.pushState({}, "", next);
+  }
+  function goToPage(n: number) {
+    currentPage = Math.max(1, n);
+    writePageToUrl(currentPage, false);
+    renderGrid();
+    // Snap back to the top of the grid so the new page isn't off-screen.
+    grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  // Back / forward buttons restore the right page slice.
+  window.addEventListener("popstate", () => {
+    currentPage = readPageFromUrl();
+    renderGrid();
+  });
 
   type Item = {
     style: string;
@@ -349,6 +384,7 @@ import AuthGate from "../components/AuthGate.tsx";
     ctaNew.style.display = "none";
     filterbar.hidden = true;
     mobileTrigger.hidden = true;
+    pagination.hidden = true;
     foot.style.display = "none";
   }
 
@@ -602,6 +638,16 @@ import AuthGate from "../components/AuthGate.tsx";
     });
   }
 
+  // Filter changes drop the user back on page 1 — staying on page 5 after
+  // narrowing the result count would feel broken. Update the URL without a
+  // history entry so the back button still escapes the gallery cleanly.
+  function resetPageForFilterChange() {
+    if (currentPage !== 1) {
+      currentPage = 1;
+      writePageToUrl(1, true);
+    }
+  }
+
   // ── Selection mutators ────────────────────────────────────────
   function toggleFacet(key: FacetKey, val: string) {
     if (selected[key].has(val)) {
@@ -610,6 +656,7 @@ import AuthGate from "../components/AuthGate.tsx";
       selected[key].add(val);
       track("gallery_filter_applied", { facet: key, value: val });
     }
+    resetPageForFilterChange();
     renderFilterBar();
     renderActiveChips();
     renderSheet();
@@ -618,6 +665,7 @@ import AuthGate from "../components/AuthGate.tsx";
 
   function clearFacet(key: FacetKey) {
     selected[key].clear();
+    resetPageForFilterChange();
     renderFilterBar();
     renderActiveChips();
     renderSheet();
@@ -626,6 +674,7 @@ import AuthGate from "../components/AuthGate.tsx";
 
   function clearAll() {
     (Object.keys(selected) as FacetKey[]).forEach((k) => selected[k].clear());
+    resetPageForFilterChange();
     renderFilterBar();
     renderActiveChips();
     renderSheet();
@@ -675,20 +724,92 @@ import AuthGate from "../components/AuthGate.tsx";
   // lazy images that aren't scrolled past).
   const ABOVE_FOLD_COUNT = 4;
 
+  // Build the page-number sequence with leading/trailing ellipses so the
+  // control stays a constant width even with 50+ pages. Returns either a
+  // page number (1-based) or null (rendered as "…").
+  function buildPageList(total: number, current: number): Array<number | null> {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const out: Array<number | null> = [1];
+    const left = Math.max(2, current - 1);
+    const right = Math.min(total - 1, current + 1);
+    if (left > 2) out.push(null);
+    for (let p = left; p <= right; p++) out.push(p);
+    if (right < total - 1) out.push(null);
+    out.push(total);
+    return out;
+  }
+
+  function renderPagination(totalPages: number) {
+    if (totalPages <= 1) {
+      pagination.hidden = true;
+      pagination.innerHTML = "";
+      return;
+    }
+    pagination.hidden = false;
+    const prevDisabled = currentPage <= 1;
+    const nextDisabled = currentPage >= totalPages;
+    const pages = buildPageList(totalPages, currentPage);
+    const pageHtml = pages
+      .map((p) => {
+        if (p === null) return `<span class="g-pagination__ellipsis" aria-hidden="true">…</span>`;
+        const isCurrent = p === currentPage;
+        return `<button type="button"
+                        class="g-pagination__page${isCurrent ? " g-pagination__page--current" : ""}"
+                        data-page="${p}"
+                        ${isCurrent ? 'aria-current="page"' : ""}>${p}</button>`;
+      })
+      .join("");
+    pagination.innerHTML = `
+      <button type="button"
+              class="g-pagination__nav"
+              data-page="${currentPage - 1}"
+              ${prevDisabled ? "disabled" : ""}
+              aria-label="Previous page">← Prev</button>
+      <div class="g-pagination__pages">${pageHtml}</div>
+      <button type="button"
+              class="g-pagination__nav"
+              data-page="${currentPage + 1}"
+              ${nextDisabled ? "disabled" : ""}
+              aria-label="Next page">Next →</button>
+    `;
+    pagination.querySelectorAll<HTMLButtonElement>("button[data-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const next = parseInt(btn.dataset.page!, 10);
+        if (Number.isFinite(next) && next >= 1 && next !== currentPage) {
+          goToPage(next);
+        }
+      });
+    });
+  }
+
   function renderGrid() {
     const visible = allItems.filter(matches);
 
     if (visible.length === 0 && allItems.length > 0) {
       grid.hidden = true;
       noresults.hidden = false;
+      pagination.hidden = true;
       return;
     }
     grid.hidden = false;
     noresults.hidden = true;
 
+    // Clamp the current page to the filtered set so applying a filter that
+    // shrinks the result count doesn't leave us on an empty page.
+    const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+    if (currentPage > totalPages) {
+      currentPage = totalPages;
+      writePageToUrl(currentPage, true);
+    }
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = visible.slice(start, start + PAGE_SIZE);
+
     grid.innerHTML = "";
     let renderFailures = 0;
-    visible.forEach((it, index) => {
+    pageItems.forEach((it, index) => {
       try {
         const card = document.createElement("article");
         card.className = "g-card";
@@ -745,6 +866,8 @@ import AuthGate from "../components/AuthGate.tsx";
     if (renderFailures > 0) {
       console.warn(`[gallery] ${renderFailures} card(s) failed to render`);
     }
+
+    renderPagination(totalPages);
 
     disableImageGrabbers(grid);
     attachImageLoading(grid);
@@ -1071,6 +1194,65 @@ import AuthGate from "../components/AuthGate.tsx";
   .g-card__sub { font-size: 12px; color: var(--c-light); margin-top: 2px; }
   .g-card__price { font-size: 16px; font-weight: 700; color: var(--c-dark); white-space: nowrap; }
   .g-card__buy { width: 100%; padding: 10px 0; font-size: 14px; border-radius: 100px; }
+
+  /* Pagination ------------------------------------------------- */
+  .g-pagination[hidden] { display: none; }
+  .g-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+  .g-pagination__pages {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .g-pagination__nav,
+  .g-pagination__page {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 100px;
+    border: 1px solid var(--c-stroke-light);
+    background: var(--c-white);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--c-dark);
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .g-pagination__page { padding: 0; }
+  .g-pagination__nav:hover:not(:disabled),
+  .g-pagination__page:hover:not(.g-pagination__page--current) {
+    border-color: var(--c-dark);
+    background: var(--c-fill);
+  }
+  .g-pagination__nav:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .g-pagination__page--current {
+    background: var(--c-pink);
+    border-color: var(--c-pink);
+    color: var(--c-white);
+    cursor: default;
+  }
+  .g-pagination__ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    color: var(--c-light);
+    font-size: 13px;
+  }
+  @media (max-width: 480px) {
+    .g-pagination__nav { padding: 0 12px; font-size: 12px; }
+    .g-pagination__page { min-width: 34px; height: 34px; font-size: 12px; }
+  }
 
   /* Footer ----------------------------------------------------- */
   .g-foot { font-size: 12px; color: var(--c-light); margin-top: 28px; }
