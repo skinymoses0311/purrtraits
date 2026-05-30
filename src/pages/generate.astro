@@ -173,22 +173,36 @@ try {
         const quizActivity = session.quizAnswers!.activity ?? "";
         const quizMood = session.quizAnswers!.mood ?? "";
 
+        // Tiered lookup mirroring style-pick.astro's findStyleSample. Try
+        // the user's exact (activity, mood, style); fall back to activity
+        // + style (any mood) → mood + style (any activity) → style only
+        // (any combo). Filenames are `<activity>_<mood>_<style>` with an
+        // optional trailing session-id suffix.
         function findSample(activity: string, mood: string, style: string): string | null {
-          const prefix = `${activity}_${mood}_${style}`;
-          const match = sampleFiles.find((f) => {
-            const base = f.replace(/\.[^.]+$/, "");
-            return base === prefix || base.startsWith(prefix + "_");
-          });
-          return match ? `/samples/styles/${match}` : null;
+          function match(aWant: string | "*", mWant: string | "*"): string | undefined {
+            return sampleFiles.find((f) => {
+              const base = f.replace(/\.[^.]+$/, "");
+              const parts = base.split("_");
+              if (parts.length < 3) return false;
+              const [a, m, s] = parts;
+              if (s !== style) return false;
+              if (aWant !== "*" && a !== aWant) return false;
+              if (mWant !== "*" && m !== mWant) return false;
+              return true;
+            });
+          }
+          const hit =
+            match(activity, mood)
+            ?? match(activity, "*")
+            ?? match("*", mood)
+            ?? match("*", "*");
+          return hit ? `/samples/styles/${hit}` : null;
         }
 
         function sampleImg(style: Style, label: string): string {
-          const personalised = findSample(quizActivity, quizMood, style);
-          const fallback =
-            quizActivity === "adventuring" && quizMood === "playful"
-              ? null
-              : findSample("adventuring", "playful", style);
-          const src = personalised ?? fallback;
+          // Tiered findSample handles all fallback levels — no hardcoded
+          // adventuring/playful pair needed any more.
+          const src = findSample(quizActivity, quizMood, style);
           if (!src) return "";
           return `<img class="gen__example-img"
                        src="${src}"

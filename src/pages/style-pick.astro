@@ -351,13 +351,33 @@ const SKELETON_COUNT = 10;
       const quizActivity = session.quizAnswers!.activity;
       const quizMood = session.quizAnswers!.mood;
 
+      // Tiered lookup: try the user's exact (activity, mood, style) first,
+      // then fall back through decreasing specificity — activity + style
+      // (any mood) → mood + style (any activity) → style only (any combo).
+      // This way the picker always shows the closest-fitting sample we
+      // have for that style. Filenames are `<activity>_<mood>_<style>`
+      // with an optional trailing session-id suffix; neither activity
+      // nor mood vocabularies contain underscores (tongue-out uses a
+      // hyphen) so split-on-_ is safe.
       function findStyleSample(activity: string, mood: string, style: string): string | null {
-        const prefix = `${activity}_${mood}_${style}`;
-        const match = styleSampleFiles.find((f) => {
-          const base = f.replace(/\.[^.]+$/, "");
-          return base === prefix || base.startsWith(prefix + "_");
-        });
-        return match ? `/samples/styles/${match}` : null;
+        function match(aWant: string | "*", mWant: string | "*"): string | undefined {
+          return styleSampleFiles.find((f) => {
+            const base = f.replace(/\.[^.]+$/, "");
+            const parts = base.split("_");
+            if (parts.length < 3) return false;
+            const [a, m, s] = parts;
+            if (s !== style) return false;
+            if (aWant !== "*" && a !== aWant) return false;
+            if (mWant !== "*" && m !== mWant) return false;
+            return true;
+          });
+        }
+        const hit =
+          match(activity, mood)   // Tier 1: exact 3/3
+          ?? match(activity, "*") // Tier 2: activity + style (any mood)
+          ?? match("*", mood)     // Tier 3: mood + style (any activity)
+          ?? match("*", "*");     // Tier 4: style only — last resort
+        return hit ? `/samples/styles/${hit}` : null;
       }
 
       function findArtistSample(artist: Artist): string | null {
@@ -383,20 +403,12 @@ const SKELETON_COUNT = 10;
       }
 
       function sampleImg(key: SelKey, label: string): string {
-        let src: string | null;
-        if (isStyleKey(key)) {
-          // Try the user's (activity, mood); fall back to adventuring_playful
-          // (the only pair currently generated for every style). If neither
-          // file exists, omit the image and the card shows the placeholder bg.
-          const personalised = findStyleSample(quizActivity, quizMood, key);
-          const fallback =
-            quizActivity === "adventuring" && quizMood === "playful"
-              ? null
-              : findStyleSample("adventuring", "playful", key);
-          src = personalised ?? fallback;
-        } else {
-          src = findArtistSample(key as Artist);
-        }
+        // The hardcoded adventuring/playful fallback is gone — findStyle-
+        // Sample's tiered ladder already returns the closest-fitting sample
+        // (down to any-combo for the style) before giving up.
+        const src = isStyleKey(key)
+          ? findStyleSample(quizActivity, quizMood, key)
+          : findArtistSample(key as Artist);
         if (!src) return "";
         return `<img class="pcard__media-img" src="${src}"
                      alt="${escapeHtml(label)} example on another pet"
