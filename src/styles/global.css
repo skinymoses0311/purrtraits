@@ -276,3 +276,102 @@ img { max-width: 100%; display: block; }
   font-family: var(--font-display); font-size: 16px; transition: all .15s ease;
 }
 .format-tab--active { background: var(--c-pink); border-color: var(--c-pink); color: white; font-weight: 700; }
+
+/* AuthGate (shared) -------------------------------------------- */
+/* The <AuthGate /> React island renders on multiple pages (sign-up,
+   gallery logged-out gate). Its styles live here — not in a single page's
+   <style is:global> — so the card is styled wherever the component mounts. */
+.auth__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--c-pink-light);
+  border-radius: 999px;
+  padding: 4px;
+}
+.auth__tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.auth__tab--active {
+  background: var(--c-white);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  font-weight: 600;
+}
+
+.auth__google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.auth__google-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285F4;
+  font-weight: 700;
+  border: 1px solid var(--c-stroke-light);
+}
+
+.auth__divider {
+  text-align: center;
+  margin: 18px 0;
+  position: relative;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.auth__divider::before,
+.auth__divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 24px);
+  height: 1px;
+  background: var(--c-stroke-light);
+}
+.auth__divider::before { left: 0; }
+.auth__divider::after { right: 0; }
+.auth__divider span {
+  background: var(--c-white);
+  padding: 0 8px;
+}
+
+.auth__form { display: flex; flex-direction: column; gap: 14px; }
+.auth__field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.auth__field span { font-weight: 600; }
+.auth__field input {
+  font-family: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--c-stroke-light);
+  border-radius: var(--r-sm, 8px);
+  background: var(--c-white);
+}
+.auth__field input:focus {
+  outline: 2px solid var(--c-pink);
+  outline-offset: 1px;
+}
+
+.auth__err {
+  color: #c0353a;
+  font-size: 13px;
+  background: #fde9ea;
+  border: 1px solid #f4b8bb;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.auth__submit { margin-top: 4px; }
