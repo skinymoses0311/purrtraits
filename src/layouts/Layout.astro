@@ -13,6 +13,12 @@ interface Props {
   hideNav?: boolean;
 }
 const { title, description, image, noindex, canonical, hideNav = false } = Astro.props;
+
+// GTM container ID is env-driven so staging traffic doesn't pollute the prod
+// GA4 / GTM reports. Set PUBLIC_GTM_ID per Vercel environment; leave it unset
+// on staging if you don't want any tag firing at all. Ezoic / CMP scripts above
+// are left always-on because Ezoic gates ad rendering itself based on the host.
+const GTM_ID = import.meta.env.PUBLIC_GTM_ID as string | undefined;
 ---
 
 <!doctype html>
@@ -38,15 +44,19 @@ const { title, description, image, noindex, canonical, hideNav = false } = Astro
     <!-- ?v=2 forces browsers to refetch when the favicon changes; bump it on
          future favicon updates to skip the aggressive favicon cache. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
-    <!-- Google Tag Manager -->
-    <script is:inline>
-      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-      new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-      j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-      'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-      })(window,document,'script','dataLayer','GTM-MHRPN2P3');
-    </script>
-    <!-- End Google Tag Manager -->
+    {GTM_ID && (
+      <Fragment>
+        <!-- Google Tag Manager -->
+        <script is:inline define:vars={{ gtmId: GTM_ID }}>
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer',gtmId);
+        </script>
+        <!-- End Google Tag Manager -->
+      </Fragment>
+    )}
     <!-- Ezoic: preconnect warms TLS in parallel with HTML parsing. ezojs.com
          serves the async header script (sa.min.js); the Google ad endpoints
          still apply because Ezoic uses AdSense as a demand partner. -->
@@ -63,10 +73,14 @@ const { title, description, image, noindex, canonical, hideNav = false } = Astro
     </style>
   </head>
   <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MHRPN2P3"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
+    {GTM_ID && (
+      <Fragment>
+        <!-- Google Tag Manager (noscript) -->
+        <noscript><iframe src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        <!-- End Google Tag Manager (noscript) -->
+      </Fragment>
+    )}
     {!hideNav && <Nav />}
     <main class="layout__main">
       <slot />

@@ -7,7 +7,15 @@ import type { Id } from "./_generated/dataModel";
 
 const BREVO_API = "https://api.brevo.com/v3";
 
-const SENDER = { name: "Purrtraits", email: "orders@purrtraits.shop" } as const;
+// Sender address is environment-specific. Production uses orders@purrtraits.shop;
+// staging should use a distinct address (e.g. staging@purrtraits.shop) so a leaked
+// staging email is visually obvious in a real inbox. Set BREVO_SENDER_EMAIL
+// per Convex deployment; falls back to the production address so existing
+// deployments don't break if the env var is missing.
+const SENDER = {
+  name: process.env.BREVO_SENDER_NAME ?? "Purrtraits",
+  email: process.env.BREVO_SENDER_EMAIL ?? "orders@purrtraits.shop",
+} as const;
 
 // Templates created in Brevo dashboard; IDs are stable per template.
 const TEMPLATES = {
