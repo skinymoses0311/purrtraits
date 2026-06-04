@@ -32,9 +32,18 @@ export function clearSessionId() {
 export async function ensureSession(client: ConvexClient): Promise<Id<"sessions">> {
   let id = getSessionId();
   if (id) {
-    // Validate the id still resolves; otherwise start fresh.
-    const session = await client.query(api.sessions.get, { id });
-    if (session) return id;
+    // Validate the id still resolves; otherwise start fresh. The query can
+    // throw at the validator layer if `id` is from a different Convex
+    // deployment (e.g. after a backend cutover) — IDs are deployment-scoped,
+    // so a value persisted before the cutover will be rejected. Treat any
+    // such failure the same as "session not found" and recreate.
+    try {
+      const session = await client.query(api.sessions.get, { id });
+      if (session) return id;
+    } catch {
+      /* stale id from a previous backend — fall through */
+    }
+    clearSessionId();
   }
   id = (await client.mutation(api.sessions.create, {})) as Id<"sessions">;
   setSessionId(id);

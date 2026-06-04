@@ -215,10 +215,20 @@ import Layout from "../layouts/Layout.astro";
   // Without this, photos accumulate across visits and fal eventually rejects
   // the request once the array exceeds Nano Banana's 10-image limit.
   // Trade-off: back-nav from /quiz to /upload also wipes — accepted.
+  //
+  // The mutation can throw at the validator layer if `existing` came from a
+  // different Convex deployment (e.g. localStorage left over after a backend
+  // cutover) — IDs are deployment-scoped. Treat any failure as "stale, drop
+  // it"; ensureSession (called later) will create a fresh session.
   {
-    const existing = (await import("../lib/client.ts")).getSessionId();
+    const clientLib = await import("../lib/client.ts");
+    const existing = clientLib.getSessionId();
     if (existing) {
-      await client.mutation(api.sessions.clearCurrentFlow, { id: existing });
+      try {
+        await client.mutation(api.sessions.clearCurrentFlow, { id: existing });
+      } catch {
+        clientLib.clearSessionId();
+      }
     }
   }
 
