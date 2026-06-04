@@ -11,10 +11,31 @@ import { ConvexClient } from "convex/browser";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 
-const STORAGE_KEY = "purrtraits.sessionId";
+const PUBLIC_CONVEX_URL = import.meta.env.PUBLIC_CONVEX_URL as string;
+
+// Per-deployment storage key. Convex IDs are deployment-scoped — passing an
+// id minted by deployment A to a v.id() validator on deployment B throws a
+// ValidatorError at the args layer, before any handler can recover. Namespacing
+// the storage key by deployment URL keeps each deployment's session id in its
+// own slot, so a cutover (or any user who alternates between staging/prod)
+// never trips that cross-deployment trap. Mirrors the per-namespace JWT and
+// refresh-token storage that @convex-dev/auth already uses (see authStorage.ts).
+function namespace(): string {
+  return PUBLIC_CONVEX_URL.replace(/[^a-zA-Z0-9]/g, "");
+}
+const STORAGE_KEY = `purrtraits.sessionId.${namespace()}`;
+
+// Pre-namespacing key — drop it on first import so it doesn't linger in
+// localStorage for users who survived the v0 → v1 transition. The value it
+// stored can never be valid for any current deployment (IDs are scoped), so
+// nothing is lost. Runs once per page load, before any get/set/clear call.
+const LEGACY_STORAGE_KEY = "purrtraits.sessionId";
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* ignore */ }
+}
 
 export function makeClient(): ConvexClient {
-  return new ConvexClient(import.meta.env.PUBLIC_CONVEX_URL);
+  return new ConvexClient(PUBLIC_CONVEX_URL);
 }
 
 export function getSessionId(): Id<"sessions"> | null {

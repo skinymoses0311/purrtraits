@@ -9,9 +9,9 @@ import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 import { track, setUserId } from "../lib/analytics";
 import { getCurrentUserId } from "../lib/authStorage";
+import { getSessionId } from "../lib/client";
 
 const PUBLIC_CONVEX_URL = import.meta.env.PUBLIC_CONVEX_URL as string;
-const SESSION_STORAGE_KEY = "purrtraits.sessionId";
 // Carries the user's just-clicked auth intent across the Google OAuth
 // redirect so the post-return code can fire the right sign_up vs sign_in
 // event. Cleared as soon as we read it.
@@ -123,7 +123,10 @@ function AuthCard({ next }: { next: string }) {
     // generations + orders are tied to the account. Best-effort — the fal
     // action also calls linkSessionToUserInternal as a backstop.
     try {
-      const sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+      // Use the shared, namespaced session-id reader so a stale id from a
+      // previous Convex deployment is never sent into linkSessionToUser
+      // (would throw ValidatorError, but caught here anyway).
+      const sessionId = getSessionId();
       if (sessionId) {
         await convex.mutation(api.sessions.linkSessionToUser, {
           sessionId: sessionId as Id<"sessions">,
