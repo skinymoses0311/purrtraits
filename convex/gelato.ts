@@ -16,6 +16,23 @@ function authHeaders() {
   };
 }
 
+// Gelato has no sandbox — the same prod API key handles both real and test
+// orders. We use Gelato's `orderType` field as the staging-safe escape hatch:
+//
+//   "order"  → real order, debited from the Gelato balance, printed and shipped
+//   "draft"  → stored on Gelato but NOT auto-processed. Must be patched to
+//              "order" to go to production. No charges, no prints.
+//
+// Set GELATO_ORDER_TYPE=draft on the staging Convex deployment so the same
+// production Gelato key can be used there without actually printing things.
+// Defaults to "order" so production behaviour is unchanged when the env var
+// is absent. See: https://dashboard.gelato.com/docs/orders/v4/patch/
+function gelatoOrderType(): "order" | "draft" {
+  const raw = process.env.GELATO_ORDER_TYPE;
+  if (raw === "draft") return "draft";
+  return "order";
+}
+
 export const ping = action({
   args: {},
   handler: async (): Promise<{ ok: boolean; status: number; sample: unknown }> => {
@@ -97,7 +114,7 @@ export const createOrder = internalAction({
   },
   handler: async (_ctx, args) => {
     const payload = {
-      orderType: "order",
+      orderType: gelatoOrderType(),
       orderReferenceId: args.orderReferenceId,
       customerReferenceId: args.shippingAddress.email,
       currency: args.currency.toUpperCase(),
@@ -190,7 +207,7 @@ export const fulfillConvexOrder = internalAction({
     const lastName = rest.join(" ") || firstName;
 
     const payload = {
-      orderType: "order",
+      orderType: gelatoOrderType(),
       orderReferenceId: orderId,
       customerReferenceId: order.customerEmail ?? orderId,
       currency: order.currency.toUpperCase(),

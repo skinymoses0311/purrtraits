@@ -7,9 +7,24 @@ and production, and how to promote changes between them.
 
 | Env | Domain | Convex deployment | Stripe | Gelato | Vercel project | Git branch |
 |---|---|---|---|---|---|---|
-| Local dev | `localhost:4321` | each dev's own (or shared staging) | test | sandbox | n/a | feature branches |
-| **Staging** | `staging.purrtraits.shop` | `lovely-warthog-649` | **test** | **sandbox** | `my-app-staging` | `staging` |
-| **Production** | `www.purrtraits.shop` | `prod:<slug>` (TBD) | **live** | **production** | `my-app` | `master` |
+| Local dev | `localhost:4321` | each dev's own (or shared staging) | sandbox | sandbox | n/a | feature branches |
+| **Staging** | `staging.purrtraits.shop` | `lovely-warthog-649` | **Sandbox** `acct_1TNpR7Lb2TARjPdq` ("Purrtraits sandbox") | **sandbox** | `my-app-staging` | `staging` |
+| **Production** | `www.purrtraits.shop` | `prod:<slug>` (TBD) | **Live mode** on `acct_1TNpQnQ43vNtjczK` ("Purrtraits") | **production** | `my-app` | `master` |
+
+### Stripe CLI access
+
+Two CLI projects pair to the relevant accounts so we can manage each from terminal:
+
+```bash
+stripe --project-name purrtraits …            # main account (live + test mode of main account)
+stripe --project-name purrtraits-sandbox …    # the staging sandbox
+```
+
+### Known state (verified 2026-06-03)
+
+- Staging webhook on the sandbox: `we_1TQCeILb2TARjPdqBpCOwpdZ` at `https://lovely-warthog-649.convex.site/stripe/webhook`, status enabled.
+  - Subscribed to **236 events** — overbroad. The Convex handler only acts on `checkout.session.completed` (`convex/payments.ts`) and returns `{ received: true }` for the rest. Not breaking, just noisy. Worth tightening when we set up the prod webhook.
+- Main Purrtraits Stripe account is empty (no products, no webhooks) in both test and live mode — ready for production setup from a clean slate.
 
 ## Promotion flow
 

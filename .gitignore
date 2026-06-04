@@ -33,6 +33,10 @@ skills-lock.json
 
 .vercel
 
+# Local-only secrets workspace + temp vercel link dir
+scripts/_oneoff-secrets/
+.tmp-staging-link/
+
 # one-off admin export of customer-generated portraits (see scripts/download-gallery.mjs)
 gallery-export/
 
