@@ -32,6 +32,7 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { DOG_BREEDS } from "../lib/dogBreeds.ts";
+  import { CAT_BREEDS } from "../lib/catBreeds.ts";
   import { track } from "../lib/analytics.ts";
 
   const client = makeClient();
@@ -44,12 +45,13 @@ import Layout from "../layouts/Layout.astro";
     // call here is sufficient.
     track("quiz_start");
 
-    const TOTAL_STEPS = 9;
+    const TOTAL_STEPS = 10;
     const MAX_CROSSBREEDS = 4;
     const MIN_CROSSBREEDS = 2;
 
     type AnswerKey =
       | "name"
+      | "petType"
       | "breed"
       | "gender"
       | "age"
@@ -60,6 +62,7 @@ import Layout from "../layouts/Layout.astro";
       | "favouriteFeature";
 
     type Answers = {
+      petType?: string;
       name?: string;
       // Display string used by PDP/cart/Stripe. For crossbreeds it's the
       // joined form ("Labrador Retriever / Poodle"); for single-breed it's
@@ -107,6 +110,16 @@ import Layout from "../layouts/Layout.astro";
     function buildSteps(): Step[] {
       const name = petTok();
       return [
+        {
+          kind: "choices",
+          key: "petType",
+          title: "What kind of pet do you have?",
+          sub: "Let's get to know them.",
+          options: [
+            { v: "cat", e: "🐈", t: "Cat", b: "Whiskers and charm" },
+            { v: "dog", e: "🐕", t: "Dog", b: "Wagging tails" },
+          ],
+        },
         {
           kind: "name",
           key: "name",
@@ -253,7 +266,7 @@ import Layout from "../layouts/Layout.astro";
         <div class="quiz__breed-toggles">
           <label class="option option--toggle">
             <input id="breed-pure" type="radio" name="breed-mode" class="option__checkbox" />
-            <span class="option__emoji">🐕</span>
+            <span class="option__emoji">${answers.petType === "cat" ? "🐈" : "🐕"}</span>
             <div>
               <p class="display option__title">Purebreed</p>
               <p class="muted option__blurb">One specific breed</p>
@@ -321,15 +334,17 @@ import Layout from "../layouts/Layout.astro";
           activeIndex = -1;
           return;
         }
+        // Use the right breed list based on the pet type selected in step 1.
+        const breedSource = answers.petType === "cat" ? CAT_BREEDS : DOG_BREEDS;
         // In crossbreed mode, hide breeds the user has already picked so the
         // dropdown stays useful.
         const taken = new Set(
           breedUi.isCrossbreed ? answers.breeds ?? [] : [],
         );
-        const starts = DOG_BREEDS.filter(
+        const starts = breedSource.filter(
           (b) => !taken.has(b) && b.toLowerCase().startsWith(q),
         );
-        const contains = DOG_BREEDS.filter(
+        const contains = breedSource.filter(
           (b) =>
             !taken.has(b) &&
             !b.toLowerCase().startsWith(q) &&
@@ -375,7 +390,8 @@ import Layout from "../layouts/Layout.astro";
       function syncSingle() {
         // In single mode the typed text must exactly match a known breed.
         const v = input.value.trim();
-        const match = DOG_BREEDS.find(
+        const breedSource = answers.petType === "cat" ? CAT_BREEDS : DOG_BREEDS;
+        const match = breedSource.find(
           (b) => b.toLowerCase() === v.toLowerCase(),
         );
         if (match) {
@@ -726,6 +742,7 @@ import Layout from "../layouts/Layout.astro";
 
       const breedSummary = breedAnalytics();
       track("quiz_complete", {
+        petType: answers.petType,
         gender: answers.gender,
         size: answers.size,
         activity: answers.activity,
@@ -740,6 +757,7 @@ import Layout from "../layouts/Layout.astro";
       await client.mutation(api.sessions.saveQuiz, {
         id: sessionId as any,
         answers: {
+          petType: answers.petType,
           name: answers.name,
           breed: answers.breed,
           breeds: answers.breeds,
