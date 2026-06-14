@@ -158,6 +158,8 @@ export const saveQuiz = mutation({
     id: v.id("sessions"),
     answers: v.object({
       name: v.optional(v.string()),
+      // "cat" | "dog" — set by the new pet-type selector (step 1 of quiz).
+      petType: v.optional(v.string()),
       // breed is the joined display string for crossbreeds; breeds is the
       // structured array. Both omitted when the user ticks "I'm not sure".
       breed: v.optional(v.string()),

@@ -232,6 +232,7 @@ import ProductPreview from "../components/ProductPreview.astro";
       const breed =
         (portrait as any).breed?.trim() ||
         session.quizAnswers?.breed?.trim();
+      const petType = session.quizAnswers?.petType;
 
       attachImageLoading();
       hero.src = portrait.imageUrl;
@@ -338,7 +339,7 @@ import ProductPreview from "../components/ProductPreview.astro";
         // Uses the same helper as Stripe checkout so both surfaces match.
         const product = findProduct();
         aboutCopy.textContent = product
-          ? formatProductDescription(product, petName, breed)
+          ? formatProductDescription(product, petName, breed, petType)
           : "";
 
         // Benefits chip

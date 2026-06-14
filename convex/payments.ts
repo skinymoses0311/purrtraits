@@ -84,6 +84,7 @@ export const createCheckoutSession = action({
               item.product,
               item.petName,
               item.breed,
+              sessionDoc?.quizAnswers?.petType,
             ),
           },
         },

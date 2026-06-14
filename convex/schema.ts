@@ -50,6 +50,9 @@ export default defineSchema({
         // Pet profile (collected first).
         // Optional to keep older sessions valid; new sessions always set them.
         name: v.optional(v.string()),
+        // "cat" | "dog" — set by the new pet-type selector (step 1 of quiz).
+        // Optional so legacy sessions without this field still validate.
+        petType: v.optional(v.string()),
         // breed is the display string used everywhere downstream (PDP copy,
         // cart lines, Stripe descriptions, gallery). For single-breed it's the
         // breed name ("Labrador Retriever"); for crossbreeds it's the joined

@@ -18,16 +18,20 @@ const DIMENSION_BY_SIZE: Record<Product["size"], string> = {
 // fire on legacy sessions whose schema-optional values were never set.
 const PET_FALLBACK = "your pet";
 const BREED_FALLBACK = "dog";
+const CAT_FALLBACK = "cat";
 
 export function formatProductDescription(
   product: Product,
   petName: string | undefined,
   breed: string | undefined,
+  petType?: string | undefined,
 ): string {
   const name = petName?.trim() || PET_FALLBACK;
-  // Breeds in DOG_BREEDS are Title Case; mid-sentence they read better
-  // lowercased ("your golden retriever" not "your Golden Retriever").
-  const breedLower = breed?.trim().toLowerCase() || BREED_FALLBACK;
+  // Breeds in DOG_BREEDS / CAT_BREEDS are Title Case; mid-sentence they read
+  // better lowercased ("your golden retriever" not "your Golden Retriever").
+  // When breed is unknown, fall back to "cat" or "dog" based on petType.
+  const breedLower = breed?.trim().toLowerCase()
+    || (petType === "cat" ? CAT_FALLBACK : BREED_FALLBACK);
   const dim = DIMENSION_BY_SIZE[product.size];
 
   switch (product.format) {
