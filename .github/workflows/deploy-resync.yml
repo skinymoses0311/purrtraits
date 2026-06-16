@@ -1,0 +1,48 @@
+name: Resync Vercel on forced push
+
+# Why this exists:
+# A backwards move (e.g. `git reset --hard` + force-push to an already-built
+# commit) does NOT re-trigger a Vercel build, so the previous deployment keeps
+# serving and the live site silently diverges from the branch HEAD.
+# Vercel's native auto-deploy already handles every normal *forward* push, so
+# this workflow only steps in on FORCED pushes: it fires the project's Vercel
+# deploy hook to force a fresh build (new CDN cache, auto-aliased to the domain).
+#
+# Safe by design: it touches nothing on a normal push, and a spurious trigger
+# just rebuilds the current commit. Hook URLs live in encrypted Actions secrets.
+
+on:
+  push:
+    branches: [master, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resync:
+    # Only act on force-pushes — the backwards moves Vercel won't auto-rebuild.
+    if: github.event.forced
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger fresh Vercel deploy for ${{ github.ref_name }}
+        env:
+          HOOK_STAGING: ${{ secrets.VERCEL_DEPLOY_HOOK_STAGING }}
+          HOOK_PROD: ${{ secrets.VERCEL_DEPLOY_HOOK_PROD }}
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            staging) HOOK="$HOOK_STAGING" ;;
+            master)  HOOK="$HOOK_PROD" ;;
+            *) echo "::error::Unexpected branch ${GITHUB_REF_NAME}"; exit 1 ;;
+          esac
+          if [ -z "${HOOK}" ]; then
+            echo "::error::No deploy hook secret configured for ${GITHUB_REF_NAME}"; exit 1
+          fi
+          echo "Forced push on ${GITHUB_REF_NAME} (${GITHUB_SHA}); triggering fresh Vercel build"
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST "$HOOK")
+          echo "Deploy hook responded HTTP ${code}"; cat /tmp/resp.json || true
+          case "$code" in 200|201) ;; *) echo "::error::Deploy hook failed (HTTP ${code})"; exit 1 ;; esac
