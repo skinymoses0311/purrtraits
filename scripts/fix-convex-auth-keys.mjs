@@ -20,6 +20,9 @@
 
 import { exportJWK, exportPKCS8, generateKeyPair, importPKCS8 } from "jose";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const TARGETS = {
   staging: { keyVar: "CONVEX_DEPLOY_KEY_STAGING", slug: "lovely-warthog-649" },
@@ -88,8 +91,22 @@ const JWKS = JSON.stringify({ keys: [{ use: "sig", ...jwk }] });
 await importPKCS8(JWT_PRIVATE_KEY, "RS256");
 
 // --- Write both as a matched pair ------------------------------------------
-convex(["env", "set", "JWT_PRIVATE_KEY", JWT_PRIVATE_KEY]);
-convex(["env", "set", "JWKS", JWKS]);
+// The PEM value starts with "-----", which the Convex CLI's option parser would
+// treat as a flag if passed as a positional argv. Feed each value through a
+// temp file with `--from-file` so the raw bytes are stored verbatim. The temp
+// dir is created with restrictive perms and removed even if a set call throws.
+const tmp = mkdtempSync(join(tmpdir(), "convex-auth-keys-"));
+try {
+  const setEnv = (name, value) => {
+    const file = join(tmp, name);
+    writeFileSync(file, value, { mode: 0o600 });
+    convex(["env", "set", name, "--from-file", file]);
+  };
+  setEnv("JWT_PRIVATE_KEY", JWT_PRIVATE_KEY);
+  setEnv("JWKS", JWKS);
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
+}
 
 console.log(`\n✓ Set JWT_PRIVATE_KEY + JWKS on ${cfg.slug}.`);
 console.log(`  Verify the public key is now served:`);
