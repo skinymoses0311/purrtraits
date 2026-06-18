@@ -157,6 +157,11 @@ export const saveQuiz = mutation({
   args: {
     id: v.id("sessions"),
     answers: v.object({
+      // Required on all new sessions (post-species-picker cutover).
+      // Optional in the validator so legacy sessions (and the in-flight
+      // migration backfill) can still validate. The backend team's
+      // schema migration card will widen this to a required field.
+      species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
       name: v.optional(v.string()),
       // breed is the joined display string for crossbreeds; breeds is the
       // structured array. Both omitted when the user ticks "I'm not sure".
