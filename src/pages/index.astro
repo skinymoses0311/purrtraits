@@ -359,6 +359,18 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
         </div>
       ))}
     </div>
+
+    {/* Cat samples JSON — read by the client-side species swap below.
+        Rendered once so the gallery can rebuild its three panels from
+        cat data when localStorage says species="cat". Without this,
+        the client script has no way to know which cat images to draw
+        (frontmatter consts are server-only). */}
+    <script
+      type="application/json"
+      id="cat-samples-data"
+      is:inline
+      set:html={JSON.stringify(catSamples)}
+    />
   </section>
 </Layout>
 
@@ -537,8 +549,25 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   // (no localStorage on the server). After the user picks a species in
   // the quiz, the choice lives in `localStorage.purrtraits.species` —
   // we read it here and, if it's "cat", re-render the three panel
-  // bodies from the cat sample data. Dog / unset / anything else
-  // leaves the SSR'd dog content in place.
+  // bodies from the cat sample data injected into a `<script
+  // type="application/json" id="cat-samples-data">` block in the
+  // HTML. Dog / unset / anything else leaves the SSR'd dog content
+  // in place. We read the JSON from the DOM (rather than re-importing
+  // the data) because Astro frontmatter consts are server-only and
+  // module scripts can't take define:vars.
+  type CatSample = { name: string; blurb: string; src: string };
+  function getCatSamples(): Record<"styles" | "artists" | "famous", CatSample[]> | null {
+    const el = document.getElementById("cat-samples-data");
+    if (!el) return null;
+    try {
+      return JSON.parse(el.textContent || "null") as Record<
+        "styles" | "artists" | "famous",
+        CatSample[]
+      >;
+    } catch {
+      return null;
+    }
+  }
   function initSpeciesGallery() {
     let species: string | null = null;
     try {
@@ -547,6 +576,9 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       return;
     }
     if (species !== "cat") return;
+
+    const catSamples = getCatSamples();
+    if (!catSamples) return;
 
     const panels = document.querySelectorAll<HTMLElement>(".samples__panel");
     if (panels.length === 0) return;
