@@ -23,6 +23,7 @@ const lineItemValidator = v.object({
   breed: v.optional(v.string()),
   quantity: v.number(),
   unitPriceCents: v.number(),
+  species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
 });
 
 // Pre-creates a "pending" order at checkout-session-create time. Cart is
@@ -47,6 +48,15 @@ export const createPending = internalMutation({
 
     const session = await ctx.db.get(args.sessionId);
     const selectedStyle = session?.selectedStyle ?? args.lineItems[0]?.style;
+    // Snapshot species at the order level. All line items on a single
+    // order are the same pet, so any line's species (or the session's
+    // denormalized top-level species — same value, the session is the
+    // source of truth) is the order's species. The checkout action passes
+    // it on each line item so we don't need to re-read the session here.
+    const orderSpecies =
+      args.lineItems.find((li) => li.species)?.species ??
+      session?.species ??
+      undefined;
 
     return await ctx.db.insert("orders", {
       sessionId: args.sessionId,
@@ -59,6 +69,7 @@ export const createPending = internalMutation({
       lineItems: args.lineItems,
       petName: args.petName,
       selectedStyle,
+      species: orderSpecies,
       status: "pending",
     });
   },

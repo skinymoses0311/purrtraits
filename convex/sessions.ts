@@ -182,7 +182,18 @@ export const saveQuiz = mutation({
   handler: async (ctx, { id, answers }) => {
     const rankedStyles = scoreStyles(answers);
     const rankedArtists = scoreArtists(answers);
-    await ctx.db.patch(id, { quizAnswers: answers, rankedStyles, rankedArtists });
+    // Dual-write quizAnswers.species onto the denormalized top-level
+    // `species` field in the same patch. Quiz answers are the single source
+    // of truth; the top-level mirror exists so by_species scans can use an
+    // index instead of filtering on a nested field. Idempotent: writing
+    // undefined for the top-level mirror clears it on legacy rows where the
+    // user hasn't picked a species yet (matters for clearCurrentFlow too).
+    await ctx.db.patch(id, {
+      quizAnswers: answers,
+      rankedStyles,
+      rankedArtists,
+      species: answers.species,
+    });
   },
 });
 
@@ -437,6 +448,7 @@ export const clearCurrentFlow = mutation({
       petPhotoStorageIds: [],
       petPhotoUrls: [],
       quizAnswers: undefined,
+      species: undefined,
       generations: undefined,
       selectedStyle: undefined,
       rankedStyles: undefined,

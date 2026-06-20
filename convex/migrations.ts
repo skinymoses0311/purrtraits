@@ -418,3 +418,299 @@ export const stripRoomFromQuizAnswersPage = internalMutation({
     };
   },
 });
+
+// Backfill species onto every pre-cutover session, order, cart line, and
+// generation / gallery item. The schema widened species to v.optional in
+// the schema-migration step; this backfill stamps the "dog" default so
+// legacy data has a stable species value once the validators narrow.
+//
+// Idempotent — every guard is "if the field is already set, skip":
+//   - sessions: quizAnswers.species missing  → set to "dog"
+//                top-level species missing   → set to "dog"
+//   - orders:    top-level species missing   → derive from first lineItem
+//                with species, else "dog"
+//                lineItems[i].species missing → set to "dog"
+//   - carts.items[i].species missing         → set to "dog"
+//   - legacy sessions.cart[i].species missing → set to "dog"
+//   - sessions.generations[i].species missing → set to "dog"
+//   - sessions.galleryItems[i].species missing → set to "dog"
+//
+// Page size 50 (matches the existing migrations in this file).
+export const backfillSpecies = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    let cursor: string | null = null;
+    let sessionsScanned = 0;
+    let sessionsPatched = 0;
+    let ordersScanned = 0;
+    let ordersPatched = 0;
+    let lineItemsPatched = 0;
+    let cartsScanned = 0;
+    let cartsPatched = 0;
+    let cartLinesPatched = 0;
+    let generationsPatched = 0;
+    let galleryItemsPatched = 0;
+    while (true) {
+      const result: {
+        cursor: string | null;
+        isDone: boolean;
+        sessionsScanned: number;
+        sessionsPatched: number;
+        ordersScanned: number;
+        ordersPatched: number;
+        lineItemsPatched: number;
+        cartsScanned: number;
+        cartsPatched: number;
+        cartLinesPatched: number;
+        generationsPatched: number;
+        galleryItemsPatched: number;
+      } = await ctx.runMutation(
+        internal.migrations.backfillSpeciesPage,
+        { cursor },
+      );
+      sessionsScanned += result.sessionsScanned;
+      sessionsPatched += result.sessionsPatched;
+      ordersScanned += result.ordersScanned;
+      ordersPatched += result.ordersPatched;
+      lineItemsPatched += result.lineItemsPatched;
+      cartsScanned += result.cartsScanned;
+      cartsPatched += result.cartsPatched;
+      cartLinesPatched += result.cartLinesPatched;
+      generationsPatched += result.generationsPatched;
+      galleryItemsPatched += result.galleryItemsPatched;
+      if (result.isDone) break;
+      cursor = result.cursor;
+    }
+    return {
+      sessionsScanned,
+      sessionsPatched,
+      ordersScanned,
+      ordersPatched,
+      lineItemsPatched,
+      cartsScanned,
+      cartsPatched,
+      cartLinesPatched,
+      generationsPatched,
+      galleryItemsPatched,
+    };
+  },
+});
+
+export const backfillSpeciesPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    // Walk sessions in pages. The legacy sessions.cart + sessions.generations
+    // + sessions.galleryItems arrays live on the same row so we handle
+    // them in this same pass. Orders + carts are separate tables; we
+    // iterate them within the same page so the action's total count is
+    // meaningful.
+    const page = await ctx.db
+      .query("sessions")
+      .paginate({ cursor, numItems: 50 });
+
+    let sessionsScanned = 0;
+    let sessionsPatched = 0;
+    let generationsPatched = 0;
+    let galleryItemsPatched = 0;
+    let cartLinesPatched = 0;
+
+    for (const session of page.page) {
+      sessionsScanned += 1;
+      const answers = session.quizAnswers;
+      const answersSpecies = answers?.species;
+      // Prefer the quizAnswers value if already set; otherwise default to
+      // "dog" for legacy sessions. The top-level species field mirrors
+      // quizAnswers.species at saveQuiz time; pre-cutover rows have
+      // neither, so we write "dog" to both.
+      const species = answersSpecies ?? "dog";
+
+      let changed = false;
+      const patch: Partial<typeof session> = {};
+
+      if (answersSpecies === undefined && answers) {
+        patch.quizAnswers = { ...answers, species: "dog" };
+        changed = true;
+      }
+      if (session.species === undefined) {
+        patch.species = species;
+        changed = true;
+      }
+
+      // Generations: per-line species. Idempotent — skip if already set.
+      const gens = session.generations;
+      if (gens && gens.length > 0) {
+        const nextGens = gens.map((g) => {
+          if (g.species !== undefined) return g;
+          generationsPatched += 1;
+          return { ...g, species };
+        });
+        if (nextGens.some((g, i) => g !== gens[i])) {
+          patch.generations = nextGens;
+          changed = true;
+        }
+      }
+
+      // Gallery items: per-line species.
+      const gallery = session.galleryItems;
+      if (gallery && gallery.length > 0) {
+        const nextGallery = gallery.map((g) => {
+          if (g.species !== undefined) return g;
+          galleryItemsPatched += 1;
+          return { ...g, species };
+        });
+        if (nextGallery.some((g, i) => g !== gallery[i])) {
+          patch.galleryItems = nextGallery;
+          changed = true;
+        }
+      }
+
+      // Legacy anonymous sessions.cart: per-line species.
+      const cart = session.cart;
+      if (cart && cart.length > 0) {
+        const nextCart = cart.map((line) => {
+          if (line.species !== undefined) return line;
+          cartLinesPatched += 1;
+          return { ...line, species };
+        });
+        if (nextCart.some((l, i) => l !== cart[i])) {
+          patch.cart = nextCart;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await ctx.db.patch(session._id, patch);
+        sessionsPatched += 1;
+      }
+    }
+
+    // Orders: a separate full-table scan per page (cheap — orders count is
+    // bounded by checkout volume). For each order with missing top-level
+    // species, derive from the first lineItem that has a species, or
+    // "dog" defensively if no lineItem carries species yet. For each
+    // lineItem with missing species, set to the derived orderSpecies.
+    let ordersScanned = 0;
+    let ordersPatched = 0;
+    let lineItemsPatched = 0;
+    const orderCursor = cursor;
+    const orderPage = await ctx.db
+      .query("orders")
+      .paginate({ cursor: orderCursor, numItems: 50 });
+
+    for (const order of orderPage.page) {
+      ordersScanned += 1;
+      const lines = order.lineItems;
+      const firstWithSpecies = lines?.find((l) => l.species !== undefined);
+      const derivedSpecies = firstWithSpecies?.species ?? order.species ?? "dog";
+
+      let changed = false;
+      const patch: Partial<typeof order> = {};
+      if (order.species === undefined) {
+        patch.species = derivedSpecies;
+        changed = true;
+      }
+      if (lines && lines.length > 0) {
+        const nextLines = lines.map((line) => {
+          if (line.species !== undefined) return line;
+          lineItemsPatched += 1;
+          return { ...line, species: derivedSpecies };
+        });
+        if (nextLines.some((l, i) => l !== lines[i])) {
+          patch.lineItems = nextLines;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await ctx.db.patch(order._id, patch);
+        ordersPatched += 1;
+      }
+    }
+
+    // Carts: per-row per-line. Idempotent.
+    let cartsScanned = 0;
+    let cartsPatched = 0;
+    const cartCursor = cursor;
+    const cartPage = await ctx.db
+      .query("carts")
+      .paginate({ cursor: cartCursor, numItems: 50 });
+    for (const cart of cartPage.page) {
+      cartsScanned += 1;
+      const items = cart.items;
+      if (items.length === 0) continue;
+      const nextItems = items.map((line) => {
+        if (line.species !== undefined) return line;
+        return { ...line, species: "dog" as const };
+      });
+      if (nextItems.some((l, i) => l !== items[i])) {
+        await ctx.db.patch(cart._id, { items: nextItems });
+        cartsPatched += 1;
+      }
+    }
+
+    // Done when ALL three sub-scans are done (sessions AND orders AND
+    // carts). They share the same cursor stream (same numItems), but
+    // they may finish at different rates if any of the tables is empty.
+    // We report isDone when the slowest one is done.
+    const isDone =
+      page.isDone && orderPage.isDone && cartPage.isDone;
+    return {
+      cursor: isDone ? null : page.continueCursor,
+      isDone,
+      sessionsScanned,
+      sessionsPatched,
+      ordersScanned,
+      ordersPatched,
+      lineItemsPatched,
+      cartsScanned,
+      cartsPatched,
+      cartLinesPatched,
+      generationsPatched,
+      galleryItemsPatched,
+    };
+  },
+});
+
+// Diagnostic — returns counts of how many rows still have a missing
+// species field on each of the five tables. A "0" on every count signals
+// the backfill is complete and a future deploy can safely narrow the
+// species validators from v.optional(...) to required.
+export const verifySpeciesBackfill = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    let sessionsRemaining = 0;
+    let ordersRemaining = 0;
+    let generationsRemaining = 0;
+    let cartLinesRemaining = 0;
+    let galleryItemsRemaining = 0;
+
+    // Sessions: any session whose denormalized top-level species is
+    // missing (or whose quizAnswers.species is missing on a session that
+    // has quizAnswers). Sample the table — bounded by numItems 1000.
+    for await (const s of ctx.db.query("sessions")) {
+      if (s.species === undefined) sessionsRemaining += 1;
+      for (const g of s.generations ?? []) {
+        if (g.species === undefined) generationsRemaining += 1;
+      }
+      for (const it of s.galleryItems ?? []) {
+        if (it.species === undefined) galleryItemsRemaining += 1;
+      }
+      for (const l of s.cart ?? []) {
+        if (l.species === undefined) cartLinesRemaining += 1;
+      }
+      if (sessionsRemaining + generationsRemaining + galleryItemsRemaining + cartLinesRemaining > 1000) break;
+    }
+
+    for await (const o of ctx.db.query("orders")) {
+      if (o.species === undefined) ordersRemaining += 1;
+      if (ordersRemaining > 1000) break;
+    }
+
+    return {
+      sessionsRemaining,
+      ordersRemaining,
+      generationsRemaining,
+      cartLinesRemaining,
+      galleryItemsRemaining,
+    };
+  },
+});

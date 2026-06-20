@@ -169,6 +169,21 @@ export function buildBreedPrimacy(
   return `Note for vocabulary only: the pet is ${breedPhrase}. The reference photos are the absolute source of truth for this individual pet's appearance — render the exact pet shown, not a breed-typical example. If the pet's fur colour, markings, build, ear shape, eye colour, or any other visible feature differs from what is typical for the breed, follow the photos and ignore the breed.`;
 }
 
+// Species-level primacy for cats. The Tab 1/2 style prompts and the Tab 3
+// placement prompts are dog-oriented in their subject phrasing, and
+// diffusion-style models otherwise drift the subject toward canine
+// features (snout, muzzle, jowls, coat patterns). Anchoring the species up
+// front — the same way buildBreedPrimacy anchors the breed — prevents the
+// drift. Returns "" for undefined / "dog" so legacy behaviour is unchanged.
+// Exported so the Tab 3 (Seedream) pipeline can layer the same primacy
+// onto its medium-led placement prompts in buildArtworkPrompt.
+export function buildSpeciesPrimacy(
+  species: "dog" | "cat" | undefined,
+): string {
+  if (species !== "cat") return "";
+  return `Note for vocabulary only: the subject is a cat. The reference photos are the absolute source of truth for this individual cat's appearance — render the exact cat shown, not a breed- or species-typical example. Do not depict a dog or any canine form under any circumstance; if the rendered subject shows a snout, muzzle, jowls, or coat pattern characteristic of a dog, the render is wrong. Render the subject with feline features: pointed or rounded ears set on top of the head, a short muzzle, vertical slit or large round pupils, whiskers, a lithe body, and a tail of appropriate length for the breed. If the cat's coat colour, markings, ear shape, eye colour, or any other visible feature differs from what is typical for the breed, follow the photos and ignore the breed.`;
+}
+
 // Leads every prompt. Diffusion-style models weight earlier text more, and the
 // negative-only border rule at the end of IDENTITY_GUARD has not been strong
 // enough on its own — several styles (ukiyo, pop, sketch, watercolour,
@@ -185,8 +200,15 @@ export function buildPrompt(
   breeds?: string[],
   breed?: string,
   favouriteFeature?: string,
+  species?: "dog" | "cat",
 ): string {
   const stylePart = STYLE_OR_ARTIST_PROMPTS[key];
+  // Species primacy sits immediately after FULL_BLEED_LEAD so the
+  // subject-as-cat instruction is read BEFORE any style/activity phrasing
+  // can pull the render back toward canine defaults. Empty for undefined
+  // and "dog" — legacy behaviour is unchanged.
+  const speciesPrimacy = buildSpeciesPrimacy(species);
+  const speciesPrimacyPart = speciesPrimacy ? ` ${speciesPrimacy}` : "";
   // Activity (what the pet is doing) leads — it sets the scene. Style then
   // dictates how that scene is rendered. Mood adds emotional flavour.
   const activityPart = activity ? ` ${ACTIVITY_PROMPTS[activity] ?? ""}` : "";
@@ -199,7 +221,7 @@ export function buildPrompt(
   // adjacent block. Empty when breed is unknown.
   const breedPrimacy = buildBreedPrimacy(breeds, breed);
   const breedPrimacyPart = breedPrimacy ? ` ${breedPrimacy}` : "";
-  return `${FULL_BLEED_LEAD} ${stylePart}${activityPart}${moodPart}${featurePart}${breedPrimacyPart} ${IDENTITY_GUARD}`;
+  return `${FULL_BLEED_LEAD}${speciesPrimacyPart} ${stylePart}${activityPart}${moodPart}${featurePart}${breedPrimacyPart} ${IDENTITY_GUARD}`;
 }
 
 // ----- fal API call --------------------------------------------------------
@@ -417,6 +439,7 @@ async function generateAllStyles(
   const breeds = session.quizAnswers?.breeds;
   const breed = session.quizAnswers?.breed;
   const favouriteFeature = session.quizAnswers?.favouriteFeature;
+  const species = session.quizAnswers?.species;
 
   // Fire chosen styles in parallel. If one fails we keep the rest;
   // returning a partial gallery is better than blanking the screen.
@@ -424,7 +447,7 @@ async function generateAllStyles(
     styles.map((style) =>
       generateOnePortrait(
         ctx,
-        buildPrompt(style, activity, mood, breeds, breed, favouriteFeature),
+        buildPrompt(style, activity, mood, breeds, breed, favouriteFeature, species),
         photos,
       ).then((urls) => ({ style, ...urls })),
     ),
@@ -518,6 +541,7 @@ export const generatePortraits = action({
             session?.quizAnswers?.activity,
             session?.quizAnswers?.mood,
             session?.quizAnswers?.favouriteFeature,
+            session?.quizAnswers?.species,
           )
         : await (async () => {
             const ranked = (session?.rankedStyles ?? []) as StyleOrArtist[];
@@ -609,6 +633,7 @@ export const regenerate = action({
             session.quizAnswers?.activity,
             session.quizAnswers?.mood,
             session.quizAnswers?.favouriteFeature,
+            session.quizAnswers?.species,
           )
         : await (async () => {
             // Re-paint the same styles the user just saw, unless caller overrides.

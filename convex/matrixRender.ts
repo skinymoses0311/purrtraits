@@ -68,6 +68,7 @@ export const runMatrixJob = action({
       args.activity,
       args.mood,
       args.favouriteFeature,
+      undefined, // species — the matrix is dog-only (the operator runs it against the current catalogue, all of which assume a dog subject)
     );
 
     if (results.length > 0) {
