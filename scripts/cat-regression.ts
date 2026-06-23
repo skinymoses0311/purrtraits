@@ -326,7 +326,7 @@ function writeReport(batchId: string, photos: Array<{ slug: string }>, styles: s
 
 // ─── Modes ─────────────────────────────────────────────────────────────────
 async function modeList(): Promise<void> {
-  const batches = (await client.query(api.catRegression.catRegressionGetBatch, {
+  const batches = (await client.query(api.catRegressionQueries.catRegressionGetBatch, {
     token: SEED_TOKEN!,
   })) as { batchId: string; count: number; createdAt: number }[];
   if (batches.length === 0) {
@@ -340,7 +340,7 @@ async function modeList(): Promise<void> {
 }
 
 async function modeReport(batchId: string): Promise<void> {
-  const rows = (await client.query(api.catRegression.catRegressionList, {
+  const rows = (await client.query(api.catRegressionQueries.catRegressionList, {
     token: SEED_TOKEN!,
     batchId,
   })) as CatRow[];
@@ -422,7 +422,7 @@ async function modeRender(batchId: string): Promise<void> {
 
   console.log(`\nRendering finished — ${done} rendered, ${failed} failed.`);
 
-  const rows = (await client.query(api.catRegression.catRegressionList, {
+  const rows = (await client.query(api.catRegressionQueries.catRegressionList, {
     token: SEED_TOKEN!,
     batchId,
   })) as CatRow[];

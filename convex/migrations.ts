@@ -442,45 +442,53 @@ export const backfillSpecies = internalAction({
     let cursor: string | null = null;
     let sessionsScanned = 0;
     let sessionsPatched = 0;
-    let ordersScanned = 0;
-    let ordersPatched = 0;
-    let lineItemsPatched = 0;
-    let cartsScanned = 0;
-    let cartsPatched = 0;
-    let cartLinesPatched = 0;
     let generationsPatched = 0;
     let galleryItemsPatched = 0;
+    let cartLinesPatched = 0;
     while (true) {
-      const result: {
-        cursor: string | null;
-        isDone: boolean;
-        sessionsScanned: number;
-        sessionsPatched: number;
-        ordersScanned: number;
-        ordersPatched: number;
-        lineItemsPatched: number;
-        cartsScanned: number;
-        cartsPatched: number;
-        cartLinesPatched: number;
-        generationsPatched: number;
-        galleryItemsPatched: number;
-      } = await ctx.runMutation(
-        internal.migrations.backfillSpeciesPage,
+      const result = await ctx.runMutation(
+        internal.migrations.backfillSpeciesSessionsPage,
         { cursor },
       );
       sessionsScanned += result.sessionsScanned;
       sessionsPatched += result.sessionsPatched;
-      ordersScanned += result.ordersScanned;
-      ordersPatched += result.ordersPatched;
-      lineItemsPatched += result.lineItemsPatched;
-      cartsScanned += result.cartsScanned;
-      cartsPatched += result.cartsPatched;
-      cartLinesPatched += result.cartLinesPatched;
       generationsPatched += result.generationsPatched;
       galleryItemsPatched += result.galleryItemsPatched;
+      cartLinesPatched += result.cartLinesPatched;
       if (result.isDone) break;
       cursor = result.cursor;
     }
+
+    let ordersScanned = 0;
+    let ordersPatched = 0;
+    let lineItemsPatched = 0;
+    cursor = null;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.migrations.backfillSpeciesOrdersPage,
+        { cursor },
+      );
+      ordersScanned += result.ordersScanned;
+      ordersPatched += result.ordersPatched;
+      lineItemsPatched += result.lineItemsPatched;
+      if (result.isDone) break;
+      cursor = result.cursor;
+    }
+
+    let cartsScanned = 0;
+    let cartsPatched = 0;
+    cursor = null;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.migrations.backfillSpeciesCartsPage,
+        { cursor },
+      );
+      cartsScanned += result.cartsScanned;
+      cartsPatched += result.cartsPatched;
+      if (result.isDone) break;
+      cursor = result.cursor;
+    }
+
     return {
       sessionsScanned,
       sessionsPatched,
@@ -496,32 +504,22 @@ export const backfillSpecies = internalAction({
   },
 });
 
-export const backfillSpeciesPage = internalMutation({
+// Backfill species on sessions (including generations, galleryItems, cart lines).
+export const backfillSpeciesSessionsPage = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, { cursor }) => {
-    // Walk sessions in pages. The legacy sessions.cart + sessions.generations
-    // + sessions.galleryItems arrays live on the same row so we handle
-    // them in this same pass. Orders + carts are separate tables; we
-    // iterate them within the same page so the action's total count is
-    // meaningful.
     const page = await ctx.db
       .query("sessions")
       .paginate({ cursor, numItems: 50 });
 
-    let sessionsScanned = 0;
     let sessionsPatched = 0;
     let generationsPatched = 0;
     let galleryItemsPatched = 0;
     let cartLinesPatched = 0;
 
     for (const session of page.page) {
-      sessionsScanned += 1;
       const answers = session.quizAnswers;
       const answersSpecies = answers?.species;
-      // Prefer the quizAnswers value if already set; otherwise default to
-      // "dog" for legacy sessions. The top-level species field mirrors
-      // quizAnswers.species at saveQuiz time; pre-cutover rows have
-      // neither, so we write "dog" to both.
       const species = answersSpecies ?? "dog";
 
       let changed = false;
@@ -536,7 +534,6 @@ export const backfillSpeciesPage = internalMutation({
         changed = true;
       }
 
-      // Generations: per-line species. Idempotent — skip if already set.
       const gens = session.generations;
       if (gens && gens.length > 0) {
         const nextGens = gens.map((g) => {
@@ -550,7 +547,6 @@ export const backfillSpeciesPage = internalMutation({
         }
       }
 
-      // Gallery items: per-line species.
       const gallery = session.galleryItems;
       if (gallery && gallery.length > 0) {
         const nextGallery = gallery.map((g) => {
@@ -564,7 +560,6 @@ export const backfillSpeciesPage = internalMutation({
         }
       }
 
-      // Legacy anonymous sessions.cart: per-line species.
       const cart = session.cart;
       if (cart && cart.length > 0) {
         const nextCart = cart.map((line) => {
@@ -584,21 +579,30 @@ export const backfillSpeciesPage = internalMutation({
       }
     }
 
-    // Orders: a separate full-table scan per page (cheap — orders count is
-    // bounded by checkout volume). For each order with missing top-level
-    // species, derive from the first lineItem that has a species, or
-    // "dog" defensively if no lineItem carries species yet. For each
-    // lineItem with missing species, set to the derived orderSpecies.
-    let ordersScanned = 0;
+    return {
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+      sessionsScanned: page.page.length,
+      sessionsPatched,
+      generationsPatched,
+      galleryItemsPatched,
+      cartLinesPatched,
+    };
+  },
+});
+
+// Backfill species on orders + line items.
+export const backfillSpeciesOrdersPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db
+      .query("orders")
+      .paginate({ cursor, numItems: 50 });
+
     let ordersPatched = 0;
     let lineItemsPatched = 0;
-    const orderCursor = cursor;
-    const orderPage = await ctx.db
-      .query("orders")
-      .paginate({ cursor: orderCursor, numItems: 50 });
 
-    for (const order of orderPage.page) {
-      ordersScanned += 1;
+    for (const order of page.page) {
       const lines = order.lineItems;
       const firstWithSpecies = lines?.find((l) => l.species !== undefined);
       const derivedSpecies = firstWithSpecies?.species ?? order.species ?? "dog";
@@ -626,15 +630,27 @@ export const backfillSpeciesPage = internalMutation({
       }
     }
 
-    // Carts: per-row per-line. Idempotent.
-    let cartsScanned = 0;
-    let cartsPatched = 0;
-    const cartCursor = cursor;
-    const cartPage = await ctx.db
+    return {
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+      ordersScanned: page.page.length,
+      ordersPatched,
+      lineItemsPatched,
+    };
+  },
+});
+
+// Backfill species on cart items.
+export const backfillSpeciesCartsPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db
       .query("carts")
-      .paginate({ cursor: cartCursor, numItems: 50 });
-    for (const cart of cartPage.page) {
-      cartsScanned += 1;
+      .paginate({ cursor, numItems: 50 });
+
+    let cartsPatched = 0;
+
+    for (const cart of page.page) {
       const items = cart.items;
       if (items.length === 0) continue;
       const nextItems = items.map((line) => {
@@ -647,25 +663,11 @@ export const backfillSpeciesPage = internalMutation({
       }
     }
 
-    // Done when ALL three sub-scans are done (sessions AND orders AND
-    // carts). They share the same cursor stream (same numItems), but
-    // they may finish at different rates if any of the tables is empty.
-    // We report isDone when the slowest one is done.
-    const isDone =
-      page.isDone && orderPage.isDone && cartPage.isDone;
     return {
-      cursor: isDone ? null : page.continueCursor,
-      isDone,
-      sessionsScanned,
-      sessionsPatched,
-      ordersScanned,
-      ordersPatched,
-      lineItemsPatched,
-      cartsScanned,
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+      cartsScanned: page.page.length,
       cartsPatched,
-      cartLinesPatched,
-      generationsPatched,
-      galleryItemsPatched,
     };
   },
 });
