@@ -8,7 +8,7 @@ const homeJsonLd = {
       "@type": "Organization",
       name: "Purrtraits",
       url: "https://purrtraits.shop",
-      logo: "https://purrtraits.shop/og-default.png",
+      logo: "https://purrtraits.shop/og-default-dog.png",
     },
     {
       "@type": "WebSite",
@@ -104,6 +104,32 @@ const samples: Record<"styles" | "artists" | "famous", Sample[]> = {
     { name: "A Sunday on La Grande Jatte",    blurb: "Seurat · pointillist park, summer afternoon", src: "/samples/famous/grande_jatte.jpg" },
   ],
 };
+// Cat samples — same shape, placeholder paths under each tab folder.
+// The CMO/brand team will replace the placeholder images
+// (cat-1/2/3.jpg) with the real cat portraits. The 3-card grid + tab
+// structure is unchanged so the layout reuses the existing CSS.
+const catSamples: Record<"styles" | "artists" | "famous", Sample[]> = {
+  styles: [
+    { name: "Oil Painting", blurb: "Rich, textured, classical",   src: "/samples/styles/cat-1.jpg" },
+    { name: "Watercolour",  blurb: "Soft, dreamy, gentle tones",  src: "/samples/styles/cat-2.jpg" },
+    { name: "Pop Art",      blurb: "Bold colours, graphic style", src: "/samples/styles/cat-3.jpg" },
+  ],
+  artists: [
+    { name: "Monet",   blurb: "Impressionist light, soft dappled colour",    src: "/samples/artists/cat-1.jpg" },
+    { name: "Hokusai", blurb: "Ukiyo-e woodblock, bold line and wave",       src: "/samples/artists/cat-2.jpg" },
+    { name: "Klimt",   blurb: "Gold leaf opulence, Art Nouveau pattern",     src: "/samples/artists/cat-3.jpg" },
+  ],
+  famous: [
+    { name: "The Starry Night",               blurb: "Van Gogh · swirling cobalt night sky",        src: "/samples/famous/cat-1.jpg" },
+    { name: "The Garden of Earthly Delights", blurb: "Bosch · surreal triptych, dreamlike detail",  src: "/samples/famous/cat-2.jpg" },
+    { name: "A Sunday on La Grande Jatte",    blurb: "Seurat · pointillist park, summer afternoon", src: "/samples/famous/cat-3.jpg" },
+  ],
+};
+// Server-rendered default. Astro renders the panel markup at build /
+// SSR time, so a server has no localStorage to read. The cat swap is
+// done client-side below using the `catSamples` data injected into
+// the page's <script> block.
+const samplesResolved: Record<"styles" | "artists" | "famous", Sample[]> = samples;
 const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   { key: "styles",  label: "Styles" },
   { key: "artists", label: "Artists" },
@@ -318,7 +344,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
           data-panel={t.key}
           hidden={i !== 0}
         >
-          {samples[t.key].map((s, idx) => (
+          {samplesResolved[t.key].map((s, idx) => (
             <div class="sample-card">
               <div class="sample-card__frame">
                 <img src={s.src} alt={`${s.name} sample portrait`} loading="lazy" decoding="async" />
@@ -333,6 +359,18 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
         </div>
       ))}
     </div>
+
+    {/* Cat samples JSON — read by the client-side species swap below.
+        Rendered once so the gallery can rebuild its three panels from
+        cat data when localStorage says species="cat". Without this,
+        the client script has no way to know which cat images to draw
+        (frontmatter consts are server-only). */}
+    <script
+      type="application/json"
+      id="cat-samples-data"
+      is:inline
+      set:html={JSON.stringify(catSamples)}
+    />
   </section>
 </Layout>
 
@@ -507,11 +545,95 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
     });
   }
 
+  // Cat-aware gallery swap. SSR / build-time renders the dog samples
+  // (no localStorage on the server). After the user picks a species in
+  // the quiz, the choice lives in `localStorage.purrtraits.species` —
+  // we read it here and, if it's "cat", re-render the three panel
+  // bodies from the cat sample data injected into a `<script
+  // type="application/json" id="cat-samples-data">` block in the
+  // HTML. Dog / unset / anything else leaves the SSR'd dog content
+  // in place. We read the JSON from the DOM (rather than re-importing
+  // the data) because Astro frontmatter consts are server-only and
+  // module scripts can't take define:vars.
+  type CatSample = { name: string; blurb: string; src: string };
+  function getCatSamples(): Record<"styles" | "artists" | "famous", CatSample[]> | null {
+    const el = document.getElementById("cat-samples-data");
+    if (!el) return null;
+    try {
+      return JSON.parse(el.textContent || "null") as Record<
+        "styles" | "artists" | "famous",
+        CatSample[]
+      >;
+    } catch {
+      return null;
+    }
+  }
+  function initSpeciesGallery() {
+    let species: string | null = null;
+    try {
+      species = localStorage.getItem("purrtraits.species");
+    } catch {
+      return;
+    }
+    if (species !== "cat") return;
+
+    const catSamples = getCatSamples();
+    if (!catSamples) return;
+
+    const panels = document.querySelectorAll<HTMLElement>(".samples__panel");
+    if (panels.length === 0) return;
+    const tabKeys: Array<"styles" | "artists" | "famous"> = [
+      "styles",
+      "artists",
+      "famous",
+    ];
+
+    panels.forEach((panel) => {
+      const key = panel.dataset.panel as "styles" | "artists" | "famous" | undefined;
+      if (!key || !tabKeys.includes(key)) return;
+      const data = catSamples[key];
+      // Re-render the panel body with the cat entries. Keep the panel's
+      // own attributes (data-panel, id, aria-labelledby, hidden) so the
+      // existing tab handlers keep working.
+      panel.innerHTML = data
+        .map(
+          (s, idx) => `
+            <div class="sample-card">
+              <div class="sample-card__frame">
+                <img src="${s.src}" alt="${s.name} sample portrait" loading="lazy" decoding="async" />
+              </div>
+              <div class="sample-card__plaque">
+                <div class="sample-card__no">NO. 0${idx + 1}</div>
+                <div class="sample-card__name">${s.name}</div>
+                <div class="sample-card__blurb">${s.blurb}</div>
+              </div>
+            </div>`,
+        )
+        .join("");
+    });
+
+    // Replay the card/plaque entrance animation on the visible panel
+    // (initSamples() already ran and added the class before the swap,
+    // but the new DOM nodes weren't in the panel when it fired). This
+    // gives the cat cards the same entrance as the dog cards.
+    const visible = document.querySelector<HTMLElement>(
+      ".samples__panel:not([hidden])",
+    );
+    if (visible) {
+      visible.classList.remove("is-entering");
+      // Force a reflow so the keyframe restarts cleanly.
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      void visible.offsetHeight;
+      visible.classList.add("is-entering");
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initHero();
     initHow();
     initSamples();
     initTabs();
+    initSpeciesGallery();
   });
 </script>
 

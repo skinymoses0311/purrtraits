@@ -232,6 +232,13 @@ import ProductPreview from "../components/ProductPreview.astro";
       const breed =
         (portrait as any).breed?.trim() ||
         session.quizAnswers?.breed?.trim();
+      // Species is sourced from the session quiz answers (same source the
+      // buildSpeciesPrimacy block reads on the generation side). Kept
+      // optional so legacy sessions without a species still produce
+      // "your dog" copy rather than throwing.
+      const species =
+        (portrait as any).species ??
+        session.quizAnswers?.species;
 
       attachImageLoading();
       hero.src = portrait.imageUrl;
@@ -338,7 +345,7 @@ import ProductPreview from "../components/ProductPreview.astro";
         // Uses the same helper as Stripe checkout so both surfaces match.
         const product = findProduct();
         aboutCopy.textContent = product
-          ? formatProductDescription(product, petName, breed)
+          ? formatProductDescription(product, petName, breed, species)
           : "";
 
         // Benefits chip
@@ -440,6 +447,7 @@ import ProductPreview from "../components/ProductPreview.astro";
             style: selectedStyle,
             petName: petName ?? undefined,
             breed: breed ?? undefined,
+            species: species ?? undefined,
           });
           if (product) {
             const cents = unitPriceCents(product) ?? 0;

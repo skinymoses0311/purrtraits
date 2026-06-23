@@ -20,6 +20,7 @@ import { internal } from "./_generated/api";
 import {
   FULL_BLEED_LEAD,
   buildBreedPrimacy,
+  buildSpeciesPrimacy,
   enforce3by4AndStore,
   MOOD_HINT,
   FEATURE_EMPHASIS,
@@ -34,6 +35,57 @@ const SEEDREAM_URL = "https://fal.run/fal-ai/bytedance/seedream/v4/edit";
 // pet); the cap below is a defensive guard if the photo-list grows in
 // future. Aligned with FAL_MAX_REFERENCE_IMAGES on the Nano Banana path.
 const SEEDREAM_MAX_IMAGES = 10;
+
+// Cat-aware runtime string swap for the catalog placements.
+//
+// The 90 hand-authored placement prompts in convex/artworksCatalog.ts
+// were written assuming a dog subject. For cat subjects the literal "dog"
+// references — proportional scale lines ("Render the dog no larger than…"),
+// "a real dog" phrasing, etc. — read wrong and risk dragging the rendered
+// subject back toward canine defaults even after buildSpeciesPrimacy has
+// run.
+//
+// We rewrite the dog-literal phrases into cat-literal equivalents at
+// runtime. The phrases listed here were gathered from a case-by-case
+// sweep of convex/artworksCatalog.ts (lines 73-167 + the rest of the
+// file). We intentionally do NOT swap:
+//   • "existing dogs" / "existing hounds" — those are animals already
+//     painted into the artwork (Hunters in the Snow's hunting hounds,
+//     Wivenhoe Park's cattle-adjacent animals). The user's cat is
+//     rendered alongside them, not replacing them.
+//   • "the existing dog on the bank" (singular, hay_wain) — same reason.
+// Returns the prompt unchanged for species === undefined or "dog".
+function speciesSwap(
+  species: "dog" | "cat" | undefined,
+  prompt: string,
+): string {
+  if (species !== "cat") return prompt;
+  // Order matters: do the longer phrases first so we don't double-rewrite
+  // a phrase that contains a shorter substring. Each replacement is
+  // case-sensitive because the source strings are all-lower in the
+  // catalog.
+  return prompt
+    .replaceAll("the dog no larger", "the cat no larger")
+    .replaceAll("the dog small enough", "the cat small enough")
+    .replaceAll("the dog at the same scale", "the cat at the same scale")
+    .replaceAll("Render the dog", "Render the cat")
+    .replaceAll("a real dog wading", "a real cat wading")
+    .replaceAll("a real dog standing", "a real cat standing")
+    .replaceAll("a real dog in proportion", "a real cat in proportion")
+    .replaceAll("a real dog by the fence", "a real cat by the fence")
+    .replaceAll("a real dog on the ridge", "a real cat on the ridge")
+    .replaceAll("a real dog on the planks", "a real cat on the planks")
+    .replaceAll("a real dog at the bridge's end", "a real cat at the bridge's end")
+    .replaceAll("a real dog at the lakeside", "a real cat at the lakeside")
+    .replaceAll("a real dog in the meadow", "a real cat in the meadow")
+    .replaceAll("a real dog at the cottage", "a real cat at the cottage")
+    .replaceAll("a real dog at the terrace's scale", "a real cat at the terrace's scale")
+    .replaceAll("a real dog standing on the cobbles", "a real cat standing on the cobbles")
+    .replaceAll("a real dog in the poppies", "a real cat in the poppies")
+    .replaceAll("a real dog among the poppies", "a real cat among the poppies")
+    .replaceAll("a real dog beside the cottage", "a real cat beside the cottage")
+    .replaceAll("a real dog", "a real cat");
+}
 
 // ─── Image order ────────────────────────────────────────────────────────────
 //
@@ -148,6 +200,7 @@ function buildArtworkPrompt(
   activity: string | undefined,
   mood: string | undefined,
   favouriteFeature: string | undefined,
+  species: "dog" | "cat" | undefined,
 ): string {
   const yearPart = artwork.year ? `, ${artwork.year}` : "";
   // Per-era medium descriptor — the model reads this BEFORE the placement,
@@ -166,13 +219,22 @@ function buildArtworkPrompt(
   const artworkSlot = petPhotoCount > 1
     ? `Image ${petPhotoCount + 1} (the last image) is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart} — ${mediumPart}.`
     : `The second image is the existing artwork "${artwork.title}" by ${artwork.artist}${yearPart} — ${mediumPart}.`;
-  // Lead goes first so the framing rule is read before the placement-
-  // specific instruction overrides any of the artwork's existing composition.
-  const lead = `${FULL_BLEED_LEAD} ${photoSlot} ${artworkSlot}`;
-  // The hand-authored placement fragment. Pose-agnostic — see
-  // convex/artworksCatalog.ts. Specifies LOCATION + medium + scene-
-  // preservation; pose comes from the activity-tone hint below.
-  const placementPart = ` ${placement.prompt}`;
+  // Species primacy sits immediately after FULL_BLEED_LEAD so the
+  // subject-as-cat instruction is read BEFORE the placement language can
+  // pull the render back toward canine defaults. The placements talk
+  // about "dog" literally (e.g. "Render the dog no larger than…"); the
+  // primacy block at the lead gives the model the species instruction
+  // first, then speciesSwap rewrites the dog-literal phrases in the
+  // placement to cat-literal ones. Empty for undefined and "dog".
+  const speciesPrimacy = buildSpeciesPrimacy(species);
+  const speciesPrimacyPart = speciesPrimacy ? ` ${speciesPrimacy}` : "";
+  const lead = `${FULL_BLEED_LEAD}${speciesPrimacyPart} ${photoSlot} ${artworkSlot}`;
+  // The hand-authored placement fragment, with dog-literal phrases swapped
+  // to cat-literal equivalents for cat subjects (no-op for dog/undefined).
+  // Pose-agnostic — see convex/artworksCatalog.ts. Specifies LOCATION +
+  // medium + scene-preservation; pose comes from the activity-tone hint
+  // below.
+  const placementPart = ` ${speciesSwap(species, placement.prompt)}`;
   // Activity → pose and demeanour. Quiz-derived. Sits immediately after the
   // placement so the location is read first, then how the pet is posed at
   // that location.
@@ -266,6 +328,7 @@ async function renderOnePlacement(
   activity: string | undefined,
   mood: string | undefined,
   favouriteFeature: string | undefined,
+  species: "dog" | "cat" | undefined,
 ): Promise<{ imageUrl: string; storageId: Id<"_storage"> | null; prompt: string }> {
   const prompt = buildArtworkPrompt(
     artwork,
@@ -276,6 +339,7 @@ async function renderOnePlacement(
     activity,
     mood,
     favouriteFeature,
+    species,
   );
   const lowRes = await callSeedream(prompt, imageUrls);
   const { url, storageId } = await enforce3by4AndStore(ctx, lowRes);
@@ -301,6 +365,7 @@ export async function generateAllArtworkPlacements(
   activity: string | undefined,
   mood: string | undefined,
   favouriteFeature: string | undefined,
+  species: "dog" | "cat" | undefined,
 ): Promise<{ style: string; imageUrl: string; printFileUrl: string }[]> {
   const artwork = (await ctx.runQuery(internal.artworks.getBySlugInternal, {
     slug: artworkSlug,
@@ -317,7 +382,7 @@ export async function generateAllArtworkPlacements(
 
   const tasks = artwork.placements.map(async (p) => {
     const { imageUrl } = await renderOnePlacement(
-      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature,
+      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature, species,
     );
     return {
       style: `artwork:${artwork.slug}:${p.slug}`,
@@ -368,6 +433,7 @@ export async function generateArtworkPlacementsForMatrix(
   activity: string | undefined,
   mood: string | undefined,
   favouriteFeature: string | undefined,
+  species: "dog" | "cat" | undefined,
 ): Promise<{ results: MatrixPlacementResult[]; errors: string[] }> {
   const artwork = (await ctx.runQuery(internal.artworks.getBySlugInternal, {
     slug: artworkSlug,
@@ -382,7 +448,7 @@ export async function generateArtworkPlacementsForMatrix(
 
   const tasks = artwork.placements.map(async (p): Promise<MatrixPlacementResult> => {
     const { imageUrl, storageId, prompt } = await renderOnePlacement(
-      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature,
+      ctx, artwork, p, imageUrls, petPhotoCount, breeds, breed, activity, mood, favouriteFeature, species,
     );
     return {
       placementSlug: p.slug,
