@@ -13,8 +13,8 @@ import Layout from "../layouts/Layout.astro";
     <div class="quiz" id="quiz" data-step="1">
       <div class="quiz__top">
         <div class="progress">
-          <div class="progress__track"><div class="progress__fill" id="progress-fill" style="width:11%"></div></div>
-          <span class="muted" id="progress-label">1 of 9</span>
+          <div class="progress__track"><div class="progress__fill" id="progress-fill" style="width:10%"></div></div>
+          <span class="muted" id="progress-label">1 of 10</span>
         </div>
       </div>
 
@@ -32,6 +32,7 @@ import Layout from "../layouts/Layout.astro";
   import { makeClient, getSessionId, requireOrRedirect } from "../lib/client.ts";
   import { api } from "../../convex/_generated/api.js";
   import { DOG_BREEDS } from "../lib/dogBreeds.ts";
+  import { CAT_BREEDS } from "../lib/catBreeds.ts";
   import { track } from "../lib/analytics.ts";
 
   const client = makeClient();
@@ -44,13 +45,15 @@ import Layout from "../layouts/Layout.astro";
     // call here is sufficient.
     track("quiz_start");
 
-    const TOTAL_STEPS = 9;
+    const TOTAL_STEPS = 10;
     const MAX_CROSSBREEDS = 4;
     const MIN_CROSSBREEDS = 2;
 
     type AnswerKey =
+      | "species"
       | "name"
       | "breed"
+      | "breeds"
       | "gender"
       | "age"
       | "size"
@@ -60,6 +63,9 @@ import Layout from "../layouts/Layout.astro";
       | "favouriteFeature";
 
     type Answers = {
+      // Required on all new sessions (post-species-picker cutover). Legacy
+      // sessions may be missing this — Convex treats it as optional.
+      species?: "dog" | "cat";
       name?: string;
       // Display string used by PDP/cart/Stripe. For crossbreeds it's the
       // joined form ("Labrador Retriever / Poodle"); for single-breed it's
@@ -96,6 +102,7 @@ import Layout from "../layouts/Layout.astro";
 
     type ChoiceOption = { v: string; e: string; t: string; b: string };
     type Step =
+      | { kind: "species"; key: AnswerKey; title: string; sub: string; options: ChoiceOption[] }
       | { kind: "name"; key: AnswerKey; title: string; sub: string }
       | { kind: "breed"; key: AnswerKey; title: string; sub: string }
       | { kind: "choices"; key: AnswerKey; title: string; sub: string; options: ChoiceOption[] };
@@ -104,9 +111,84 @@ import Layout from "../layouts/Layout.astro";
       return answers.name?.trim() || "your pet";
     }
 
+    // Step 1 — species picker. Two large cards. Lives first (per product
+    // edit) so the rest of the flow can branch on it.
+    const SPECIES_OPTIONS: ChoiceOption[] = [
+      {
+        v: "dog",
+        e: "🐶",
+        t: "Dog",
+        b: "Man's best friend, suspiciously good at staring.",
+      },
+      {
+        v: "cat",
+        e: "🐱",
+        t: "Cat",
+        b: "Currently pretending not to notice you.",
+      },
+    ];
+
+    // Step 5 — age. Six vet-standard bands for cats, four familiar ones for
+    // dogs. Cat values are the species-agnostic size vocabulary: kitten,
+    // junior, prime, mature, senior, geriatric. Analytics reads these as a
+    // single dimension alongside the dog values, so the keys don't need to
+    // match — only size (xs/s/m/l/xl) is shared across branches.
+    function ageOptions(species: "dog" | "cat"): ChoiceOption[] {
+      if (species === "cat") {
+        return [
+          { v: "kitten",    e: "🐾",   t: "Kitten",    b: "Under 6 months — everything is a toy" },
+          { v: "junior",    e: "🐈",   t: "Junior",    b: "6 months – 2 years — wise beyond years" },
+          { v: "prime",     e: "🐱",   t: "Prime",     b: "3 – 6 years — peak magnificence" },
+          { v: "mature",    e: "🐈‍⬛", t: "Mature",    b: "7 – 10 years — fully settled opinions" },
+          { v: "senior",    e: "🌙",   t: "Senior",    b: "11 – 14 years — distinguished, slightly judgy" },
+          { v: "geriatric", e: "👑",   t: "Geriatric", b: "15+ — has earned a portrait" },
+        ];
+      }
+      // Dog — preserve existing copy verbatim.
+      return [
+        { v: "under-1", e: "🐶", t: "Under 1", b: "Puppy energy" },
+        { v: "1-3",     e: "🦴", t: "1–3",     b: "Young & lively" },
+        { v: "4-7",     e: "🐕", t: "4–7",     b: "In their prime" },
+        { v: "8-plus",  e: "🦮", t: "8+",      b: "Distinguished senior" },
+      ];
+    }
+
+    // Step 6 — size. **HARD CONSTRAINT:** `xs/s/m/l/xl` keys must stay
+    // identical across the dog and cat branches. Analytics IDs and the
+    // order receipt both read these keys as a single species-agnostic
+    // dimension — do not introduce "kitten" / "adult" / "senior" as the
+    // value keys here. Body copy is what branches.
+    function sizeOptions(species: "dog" | "cat"): ChoiceOption[] {
+      if (species === "cat") {
+        return [
+          { v: "xs", e: "🐭", t: "Extra small", b: "Under 3 kg / under 7 lb — kitten or small breed" },
+          { v: "s",  e: "🐈", t: "Small",       b: "3–4 kg / 7–9 lb — average cat territory" },
+          { v: "m",  e: "🐱", t: "Medium",      b: "4–5 kg / 9–11 lb — comfortably fed" },
+          { v: "l",  e: "🐅", t: "Large",       b: "5–7 kg / 11–15 lb — distinguished gentleman" },
+          { v: "xl", e: "🦁", t: "Extra large", b: "7 kg+ / 15 lb+ — maine coons, very well-fed" },
+        ];
+      }
+      // Dog — preserve existing copy verbatim.
+      return [
+        { v: "xs", e: "🐭", t: "Extra small", b: "Under 4 kg / under 9 lb" },
+        { v: "s",  e: "🐰", t: "Small",       b: "4–9 kg / 9–20 lb" },
+        { v: "m",  e: "🐕", t: "Medium",      b: "9–22 kg / 20–48 lb" },
+        { v: "l",  e: "🐺", t: "Large",       b: "22–40 kg / 48–88 lb" },
+        { v: "xl", e: "🐴", t: "Extra large", b: "40 kg+ / 88 lb+" },
+      ];
+    }
+
     function buildSteps(): Step[] {
       const name = petTok();
+      const species = answers.species;
       return [
+        {
+          kind: "species",
+          key: "species",
+          title: "Dog or cat?",
+          sub: "So we can pick the right portraits.",
+          options: SPECIES_OPTIONS,
+        },
         {
           kind: "name",
           key: "name",
@@ -134,25 +216,16 @@ import Layout from "../layouts/Layout.astro";
           key: "age",
           title: `How old is ${name}?`,
           sub: "Roughly is fine.",
-          options: [
-            { v: "under-1", e: "🐶", t: "Under 1", b: "Puppy energy" },
-            { v: "1-3", e: "🦴", t: "1–3", b: "Young & lively" },
-            { v: "4-7", e: "🐕", t: "4–7", b: "In their prime" },
-            { v: "8-plus", e: "🦮", t: "8+", b: "Distinguished senior" },
-          ],
+          // Legacy sessions (no species set) default to dog so the age
+          // band UI still renders for them.
+          options: ageOptions(species ?? "dog"),
         },
         {
           kind: "choices",
           key: "size",
           title: `How big is ${name}?`,
           sub: "Roughly — no need to weigh them.",
-          options: [
-            { v: "xs", e: "🐭", t: "Extra small", b: "Under 4 kg / under 9 lb" },
-            { v: "s", e: "🐰", t: "Small", b: "4–9 kg / 9–20 lb" },
-            { v: "m", e: "🐕", t: "Medium", b: "9–22 kg / 20–48 lb" },
-            { v: "l", e: "🐺", t: "Large", b: "22–40 kg / 48–88 lb" },
-            { v: "xl", e: "🐴", t: "Extra large", b: "40 kg+ / 88 lb+" },
-          ],
+          options: sizeOptions(species ?? "dog"),
         },
         {
           kind: "choices",
@@ -209,6 +282,50 @@ import Layout from "../layouts/Layout.astro";
       ];
     }
 
+    // Step 1 — species picker. Two large cards. Persists the choice to
+    // localStorage so the homepage gallery (auto-detect mode) and the
+    // Layout-level OG-image swap can read it on the next page load.
+    function renderSpecies(s: Extract<Step, { kind: "species" }>) {
+      stepEl.innerHTML = `
+        <h1>${s.title}</h1>
+        <p class="muted quiz__sub">${s.sub}</p>
+        <div class="quiz__grid quiz__grid--species">
+          ${s.options
+            .map(
+              (o) => `
+                <button class="option ${answers.species === o.v ? "option--active" : ""}" data-v="${escapeHtml(o.v)}">
+                  <span class="option__emoji">${o.e}</span>
+                  <div>
+                    <p class="display option__title">${o.t}</p>
+                    <p class="muted option__blurb">${o.b}</p>
+                  </div>
+                </button>`,
+            )
+            .join("")}
+        </div>
+      `;
+      stepEl.querySelectorAll<HTMLButtonElement>(".option").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const v = btn.dataset.v as "dog" | "cat" | undefined;
+          if (v !== "dog" && v !== "cat") return;
+          answers.species = v;
+          // Persist for the homepage gallery + the Layout-level OG swap.
+          // Quota errors are non-fatal — the in-memory `answers.species`
+          // is what flows to saveQuiz.
+          try {
+            localStorage.setItem("purrtraits.species", v);
+          } catch {
+            /* ignore */
+          }
+          stepEl.querySelectorAll(".option").forEach((el) =>
+            el.classList.toggle("option--active", el === btn),
+          );
+          next.disabled = false;
+        });
+      });
+      next.disabled = !answers.species;
+    }
+
     function renderName(s: Extract<Step, { kind: "name" }>) {
       const value = answers.name ?? "";
       stepEl.innerHTML = `
@@ -236,6 +353,10 @@ import Layout from "../layouts/Layout.astro";
     // "I'm not sure") below the autocomplete, and the multi-select chips
     // appear in crossbreed mode.
     function renderBreed(s: Extract<Step, { kind: "breed" }>) {
+      // Breed list source switches by species. Legacy sessions
+      // (species=undefined) keep using the dog list so the breed step
+      // still works for any pre-cutover session that somehow lands here.
+      const breedSource = answers.species === "cat" ? CAT_BREEDS : DOG_BREEDS;
       const singleValue = !breedUi.isCrossbreed && !breedUi.isUnknown
         ? answers.breed ?? ""
         : "";
@@ -253,7 +374,7 @@ import Layout from "../layouts/Layout.astro";
         <div class="quiz__breed-toggles">
           <label class="option option--toggle">
             <input id="breed-pure" type="radio" name="breed-mode" class="option__checkbox" />
-            <span class="option__emoji">🐕</span>
+            <span class="option__emoji">${answers.species === "cat" ? "🐈" : "🐕"}</span>
             <div>
               <p class="display option__title">Purebreed</p>
               <p class="muted option__blurb">One specific breed</p>
@@ -326,10 +447,10 @@ import Layout from "../layouts/Layout.astro";
         const taken = new Set(
           breedUi.isCrossbreed ? answers.breeds ?? [] : [],
         );
-        const starts = DOG_BREEDS.filter(
+        const starts = breedSource.filter(
           (b) => !taken.has(b) && b.toLowerCase().startsWith(q),
         );
-        const contains = DOG_BREEDS.filter(
+        const contains = breedSource.filter(
           (b) =>
             !taken.has(b) &&
             !b.toLowerCase().startsWith(q) &&
@@ -375,7 +496,7 @@ import Layout from "../layouts/Layout.astro";
       function syncSingle() {
         // In single mode the typed text must exactly match a known breed.
         const v = input.value.trim();
-        const match = DOG_BREEDS.find(
+        const match = breedSource.find(
           (b) => b.toLowerCase() === v.toLowerCase(),
         );
         if (match) {
@@ -645,7 +766,8 @@ import Layout from "../layouts/Layout.astro";
       label.textContent = `${n} of ${TOTAL_STEPS}`;
       prev.style.visibility = n === 1 ? "hidden" : "visible";
       next.textContent = n === TOTAL_STEPS ? "Pick your styles →" : "Next →";
-      if (current.kind === "name") renderName(current);
+      if (current.kind === "species") renderSpecies(current);
+      else if (current.kind === "name") renderName(current);
       else if (current.kind === "breed") renderBreed(current);
       else renderChoices(current);
     }
@@ -705,6 +827,19 @@ import Layout from "../layouts/Layout.astro";
             favourite_feature: value,
           });
         }
+      } else if (completedKey === "species") {
+        // Surface the species at the top level of the event so GA4 funnels
+        // can segment the whole quiz by cat vs dog without parsing the
+        // generic `answer` field.
+        const value = answers.species;
+        if (value) {
+          track("quiz_step_complete", {
+            step_number: completedStep,
+            step_name: "species",
+            answer: value,
+            species: value,
+          });
+        }
       } else {
         const completedAnswer = (answers as Record<string, unknown>)[completedKey];
         if (completedAnswer !== undefined) {
@@ -726,6 +861,7 @@ import Layout from "../layouts/Layout.astro";
 
       const breedSummary = breedAnalytics();
       track("quiz_complete", {
+        species: answers.species,
         gender: answers.gender,
         size: answers.size,
         activity: answers.activity,
@@ -740,6 +876,7 @@ import Layout from "../layouts/Layout.astro";
       await client.mutation(api.sessions.saveQuiz, {
         id: sessionId as any,
         answers: {
+          species: answers.species,
           name: answers.name,
           breed: answers.breed,
           breeds: answers.breeds,
@@ -772,6 +909,14 @@ import Layout from "../layouts/Layout.astro";
 
   .quiz__grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
   @media (min-width: 600px) { .quiz__grid { grid-template-columns: 1fr 1fr; } }
+
+  /* Step 1 (species) — only two cards, so we let them breathe a bit more
+     and bump the emoji/title to feel like a deliberate branch point. The
+     2-column desktop grid is already inherited from .quiz__grid. */
+  .quiz__grid--species { gap: 16px; }
+  .quiz__grid--species .option { padding: 22px 22px; }
+  .quiz__grid--species .option__emoji { font-size: 44px; }
+  .quiz__grid--species .option__title { font-size: 24px; }
 
   .option {
     display: flex; align-items: center; gap: 16px; text-align: left;

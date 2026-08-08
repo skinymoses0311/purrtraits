@@ -17,17 +17,26 @@ const DIMENSION_BY_SIZE: Record<Product["size"], string> = {
 // Quiz already enforces both as required to advance, so these fallbacks only
 // fire on legacy sessions whose schema-optional values were never set.
 const PET_FALLBACK = "your pet";
-const BREED_FALLBACK = "dog";
+
+// Species-aware breed fallback. Pre-species-picker sessions didn't capture
+// species, so the fallback for "what breed is this pet" defaulted to "dog"
+// across the board. For a cat session the fallback should read "cat" so
+// the product copy doesn't claim the portrait is "your dog" for a feline
+// customer. undefined / "dog" → "dog" to keep legacy behaviour unchanged.
+function breedFallback(species: "dog" | "cat" | undefined): string {
+  return species === "cat" ? "cat" : "dog";
+}
 
 export function formatProductDescription(
   product: Product,
   petName: string | undefined,
   breed: string | undefined,
+  species: "dog" | "cat" | undefined = undefined,
 ): string {
   const name = petName?.trim() || PET_FALLBACK;
   // Breeds in DOG_BREEDS are Title Case; mid-sentence they read better
   // lowercased ("your golden retriever" not "your Golden Retriever").
-  const breedLower = breed?.trim().toLowerCase() || BREED_FALLBACK;
+  const breedLower = breed?.trim().toLowerCase() || breedFallback(species);
   const dim = DIMENSION_BY_SIZE[product.size];
 
   switch (product.format) {
