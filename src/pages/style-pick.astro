@@ -26,6 +26,21 @@ try {
   // Folder doesn't exist yet — operator drops files in post-launch.
 }
 
+// Cat equivalents, same naming, under public/samples/cat/{styles,artists}/.
+// Cat sessions prefer these and fall back to the dog sample per style when
+// no cat file exists yet, so a partial set never shows a blank tile.
+function scanSamples(...segments: string[]): string[] {
+  try {
+    return readdirSync(join(process.cwd(), "public", ...segments))
+      .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+const catStyleSamples = scanSamples("samples", "cat", "styles");
+const catArtistSamples = scanSamples("samples", "cat", "artists");
+
 // Skeleton count matches the 10 real cards so the grid is stable when the
 // client replaces them.
 const SKELETON_COUNT = 10;
@@ -171,6 +186,18 @@ const SKELETON_COUNT = 10;
       id="artist-sample-manifest"
       is:inline
       set:html={JSON.stringify(artistSamples)}
+    />
+    <script
+      type="application/json"
+      id="cat-style-sample-manifest"
+      is:inline
+      set:html={JSON.stringify(catStyleSamples)}
+    />
+    <script
+      type="application/json"
+      id="cat-artist-sample-manifest"
+      is:inline
+      set:html={JSON.stringify(catArtistSamples)}
     />
   </main>
 </Layout>
@@ -347,6 +374,11 @@ const SKELETON_COUNT = 10;
       }
       const styleSampleFiles: string[] = readManifest("style-sample-manifest");
       const artistSampleFiles: string[] = readManifest("artist-sample-manifest");
+      // Cat sessions look in the cat folders first; anything missing there
+      // falls back to the dog sample for that style/artist.
+      const isCat = session.quizAnswers!.species === "cat";
+      const catStyleSampleFiles: string[] = isCat ? readManifest("cat-style-sample-manifest") : [];
+      const catArtistSampleFiles: string[] = isCat ? readManifest("cat-artist-sample-manifest") : [];
 
       const quizActivity = session.quizAnswers!.activity;
       const quizMood = session.quizAnswers!.mood;
@@ -359,9 +391,14 @@ const SKELETON_COUNT = 10;
       // with an optional trailing session-id suffix; neither activity
       // nor mood vocabularies contain underscores (tongue-out uses a
       // hyphen) so split-on-_ is safe.
-      function findStyleSample(activity: string, mood: string, style: string): string | null {
+      function findStyleSampleIn(
+        files: string[],
+        activity: string,
+        mood: string,
+        style: string,
+      ): string | undefined {
         function match(aWant: string | "*", mWant: string | "*"): string | undefined {
-          return styleSampleFiles.find((f) => {
+          return files.find((f) => {
             const base = f.replace(/\.[^.]+$/, "");
             const parts = base.split("_");
             if (parts.length < 3) return false;
@@ -372,18 +409,24 @@ const SKELETON_COUNT = 10;
             return true;
           });
         }
-        const hit =
-          match(activity, mood)   // Tier 1: exact 3/3
-          ?? match(activity, "*") // Tier 2: activity + style (any mood)
-          ?? match("*", mood)     // Tier 3: mood + style (any activity)
-          ?? match("*", "*");     // Tier 4: style only — last resort
+        return match(activity, mood)   // Tier 1: exact 3/3
+          ?? match(activity, "*")      // Tier 2: activity + style (any mood)
+          ?? match("*", mood)          // Tier 3: mood + style (any activity)
+          ?? match("*", "*");          // Tier 4: style only — last resort
+      }
+
+      function findStyleSample(activity: string, mood: string, style: string): string | null {
+        const catHit = findStyleSampleIn(catStyleSampleFiles, activity, mood, style);
+        if (catHit) return `/samples/cat/styles/${catHit}`;
+        const hit = findStyleSampleIn(styleSampleFiles, activity, mood, style);
         return hit ? `/samples/styles/${hit}` : null;
       }
 
       function findArtistSample(artist: Artist): string | null {
-        const match = artistSampleFiles.find(
-          (f) => f.replace(/\.[^.]+$/, "") === artist,
-        );
+        const byName = (f: string) => f.replace(/\.[^.]+$/, "") === artist;
+        const catMatch = catArtistSampleFiles.find(byName);
+        if (catMatch) return `/samples/cat/artists/${catMatch}`;
+        const match = artistSampleFiles.find(byName);
         return match ? `/samples/artists/${match}` : null;
       }
 

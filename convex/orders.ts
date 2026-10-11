@@ -48,15 +48,19 @@ export const createPending = internalMutation({
 
     const session = await ctx.db.get(args.sessionId);
     const selectedStyle = session?.selectedStyle ?? args.lineItems[0]?.style;
-    // Snapshot species at the order level. All line items on a single
-    // order are the same pet, so any line's species (or the session's
-    // denormalized top-level species — same value, the session is the
-    // source of truth) is the order's species. The checkout action passes
-    // it on each line item so we don't need to re-read the session here.
+    // Order-level species is only set when every line agrees. The cart is
+    // user-scoped and can mix dog and cat portraits; for a mixed order the
+    // per-line species is the source of truth and the top-level is left
+    // unset rather than mislabelling half the order.
+    const lineSpecies = new Set(
+      args.lineItems.map((li) => li.species).filter((s) => s !== undefined),
+    );
     const orderSpecies =
-      args.lineItems.find((li) => li.species)?.species ??
-      session?.species ??
-      undefined;
+      lineSpecies.size === 1
+        ? [...lineSpecies][0]
+        : lineSpecies.size === 0
+          ? session?.species
+          : undefined;
 
     return await ctx.db.insert("orders", {
       sessionId: args.sessionId,

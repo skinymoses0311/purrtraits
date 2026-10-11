@@ -72,13 +72,9 @@ export const createCheckoutSession = action({
     const currency = cart.currency;
 
     type LineItem = NonNullable<Stripe.Checkout.SessionCreateParams["line_items"]>[number];
-    // Representative species for the whole cart — all line items are the
-    // same pet (one session, one quiz), so we use the first line item that
-    // has species, or undefined if none do. The Stripe product description
-    // then reads "your cat's portrait" rather than "your dog's portrait"
-    // for feline customers.
-    const orderSpecies =
-      cart.items.find((i) => i.species)?.species ?? undefined;
+    // The cart is user-scoped, so it can mix dog and cat portraits from
+    // different sessions. Each line's Stripe description uses that line's
+    // own species ("your cat's portrait" vs "your dog's portrait").
     const lineItems: LineItem[] = cart.items.map(
       (item) => ({
         quantity: item.quantity,
@@ -91,7 +87,7 @@ export const createCheckoutSession = action({
               item.product,
               item.petName,
               item.breed,
-              orderSpecies,
+              item.species,
             ),
           },
         },

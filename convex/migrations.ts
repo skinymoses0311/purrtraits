@@ -5,6 +5,7 @@
 // the wrapping action loops until done.
 
 import { v } from "convex/values";
+import type { FunctionReturnType } from "convex/server";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 
@@ -446,10 +447,8 @@ export const backfillSpecies = internalAction({
     let galleryItemsPatched = 0;
     let cartLinesPatched = 0;
     while (true) {
-      const result = await ctx.runMutation(
-        internal.migrations.backfillSpeciesSessionsPage,
-        { cursor },
-      );
+      const result: FunctionReturnType<typeof internal.migrations.backfillSpeciesSessionsPage> =
+        await ctx.runMutation(internal.migrations.backfillSpeciesSessionsPage, { cursor });
       sessionsScanned += result.sessionsScanned;
       sessionsPatched += result.sessionsPatched;
       generationsPatched += result.generationsPatched;
@@ -464,10 +463,8 @@ export const backfillSpecies = internalAction({
     let lineItemsPatched = 0;
     cursor = null;
     while (true) {
-      const result = await ctx.runMutation(
-        internal.migrations.backfillSpeciesOrdersPage,
-        { cursor },
-      );
+      const result: FunctionReturnType<typeof internal.migrations.backfillSpeciesOrdersPage> =
+        await ctx.runMutation(internal.migrations.backfillSpeciesOrdersPage, { cursor });
       ordersScanned += result.ordersScanned;
       ordersPatched += result.ordersPatched;
       lineItemsPatched += result.lineItemsPatched;
@@ -479,10 +476,8 @@ export const backfillSpecies = internalAction({
     let cartsPatched = 0;
     cursor = null;
     while (true) {
-      const result = await ctx.runMutation(
-        internal.migrations.backfillSpeciesCartsPage,
-        { cursor },
-      );
+      const result: FunctionReturnType<typeof internal.migrations.backfillSpeciesCartsPage> =
+        await ctx.runMutation(internal.migrations.backfillSpeciesCartsPage, { cursor });
       cartsScanned += result.cartsScanned;
       cartsPatched += result.cartsPatched;
       if (result.isDone) break;

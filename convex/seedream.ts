@@ -67,6 +67,21 @@ function speciesSwap(
   return prompt
     .replaceAll("the dog no larger", "the cat no larger")
     .replaceAll("the dog small enough", "the cat small enough")
+    // Placements that size the pet against animals already in the painting
+    // ("same scale as the existing hounds"). A cat matched to hound scale
+    // comes out dog-sized, so restate it as smaller than those animals.
+    .replaceAll(
+      "the dog at the same scale as the existing dog on the bank",
+      "the cat at a real cat's scale beside the existing dog on the bank, noticeably smaller than it",
+    )
+    .replaceAll(
+      "the dog at the same scale as the existing hounds",
+      "the cat at a real cat's scale beside the existing hounds, noticeably smaller than them,",
+    )
+    .replaceAll(
+      "the dog at the same scale as the existing dogs",
+      "the cat at a real cat's scale beside the existing dogs, noticeably smaller than them,",
+    )
     .replaceAll("the dog at the same scale", "the cat at the same scale")
     .replaceAll("Render the dog", "Render the cat")
     .replaceAll("a real dog wading", "a real cat wading")
@@ -181,6 +196,15 @@ const ARTWORK_ACTIVITY_TONE: Record<string, string> = {
     "The pet is captured mid-run — all four paws engaged in a clear stride, ears streaming back, eyes forward, tail trailing — the pose itself carries the energy of full-tilt motion.",
 };
 
+// Cat replacements for the tones whose dog phrasing (panting, toy in
+// mouth) reads as canine behaviour. Others are species-neutral.
+const CAT_ARTWORK_ACTIVITY_TONE: Record<string, string> = {
+  playing:
+    "The pet is captured mid-play — batting at something with one raised paw, eyes wide and focused, tail flicking, full of life.",
+  "tongue-out":
+    "The pet is posed sitting alert doing a 'blep' — just the very tip of the tongue poking out between closed lips, eyes bright and engaged — full of unguarded goofy personality.",
+};
+
 type ArtworkContext = {
   slug: string;
   title: string;
@@ -238,10 +262,11 @@ function buildArtworkPrompt(
   // Activity → pose and demeanour. Quiz-derived. Sits immediately after the
   // placement so the location is read first, then how the pet is posed at
   // that location.
-  const activityPart =
-    activity && ARTWORK_ACTIVITY_TONE[activity]
-      ? ` ${ARTWORK_ACTIVITY_TONE[activity]}`
-      : "";
+  const activityTone = activity
+    ? (species === "cat" ? CAT_ARTWORK_ACTIVITY_TONE[activity] : undefined) ??
+      ARTWORK_ACTIVITY_TONE[activity]
+    : undefined;
+  const activityPart = activityTone ? ` ${activityTone}` : "";
   // Mood → expression flavour. Layered onto the pose.
   const moodPart =
     mood && MOOD_HINT[mood] ? ` ${MOOD_HINT[mood]}` : "";

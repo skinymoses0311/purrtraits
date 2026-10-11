@@ -5,6 +5,11 @@ import { scoreStyles } from "./styleScoring";
 import { scoreArtists } from "./artistScoring";
 import { currencyValidator } from "./currency";
 
+// Species stamped onto each generation / gallery item so a portrait keeps
+// its species after clearCurrentFlow wipes quizAnswers (gallery re-buys,
+// cross-session buys). Optional so legacy rows still validate.
+const speciesValidator = v.optional(v.union(v.literal("dog"), v.literal("cat")));
+
 export const create = mutation({
   args: {},
   handler: async (ctx) => {
@@ -274,6 +279,7 @@ export const setGenerations = internalMutation({
         printFileUrl: v.optional(v.string()),
         petName: v.optional(v.string()),
         breed: v.optional(v.string()),
+        species: speciesValidator,
       }),
     ),
   },
@@ -332,6 +338,7 @@ export const appendGalleryItems = internalMutation({
         mood: v.optional(v.string()),
         petName: v.optional(v.string()),
         breed: v.optional(v.string()),
+        species: speciesValidator,
       }),
     ),
   },
@@ -371,6 +378,7 @@ export const useFromGallery = mutation({
           printFileUrl: item.printFileUrl,
           petName: item.petName ?? session.quizAnswers?.name,
           breed: item.breed ?? session.quizAnswers?.breed,
+          species: item.species ?? session.quizAnswers?.species,
         },
       ],
       selectedStyle: item.style,
@@ -426,6 +434,7 @@ export const useFromUserGallery = mutation({
           printFileUrl: item.printFileUrl,
           petName: item.petName ?? source.quizAnswers?.name,
           breed: item.breed ?? source.quizAnswers?.breed,
+          species: item.species ?? source.quizAnswers?.species,
         },
       ],
       selectedStyle: item.style,

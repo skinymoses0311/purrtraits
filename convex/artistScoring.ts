@@ -72,9 +72,12 @@ const AGE: ArtistScoreTable = {
   "1-3": { vangogh: 1, hokusai: 1, mucha: 1 },
   young: { vangogh: 1, hokusai: 1, mucha: 1 },
   kitten: { vangogh: 1, hokusai: 1, mucha: 1 },
+  junior: { vangogh: 1, hokusai: 1, mucha: 1 }, // cat, 6 months – 2 years
   puppy: { vangogh: 1, hokusai: 1, mucha: 1 },
   "8-plus": { rembrandt: 1, vermeer: 1, cassatt: 1 },
   senior: { rembrandt: 1, vermeer: 1, cassatt: 1 },
+  geriatric: { rembrandt: 1, vermeer: 1, cassatt: 1 }, // cat, 15+
+  // cat prime + mature: no bonus (mirrors dog 4-7)
 };
 
 const LIFESTYLE: ArtistScoreTable = {

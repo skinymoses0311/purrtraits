@@ -106,6 +106,22 @@ const ACTIVITY_PROMPTS: Record<string, string> = {
     "The pet is captured mid-stride at full sprint, all four paws engaged in motion, ears streaming back, eyes locked forward, tail trailing. Energetic dynamic full-body action composition with motion suggested by the pose itself and a sense of speed in the surroundings. Set in a bright open outdoor scene — a sunlit meadow, beach, or grassy clearing — wide enough to show the run.",
 };
 
+// Cat replacements for the activities whose dog phrasing would pull a cat
+// render toward canine behaviour (panting, fetching a ball). Activities
+// not listed here read fine for either species and fall through to
+// ACTIVITY_PROMPTS.
+const CAT_ACTIVITY_PROMPTS: Record<string, string> = {
+  playing:
+    "The pet is captured mid-play, batting at a feather wand toy or a ball of yarn with one raised paw, eyes wide and focused, tail flicking. Dynamic full-body composition. Set in a bright open outdoor scene — a sunlit garden lawn, soft meadow, or painterly grassy clearing with hints of greenery and natural light, never inside a home.",
+  "tongue-out":
+    "The pet is sitting upright doing a 'blep' — just the very tip of the tongue poking out between closed lips, eyes bright and full of personality. Centred head-and-shoulders composition with full goofball energy. Set against a clean, brightly-coloured backdrop that lets the joyful expression be the focal point.",
+};
+
+function activityPrompt(activity: string, species: "dog" | "cat" | undefined): string {
+  if (species === "cat" && CAT_ACTIVITY_PROMPTS[activity]) return CAT_ACTIVITY_PROMPTS[activity];
+  return ACTIVITY_PROMPTS[activity] ?? "";
+}
+
 // Exported so the Tab 3 (Seedream) pipeline can layer the same expression
 // flavour onto its medium-led placement prompts. Tab 1/2 reads it locally;
 // keeping a single source of truth means quiz copy stays consistent across
@@ -211,7 +227,7 @@ export function buildPrompt(
   const speciesPrimacyPart = speciesPrimacy ? ` ${speciesPrimacy}` : "";
   // Activity (what the pet is doing) leads — it sets the scene. Style then
   // dictates how that scene is rendered. Mood adds emotional flavour.
-  const activityPart = activity ? ` ${ACTIVITY_PROMPTS[activity] ?? ""}` : "";
+  const activityPart = activity ? ` ${activityPrompt(activity, species)}` : "";
   const moodPart = mood ? ` ${MOOD_HINT[mood] ?? ""}` : "";
   const featurePart = favouriteFeature && FEATURE_EMPHASIS[favouriteFeature]
     ? ` ${FEATURE_EMPHASIS[favouriteFeature]}`
@@ -552,6 +568,7 @@ export const generatePortraits = action({
         ...g,
         petName: session?.quizAnswers?.name,
         breed: session?.quizAnswers?.breed,
+        species: session?.quizAnswers?.species,
       }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
@@ -569,6 +586,7 @@ export const generatePortraits = action({
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
           breed: session?.quizAnswers?.breed,
+          species: session?.quizAnswers?.species,
         })),
       });
       // Once the user has no regens left, the source photos can't be used
@@ -649,6 +667,7 @@ export const regenerate = action({
         ...g,
         petName: session?.quizAnswers?.name,
         breed: session?.quizAnswers?.breed,
+        species: session?.quizAnswers?.species,
       }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
@@ -666,6 +685,7 @@ export const regenerate = action({
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
           breed: session?.quizAnswers?.breed,
+          species: session?.quizAnswers?.species,
         })),
       });
       // Once the user has no regens left, the source photos can't be used
