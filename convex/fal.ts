@@ -552,6 +552,7 @@ export const generatePortraits = action({
         ...g,
         petName: session?.quizAnswers?.name,
         breed: session?.quizAnswers?.breed,
+        species: session?.quizAnswers?.species,
       }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
@@ -569,6 +570,7 @@ export const generatePortraits = action({
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
           breed: session?.quizAnswers?.breed,
+          species: session?.quizAnswers?.species,
         })),
       });
       // Once the user has no regens left, the source photos can't be used
@@ -649,6 +651,7 @@ export const regenerate = action({
         ...g,
         petName: session?.quizAnswers?.name,
         breed: session?.quizAnswers?.breed,
+        species: session?.quizAnswers?.species,
       }));
       await ctx.runMutation(internal.sessions.setGenerations, {
         id: sessionId,
@@ -666,6 +669,7 @@ export const regenerate = action({
           mood: session?.quizAnswers?.mood,
           petName: session?.quizAnswers?.name,
           breed: session?.quizAnswers?.breed,
+          species: session?.quizAnswers?.species,
         })),
       });
       // Once the user has no regens left, the source photos can't be used
