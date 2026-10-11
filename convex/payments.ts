@@ -72,6 +72,9 @@ export const createCheckoutSession = action({
     const currency = cart.currency;
 
     type LineItem = NonNullable<Stripe.Checkout.SessionCreateParams["line_items"]>[number];
+    // The cart is user-scoped, so it can mix dog and cat portraits from
+    // different sessions. Each line's Stripe description uses that line's
+    // own species ("your cat's portrait" vs "your dog's portrait").
     const lineItems: LineItem[] = cart.items.map(
       (item) => ({
         quantity: item.quantity,
@@ -84,6 +87,7 @@ export const createCheckoutSession = action({
               item.product,
               item.petName,
               item.breed,
+              item.species,
             ),
           },
         },
@@ -145,6 +149,7 @@ export const createCheckoutSession = action({
         style: item.style,
         petName: item.petName,
         breed: item.breed,
+        species: item.species,
         quantity: item.quantity,
         unitPriceCents: item.unitPriceCents,
       })),

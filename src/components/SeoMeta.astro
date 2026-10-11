@@ -6,21 +6,38 @@
 // `site` in astro.config.mjs — pages don't need to think about it. Pass
 // `canonical` only for the rare case (paginated views, parameterized URLs)
 // where the auto-derived value is wrong.
+//
+// `species` picks the OG image. The Layout's small client-side snippet
+// (see Layout.astro) also re-reads localStorage on the client and may
+// override the meta after hydration — this prop covers the SSR / static
+// case where the species context is known up front.
 interface Props {
   title: string;
   description: string;
   image?: string;
   noindex?: boolean;
   canonical?: string;
+  species?: "dog" | "cat";
 }
 
 const {
   title,
   description,
-  image = "/og-default.png",
+  image: imageProp,
   noindex = false,
   canonical,
+  species,
 } = Astro.props;
+
+// Default OG image is species-aware. Cold visitors (no species in
+// localStorage) get the dog variant — that's the existing behaviour. A
+// cat session overrides to the cat variant. An explicit `image` prop
+// always wins (it'd be set on pages like /style-pick that want their
+// own artwork preview).
+const speciesDefaultImage = species === "cat"
+  ? "/og-default-cat.png"
+  : "/og-default-dog.png";
+const image = imageProp ?? speciesDefaultImage;
 
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site).href;
 const ogImageUrl = new URL(image, Astro.site).href;

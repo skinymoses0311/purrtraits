@@ -15,6 +15,8 @@ import type * as auth from "../auth.js";
 import type * as breedRender from "../breedRender.js";
 import type * as brevo from "../brevo.js";
 import type * as cart from "../cart.js";
+import type * as catRegression from "../catRegression.js";
+import type * as catRegressionQueries from "../catRegressionQueries.js";
 import type * as currency from "../currency.js";
 import type * as displayLabels from "../displayLabels.js";
 import type * as dogShortlists from "../dogShortlists.js";
@@ -52,6 +54,8 @@ declare const fullApi: ApiFromModules<{
   breedRender: typeof breedRender;
   brevo: typeof brevo;
   cart: typeof cart;
+  catRegression: typeof catRegression;
+  catRegressionQueries: typeof catRegressionQueries;
   currency: typeof currency;
   displayLabels: typeof displayLabels;
   dogShortlists: typeof dogShortlists;

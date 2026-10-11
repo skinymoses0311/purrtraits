@@ -12,7 +12,8 @@
     "astro": "astro",
     "seed:artworks": "tsx scripts/upload-artwork-refs.ts",
     "matrix:render": "tsx scripts/matrix-render.ts",
-    "breed:render": "tsx scripts/breed-render.ts"
+    "breed:render": "tsx scripts/breed-render.ts",
+    "cat:regression": "tsx scripts/cat-regression.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.4",

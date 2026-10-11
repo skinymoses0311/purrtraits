@@ -11,8 +11,22 @@ interface Props {
   noindex?: boolean;
   canonical?: string;
   hideNav?: boolean;
+  // Species is read on the client by the inline snippet below, but pages
+  // that know the species up front (the post-quiz flow, after the species
+  // picker) can pass it here so the SSR / static-rendered OG tag is
+  // already correct. Cold visitors (no `species` passed and no
+  // localStorage value) default to the dog image.
+  species?: "dog" | "cat";
 }
-const { title, description, image, noindex, canonical, hideNav = false } = Astro.props;
+const {
+  title,
+  description,
+  image,
+  noindex,
+  canonical,
+  hideNav = false,
+  species,
+} = Astro.props;
 
 // GTM container ID is env-driven so staging traffic doesn't pollute the prod
 // GA4 / GTM reports. Set PUBLIC_GTM_ID per Vercel environment; leave it unset
@@ -38,9 +52,32 @@ const GTM_ID = import.meta.env.PUBLIC_GTM_ID as string | undefined;
       ezstandalone.cmd = ezstandalone.cmd || [];
     </script>
     <script is:inline src="//ezoicanalytics.com/analytics.js"></script>
-    <SeoMeta {title} {description} {image} {noindex} {canonical}>
+    <SeoMeta {title} {description} {image} {noindex} {canonical} {species}>
       <slot name="jsonld" slot="jsonld" />
     </SeoMeta>
+    <!-- Species-aware OG swap. SSR defaults to the dog image because
+         Astro can't read localStorage at build / SSR time. After
+         hydration, this inline snippet re-reads the value the quiz
+         wrote (`purrtraits.species`) and swaps the og:image +
+         twitter:image meta tags to the cat variant when applicable.
+         Wrapped in try/catch so a localStorage failure (Safari private
+         mode, quota exceeded) never breaks the page. The dog default
+         stays in place if anything goes wrong. -->
+    <script is:inline>
+      (function () {
+        try {
+          var v = localStorage.getItem("purrtraits.species");
+          if (v !== "cat") return;
+          var img = window.location.origin + "/og-default-cat.png";
+          var og = document.querySelector('meta[property="og:image"]');
+          if (og) og.setAttribute("content", img);
+          var tw = document.querySelector('meta[name="twitter:image"]');
+          if (tw) tw.setAttribute("content", img);
+        } catch (e) {
+          /* localStorage unavailable — leave the dog default in place */
+        }
+      })();
+    </script>
     <!-- ?v=2 forces browsers to refetch when the favicon changes; bump it on
          future favicon updates to skip the aggressive favicon cache. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />

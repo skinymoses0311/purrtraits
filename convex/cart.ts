@@ -53,9 +53,13 @@ export const addItem = mutation({
     style: v.string(),
     petName: v.optional(v.string()),
     breed: v.optional(v.string()),
+    // Snapshot of session.quizAnswers.species at add-to-cart time. PDP
+    // reads it from the session and passes it; cart resolves it server-side
+    // only when PDP hasn't yet been refactored.
+    species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
     quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { productId, printFileUrl, displayUrl, style, petName, breed, quantity }) => {
+  handler: async (ctx, { productId, printFileUrl, displayUrl, style, petName, breed, species, quantity }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
     const product = await ctx.db.get(productId);
@@ -73,10 +77,12 @@ export const addItem = mutation({
       const existing = items[existingIndex];
       items[existingIndex] = {
         ...existing,
-        // If the existing line had no name/breed/displayUrl (e.g. legacy add),
-        // fold the newly-supplied values in so the cart UI improves on next view.
+        // If the existing line had no name/breed/displayUrl/species (e.g.
+        // legacy add), fold the newly-supplied values in so the cart UI
+        // improves on next view.
         petName: existing.petName ?? petName,
         breed: existing.breed ?? breed,
+        species: existing.species ?? species,
         displayUrl: existing.displayUrl ?? displayUrl,
         quantity: isDigital ? 1 : existing.quantity + requested,
       };
@@ -88,6 +94,7 @@ export const addItem = mutation({
         style,
         petName,
         breed,
+        species,
         quantity: isDigital ? 1 : requested,
         addedAt: Date.now(),
       });
@@ -207,6 +214,7 @@ export const getWithProducts = query({
         style: line.style,
         petName: line.petName,
         breed: line.breed,
+        species: line.species,
         quantity: line.quantity,
         product,
         unitPriceCents: unitPriceFor(product),
@@ -270,6 +278,7 @@ export const getInternalForCheckout = internalQuery({
         style: line.style,
         petName: line.petName,
         breed: line.breed,
+        species: line.species,
         quantity: line.quantity,
         product,
         unitPriceCents: unitPriceFor(product),

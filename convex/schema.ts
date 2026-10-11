@@ -37,6 +37,11 @@ export default defineSchema({
   // creation time.
   sessions: defineTable({
     userId: v.optional(v.id("users")),
+    // Denormalized top-level species. Mirrors quizAnswers.species at
+    // saveQuiz time (dual-written, single source of truth = quizAnswers).
+    // Lets by_species scans skip the nested-field problem on an
+    // optional `v.object` field. Optional so legacy rows still validate.
+    species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
     // Buyer's selected currency. Set on first visit by /api/geo (Vercel
     // header lookup) and overridden by the footer toggle. Optional so legacy
     // sessions still validate; cart pricing falls back to USD when missing.
@@ -47,6 +52,13 @@ export default defineSchema({
     petPhotoUrls: v.optional(v.array(v.string())),
     quizAnswers: v.optional(
       v.object({
+        // Species (collected first on the v4 picker). Optional in the
+        // validator so legacy sessions still validate; a future deploy will
+        // narrow this to a required field after the backfill migration has
+        // completed. The denormalized top-level `species` field below mirrors
+        // this value at saveQuiz time so by-species queries don't need a
+        // nested-field scan.
+        species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
         // Pet profile (collected first).
         // Optional to keep older sessions valid; new sessions always set them.
         name: v.optional(v.string()),
@@ -93,6 +105,7 @@ export default defineSchema({
           // to one pet. PDP + Stripe copy read these directly.
           petName: v.optional(v.string()),
           breed: v.optional(v.string()),
+          species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
         }),
       ),
     ),
@@ -139,6 +152,7 @@ export default defineSchema({
           mood: v.optional(v.string()),
           petName: v.optional(v.string()),
           breed: v.optional(v.string()),
+          species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
           createdAt: v.number(),
         }),
       ),
@@ -159,10 +173,13 @@ export default defineSchema({
           breed: v.optional(v.string()),
           quantity: v.number(),
           addedAt: v.number(),
+          species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
         }),
       ),
     ),
-  }).index("by_userId", ["userId"]),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_species", ["species"]),
 
   // User-scoped cart — persists across browsers and sessions. One row per
   // signed-in user; created lazily by cart.getOrCreateCart on first write.
@@ -184,6 +201,9 @@ export default defineSchema({
         breed: v.optional(v.string()),
         quantity: v.number(),
         addedAt: v.number(),
+        // Snapshot of session.quizAnswers.species at add-to-cart time.
+        // Optional in the validator so legacy rows still validate.
+        species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
       }),
     ),
   }).index("by_userId", ["userId"]),
@@ -278,6 +298,12 @@ export default defineSchema({
     customerEmail: v.optional(v.string()),
     printFileUrl: v.optional(v.string()),
     selectedStyle: v.optional(v.string()),
+    // Denormalized top-level species. All line items on one order are the
+    // same pet, so we snapshot species from the originating session's
+    // denormalized top-level species at createPending time. Optional in
+    // the validator so legacy orders still validate; future deploy will
+    // narrow after the backfill migration completes.
+    species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
     lineItems: v.optional(
       v.array(
         v.object({
@@ -289,6 +315,7 @@ export default defineSchema({
           breed: v.optional(v.string()),
           quantity: v.number(),
           unitPriceCents: v.number(),
+          species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
         }),
       ),
     ),
@@ -335,7 +362,8 @@ export default defineSchema({
   })
     .index("by_session", ["stripeSessionId"])
     .index("by_gelato", ["gelatoOrderId"])
-    .index("by_userId", ["userId"]),
+    .index("by_userId", ["userId"])
+    .index("by_species", ["species"]),
 
   // Saved shortlists from the public /dog-name-generator page. Deliberately
   // separate from `sessions` (the buying-flow container) so the SEO funnel
@@ -424,4 +452,23 @@ export default defineSchema({
   })
     .index("by_batch", ["batchId"])
     .index("by_batch_job", ["batchId", "artworkSlug", "activity", "mood"]),
+
+  // Offline cat regression suite output. Populated by
+  // convex/catRegression.ts + scripts/cat-regression.ts — same isolation
+  // pattern as matrixRenders: not part of any user-facing flow, kept
+  // separate from sessions/galleryItems so test renders never leak into a
+  // real user's gallery / PDP / cart. One row per (cat photo × style)
+  // render. `petSlug` is the basename of the source photo without
+  // extension; `style` is the STYLE_PROMPTS key.
+  catRegressionRenders: defineTable({
+    batchId: v.string(),
+    petSlug: v.string(),
+    style: v.string(),
+    imageUrl: v.string(),
+    imageStorageId: v.union(v.id("_storage"), v.null()),
+    prompt: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_batch", ["batchId"])
+    .index("by_batch_pet_style", ["batchId", "petSlug", "style"]),
 });

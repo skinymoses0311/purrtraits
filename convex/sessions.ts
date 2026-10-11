@@ -5,6 +5,11 @@ import { scoreStyles } from "./styleScoring";
 import { scoreArtists } from "./artistScoring";
 import { currencyValidator } from "./currency";
 
+// Species stamped onto each generation / gallery item so a portrait keeps
+// its species after clearCurrentFlow wipes quizAnswers (gallery re-buys,
+// cross-session buys). Optional so legacy rows still validate.
+const speciesValidator = v.optional(v.union(v.literal("dog"), v.literal("cat")));
+
 export const create = mutation({
   args: {},
   handler: async (ctx) => {
@@ -157,6 +162,11 @@ export const saveQuiz = mutation({
   args: {
     id: v.id("sessions"),
     answers: v.object({
+      // Required on all new sessions (post-species-picker cutover).
+      // Optional in the validator so legacy sessions (and the in-flight
+      // migration backfill) can still validate. The backend team's
+      // schema migration card will widen this to a required field.
+      species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
       name: v.optional(v.string()),
       // breed is the joined display string for crossbreeds; breeds is the
       // structured array. Both omitted when the user ticks "I'm not sure".
@@ -177,7 +187,18 @@ export const saveQuiz = mutation({
   handler: async (ctx, { id, answers }) => {
     const rankedStyles = scoreStyles(answers);
     const rankedArtists = scoreArtists(answers);
-    await ctx.db.patch(id, { quizAnswers: answers, rankedStyles, rankedArtists });
+    // Dual-write quizAnswers.species onto the denormalized top-level
+    // `species` field in the same patch. Quiz answers are the single source
+    // of truth; the top-level mirror exists so by_species scans can use an
+    // index instead of filtering on a nested field. Idempotent: writing
+    // undefined for the top-level mirror clears it on legacy rows where the
+    // user hasn't picked a species yet (matters for clearCurrentFlow too).
+    await ctx.db.patch(id, {
+      quizAnswers: answers,
+      rankedStyles,
+      rankedArtists,
+      species: answers.species,
+    });
   },
 });
 
@@ -258,6 +279,7 @@ export const setGenerations = internalMutation({
         printFileUrl: v.optional(v.string()),
         petName: v.optional(v.string()),
         breed: v.optional(v.string()),
+        species: speciesValidator,
       }),
     ),
   },
@@ -316,6 +338,7 @@ export const appendGalleryItems = internalMutation({
         mood: v.optional(v.string()),
         petName: v.optional(v.string()),
         breed: v.optional(v.string()),
+        species: speciesValidator,
       }),
     ),
   },
@@ -355,6 +378,7 @@ export const useFromGallery = mutation({
           printFileUrl: item.printFileUrl,
           petName: item.petName ?? session.quizAnswers?.name,
           breed: item.breed ?? session.quizAnswers?.breed,
+          species: item.species ?? session.quizAnswers?.species,
         },
       ],
       selectedStyle: item.style,
@@ -410,6 +434,7 @@ export const useFromUserGallery = mutation({
           printFileUrl: item.printFileUrl,
           petName: item.petName ?? source.quizAnswers?.name,
           breed: item.breed ?? source.quizAnswers?.breed,
+          species: item.species ?? source.quizAnswers?.species,
         },
       ],
       selectedStyle: item.style,
@@ -432,6 +457,7 @@ export const clearCurrentFlow = mutation({
       petPhotoStorageIds: [],
       petPhotoUrls: [],
       quizAnswers: undefined,
+      species: undefined,
       generations: undefined,
       selectedStyle: undefined,
       rankedStyles: undefined,

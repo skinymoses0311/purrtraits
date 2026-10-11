@@ -23,6 +23,7 @@ const lineItemValidator = v.object({
   breed: v.optional(v.string()),
   quantity: v.number(),
   unitPriceCents: v.number(),
+  species: v.optional(v.union(v.literal("dog"), v.literal("cat"))),
 });
 
 // Pre-creates a "pending" order at checkout-session-create time. Cart is
@@ -47,6 +48,19 @@ export const createPending = internalMutation({
 
     const session = await ctx.db.get(args.sessionId);
     const selectedStyle = session?.selectedStyle ?? args.lineItems[0]?.style;
+    // Order-level species is only set when every line agrees. The cart is
+    // user-scoped and can mix dog and cat portraits; for a mixed order the
+    // per-line species is the source of truth and the top-level is left
+    // unset rather than mislabelling half the order.
+    const lineSpecies = new Set(
+      args.lineItems.map((li) => li.species).filter((s) => s !== undefined),
+    );
+    const orderSpecies =
+      lineSpecies.size === 1
+        ? [...lineSpecies][0]
+        : lineSpecies.size === 0
+          ? session?.species
+          : undefined;
 
     return await ctx.db.insert("orders", {
       sessionId: args.sessionId,
@@ -59,6 +73,7 @@ export const createPending = internalMutation({
       lineItems: args.lineItems,
       petName: args.petName,
       selectedStyle,
+      species: orderSpecies,
       status: "pending",
     });
   },
