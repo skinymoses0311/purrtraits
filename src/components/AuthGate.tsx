@@ -17,6 +17,14 @@ const PUBLIC_CONVEX_URL = import.meta.env.PUBLIC_CONVEX_URL as string;
 // event. Cleared as soon as we read it.
 const PENDING_AUTH_KEY = "purrtraits.pendingAuth";
 
+// Upper bound on how long we'll show "Completing sign-in…" while the OAuth
+// `?code=` is exchanged for tokens. The happy path resolves in well under a
+// second; this only matters when the exchange neither succeeds nor settles
+// into an error — e.g. the backend throws while signing the JWT (a malformed
+// JWT_PRIVATE_KEY does exactly this) and the provider's loading state never
+// flips. Without this bound we'd spin on "Completing sign-in…" forever.
+const OAUTH_EXCHANGE_TIMEOUT_MS = 15000;
+
 // Single ConvexReactClient per page load. Module-scoped so the OAuth code
 // exchange runs against the same client the form-based flows used.
 const convex = new ConvexReactClient(PUBLIC_CONVEX_URL);
@@ -83,6 +91,22 @@ function AuthCard({ next }: { next: string }) {
     setHadOauthCode(false);
     setErr("Sign-in didn't complete. Please try again.");
   }, [hadOauthCode, isLoading, isAuthenticated]);
+
+  // Failsafe for when the exchange promise rejects *without* the provider
+  // settling its loading state — the backend throws while minting the JWT, so
+  // `isLoading` stays true and the effect above never fires. Time-box the wait
+  // and fall back to the form with a retryable error instead of hanging on
+  // "Completing sign-in…". On the happy path `isAuthenticated` flips first, so
+  // the effect re-runs and the cleanup clears this timer before it fires.
+  useEffect(() => {
+    if (!hadOauthCode) return;
+    if (isAuthenticated) return;
+    const timer = setTimeout(() => {
+      setHadOauthCode(false);
+      setErr("Sign-in didn't complete. Please try again.");
+    }, OAUTH_EXCHANGE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [hadOauthCode, isAuthenticated]);
 
   // Guard against double-firing: linkAndContinue navigates away, but React
   // may render once more before the navigation actually happens.
