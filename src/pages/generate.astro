@@ -14,6 +14,16 @@ try {
 } catch {
   // Folder doesn't exist — ship without examples; cards fall back to no image.
 }
+
+// Cat equivalents (same naming) for cat sessions; see style-pick.astro.
+let catSampleFiles: string[] = [];
+try {
+  catSampleFiles = readdirSync(join(process.cwd(), "public", "samples", "cat", "styles"))
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort();
+} catch {
+  // No cat samples yet — cat sessions fall back to the dog samples.
+}
 ---
 
 <Layout
@@ -37,6 +47,12 @@ try {
         id="sample-manifest"
         is:inline
         set:html={JSON.stringify(sampleFiles)}
+      />
+      <script
+        type="application/json"
+        id="cat-sample-manifest"
+        is:inline
+        set:html={JSON.stringify(catSampleFiles)}
       />
 
       <div id="error" class="gen__error" hidden>
@@ -169,18 +185,37 @@ try {
         const sampleFiles: string[] = manifestEl
           ? JSON.parse(manifestEl.textContent || "[]")
           : [];
+        // Cat sessions prefer public/samples/cat/styles/, falling back to
+        // the dog sample per style when no cat file exists yet.
+        const catManifestEl = document.getElementById("cat-sample-manifest");
+        const catSampleFiles: string[] =
+          session.quizAnswers!.species === "cat" && catManifestEl
+            ? JSON.parse(catManifestEl.textContent || "[]")
+            : [];
 
         const quizActivity = session.quizAnswers!.activity ?? "";
         const quizMood = session.quizAnswers!.mood ?? "";
+
+        function findSample(activity: string, mood: string, style: string): string | null {
+          const catHit = findSampleIn(catSampleFiles, activity, mood, style);
+          if (catHit) return `/samples/cat/styles/${catHit}`;
+          const hit = findSampleIn(sampleFiles, activity, mood, style);
+          return hit ? `/samples/styles/${hit}` : null;
+        }
 
         // Tiered lookup mirroring style-pick.astro's findStyleSample. Try
         // the user's exact (activity, mood, style); fall back to activity
         // + style (any mood) → mood + style (any activity) → style only
         // (any combo). Filenames are `<activity>_<mood>_<style>` with an
         // optional trailing session-id suffix.
-        function findSample(activity: string, mood: string, style: string): string | null {
+        function findSampleIn(
+          files: string[],
+          activity: string,
+          mood: string,
+          style: string,
+        ): string | undefined {
           function match(aWant: string | "*", mWant: string | "*"): string | undefined {
-            return sampleFiles.find((f) => {
+            return files.find((f) => {
               const base = f.replace(/\.[^.]+$/, "");
               const parts = base.split("_");
               if (parts.length < 3) return false;
@@ -191,12 +226,10 @@ try {
               return true;
             });
           }
-          const hit =
-            match(activity, mood)
+          return match(activity, mood)
             ?? match(activity, "*")
             ?? match("*", mood)
             ?? match("*", "*");
-          return hit ? `/samples/styles/${hit}` : null;
         }
 
         function sampleImg(style: Style, label: string): string {

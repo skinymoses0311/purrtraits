@@ -82,11 +82,13 @@ const AGE: ScoreTable = {
   "1-3": { pop: 1, comic: 1, geometric: 1 },
   young: { pop: 1, comic: 1, geometric: 1 },
   kitten: { pop: 1, comic: 1, geometric: 1 },
+  junior: { pop: 1, comic: 1, geometric: 1 }, // cat, 6 months – 2 years
   puppy: { pop: 1, comic: 1, geometric: 1 },
   // senior buckets
   "8-plus": { oil: 1, sketch: 1, watercolour: 1 },
   senior: { oil: 1, sketch: 1, watercolour: 1 },
-  // 4-7 / adult: no bonus
+  geriatric: { oil: 1, sketch: 1, watercolour: 1 }, // cat, 15+
+  // 4-7 / adult / cat prime + mature: no bonus
 };
 
 const LIFESTYLE: ScoreTable = {

@@ -178,6 +178,25 @@ import Layout from "../layouts/Layout.astro";
       ];
     }
 
+    // Activity. Value keys are shared (the generation prompts are keyed on
+    // them); only the copy branches. convex/fal.ts swaps in cat-specific
+    // prompts for "playing" and "tongue-out" to match.
+    function activityOptions(species: "dog" | "cat"): ChoiceOption[] {
+      const cat = species === "cat";
+      return [
+        { v: "regal", e: "👑", t: "Sitting regally", b: "Crown-on-head energy" },
+        cat
+          ? { v: "playing", e: "🧶", t: "Playing with a toy", b: "Batting at a feather or yarn" }
+          : { v: "playing", e: "🎾", t: "Playing with a toy", b: "Toy or ball in mouth" },
+        { v: "napping", e: "💤", t: "Curled up napping", b: "Soft, cosy, dreaming" },
+        { v: "adventuring", e: "🏔️", t: "On an adventure", b: "Outdoors, exploring" },
+        cat
+          ? { v: "tongue-out", e: "👅", t: "Mid-blep", b: "Tongue tip out, full goofball" }
+          : { v: "tongue-out", e: "👅", t: "Tongue out", b: "Full goofball energy" },
+        { v: "zoomies", e: "💨", t: "Mid-zoomies", b: "Action shot, running" },
+      ];
+    }
+
     function buildSteps(): Step[] {
       const name = petTok();
       const species = answers.species;
@@ -242,14 +261,7 @@ import Layout from "../layouts/Layout.astro";
           key: "activity",
           title: `What should ${name} be doing?`,
           sub: "Pick a vibe — we'll paint them this way in every style.",
-          options: [
-            { v: "regal", e: "👑", t: "Sitting regally", b: "Crown-on-head energy" },
-            { v: "playing", e: "🎾", t: "Playing with a toy", b: "Toy or ball in mouth" },
-            { v: "napping", e: "💤", t: "Curled up napping", b: "Soft, cosy, dreaming" },
-            { v: "adventuring", e: "🏔️", t: "On an adventure", b: "Outdoors, exploring" },
-            { v: "tongue-out", e: "👅", t: "Tongue out", b: "Full goofball energy" },
-            { v: "zoomies", e: "💨", t: "Mid-zoomies", b: "Action shot, running" },
-          ],
+          options: activityOptions(species ?? "dog"),
         },
         {
           kind: "choices",
@@ -308,6 +320,18 @@ import Layout from "../layouts/Layout.astro";
         btn.addEventListener("click", () => {
           const v = btn.dataset.v as "dog" | "cat" | undefined;
           if (v !== "dog" && v !== "cat") return;
+          // Breed lists and age bands differ per species, so a switch has
+          // to drop the answers given under the other species — otherwise
+          // a dog breed or dog age band would sail through to a cat quiz.
+          // Size keys are shared but the kg bands differ, so clear it too.
+          if (answers.species && answers.species !== v) {
+            delete answers.breed;
+            delete answers.breeds;
+            delete answers.age;
+            delete answers.size;
+            breedUi.isCrossbreed = false;
+            breedUi.isUnknown = false;
+          }
           answers.species = v;
           // Persist for the homepage gallery + the Layout-level OG swap.
           // Quota errors are non-fatal — the in-memory `answers.species`

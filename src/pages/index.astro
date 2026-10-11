@@ -1,5 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const homeJsonLd = {
   "@context": "https://schema.org",
@@ -104,27 +106,33 @@ const samples: Record<"styles" | "artists" | "famous", Sample[]> = {
     { name: "A Sunday on La Grande Jatte",    blurb: "Seurat · pointillist park, summer afternoon", src: "/samples/famous/grande_jatte.jpg" },
   ],
 };
-// Cat samples — same shape, placeholder paths under each tab folder.
-// The CMO/brand team will replace the placeholder images
-// (cat-1/2/3.jpg) with the real cat portraits. The 3-card grid + tab
-// structure is unchanged so the layout reuses the existing CSS.
-const catSamples: Record<"styles" | "artists" | "famous", Sample[]> = {
+// Cat samples — same shape as the dog ones, one image per card under
+// public/samples/cat/home/. A tab only swaps to cat cards once ALL its
+// files exist, so a missing image can never render as broken; until then
+// a cat visitor sees that tab's dog samples.
+const catSamplesWanted: Record<"styles" | "artists" | "famous", Sample[]> = {
   styles: [
-    { name: "Oil Painting", blurb: "Rich, textured, classical",   src: "/samples/styles/cat-1.jpg" },
-    { name: "Watercolour",  blurb: "Soft, dreamy, gentle tones",  src: "/samples/styles/cat-2.jpg" },
-    { name: "Pop Art",      blurb: "Bold colours, graphic style", src: "/samples/styles/cat-3.jpg" },
+    { name: "Oil Painting", blurb: "Rich, textured, classical",   src: "/samples/cat/home/styles-oil.jpg" },
+    { name: "Watercolour",  blurb: "Soft, dreamy, gentle tones",  src: "/samples/cat/home/styles-watercolour.jpg" },
+    { name: "Pop Art",      blurb: "Bold colours, graphic style", src: "/samples/cat/home/styles-pop.jpg" },
   ],
   artists: [
-    { name: "Monet",   blurb: "Impressionist light, soft dappled colour",    src: "/samples/artists/cat-1.jpg" },
-    { name: "Hokusai", blurb: "Ukiyo-e woodblock, bold line and wave",       src: "/samples/artists/cat-2.jpg" },
-    { name: "Klimt",   blurb: "Gold leaf opulence, Art Nouveau pattern",     src: "/samples/artists/cat-3.jpg" },
+    { name: "Monet",   blurb: "Impressionist light, soft dappled colour",    src: "/samples/cat/home/artists-monet.jpg" },
+    { name: "Hokusai", blurb: "Ukiyo-e woodblock, bold line and wave",       src: "/samples/cat/home/artists-hokusai.jpg" },
+    { name: "Klimt",   blurb: "Gold leaf opulence, Art Nouveau pattern",     src: "/samples/cat/home/artists-klimt.jpg" },
   ],
   famous: [
-    { name: "The Starry Night",               blurb: "Van Gogh · swirling cobalt night sky",        src: "/samples/famous/cat-1.jpg" },
-    { name: "The Garden of Earthly Delights", blurb: "Bosch · surreal triptych, dreamlike detail",  src: "/samples/famous/cat-2.jpg" },
-    { name: "A Sunday on La Grande Jatte",    blurb: "Seurat · pointillist park, summer afternoon", src: "/samples/famous/cat-3.jpg" },
+    { name: "The Starry Night",               blurb: "Van Gogh · swirling cobalt night sky",        src: "/samples/cat/home/famous-starry-night.jpg" },
+    { name: "The Garden of Earthly Delights", blurb: "Bosch · surreal triptych, dreamlike detail",  src: "/samples/cat/home/famous-garden-earthly-delights.jpg" },
+    { name: "A Sunday on La Grande Jatte",    blurb: "Seurat · pointillist park, summer afternoon", src: "/samples/cat/home/famous-grande-jatte.jpg" },
   ],
 };
+const catSamples: Partial<Record<"styles" | "artists" | "famous", Sample[]>> =
+  Object.fromEntries(
+    Object.entries(catSamplesWanted).filter(([, cards]) =>
+      cards.every((c) => existsSync(join(process.cwd(), "public", c.src))),
+    ),
+  );
 // Server-rendered default. Astro renders the panel markup at build /
 // SSR time, so a server has no localStorage to read. The cat swap is
 // done client-side below using the `catSamples` data injected into
@@ -211,7 +219,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   <section class="how" id="how">
     <div class="how__inner">
       <p class="section-eyebrow">HOW IT WORKS</p>
-      <h2 class="display how__heading">Five taps to a tail-wagging masterpiece</h2>
+      <h2 class="display how__heading">Five taps to a wall-worthy masterpiece</h2>
 
       <div class="how__row">
         {steps.map((s, i) => (
@@ -556,14 +564,16 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
   // the data) because Astro frontmatter consts are server-only and
   // module scripts can't take define:vars.
   type CatSample = { name: string; blurb: string; src: string };
-  function getCatSamples(): Record<"styles" | "artists" | "famous", CatSample[]> | null {
+  // Only tabs whose cat images all exist are present (see catSamples in
+  // the frontmatter); missing tabs keep their SSR'd dog cards.
+  function getCatSamples(): Partial<Record<"styles" | "artists" | "famous", CatSample[]>> | null {
     const el = document.getElementById("cat-samples-data");
     if (!el) return null;
     try {
-      return JSON.parse(el.textContent || "null") as Record<
+      return JSON.parse(el.textContent || "null") as Partial<Record<
         "styles" | "artists" | "famous",
         CatSample[]
-      >;
+      >>;
     } catch {
       return null;
     }
@@ -592,6 +602,7 @@ const tabs: { key: "styles" | "artists" | "famous"; label: string }[] = [
       const key = panel.dataset.panel as "styles" | "artists" | "famous" | undefined;
       if (!key || !tabKeys.includes(key)) return;
       const data = catSamples[key];
+      if (!data || data.length === 0) return;
       // Re-render the panel body with the cat entries. Keep the panel's
       // own attributes (data-panel, id, aria-labelledby, hidden) so the
       // existing tab handlers keep working.
